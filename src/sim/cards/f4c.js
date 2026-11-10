@@ -21,6 +21,13 @@ export const F4C = {
   roll_rate_dps: 180,            // at roll_rate_at_kt
   roll_rate_at_kt: 400,
 
+  // Where it can touch the ground, measured from the 3D model (models/f4c.glb):
+  // feet from the centre of gravity, [forward, right, down]. The wheels are
+  // where the tyres meet the runway with the gear down; the rest is the
+  // airframe with the gear up. A test fails if these and the model disagree.
+  wheels_ft: { nose: [22.43, 0, 6.56], left: [-1.97, -9.26, 6.56], right: [-1.97, 9.26, 6.56] },
+  airframe_ft: { nose: [31.6, 0, 1.61], belly: [12.48, 0, 1.52], tail: [-24.56, 0, -0.93], wingtip: [-10.96, 19.2, -0.52] },
+
   // Tuned by feel on the phone. The 0..1 ones start in the middle.
   neutral_speed_kt: 350,
   stall_sharpness: 0.5,

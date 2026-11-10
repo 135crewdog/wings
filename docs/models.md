@@ -64,3 +64,7 @@ Save the Blender file and the export side by side in `Wings/Blender/` in Drive, 
 ## What happens to it in the app
 
 Claude Code puts the file at `models/f4c.glb`, reads the wheel positions and the airplane's outline from it into the airplane's card, and re-flies the checkride. If the test finds a rule broken, Claude Code reports exactly what is off for the model chat to fix. The owner gets two rounds of revision on the look, unless he asks for more.
+
+## The model in the app today
+
+`models/f4c.glb` is a stand-in until the owner's own F-4C replaces it: "FREE F-4 Phantom low poly" by Artbor, Creative Commons Attribution 4.0, converted to these rules by `models/convert-standin.mjs`. Its centre of gravity is an estimate. `models/CREDITS.md` says what was changed.

@@ -48,3 +48,5 @@ Then open <http://localhost:8000/>.
 3. The app loads it with Three.js's `GLTFLoader` (`vendor/three/examples/jsm/loaders/`).
 
 A test cube made this trip in milestone 0 and drew in the app shell.
+
+`docs/models.md` says what a model must be. `tests/model.test.js` checks `models/f4c.glb` against it, and checks that the airplane's card has its wheels where the model's are.
