@@ -29,4 +29,13 @@ Then open <http://localhost:8000/>.
 ## How the tools are connected
 
 - **GitHub Actions** runs the tests on every push and pull request (`.github/workflows/test.yml`). On `main`, it publishes the site to GitHub Pages only if they pass (`.github/workflows/pages.yml`).
-- **Codex** reviews every pull request.
+- **Codex** reviews every pull request when it opens. Claude Code fixes what it finds; the owner authorizes each merge.
+- **Google Drive** holds the working files, in the `Wings` folder: `Reference` (photos and drawings), `Blender` (Blender files and exported models) and the `Ideas` doc. Google Drive for desktop syncs the folder to the owner's laptop.
+  - Claude Code reaches it through the **Google Drive connector** (find, create, rename, move and download files) and the **Google Docs connector** (read and edit the text of the Ideas doc).
+- **Blender** is driven only in chats in the owner's Wings Claude project, on his laptop, through the **Blender connector**. Claude Code never uses Blender.
+
+### The path a model takes
+
+1. A model chat builds the model in Blender, saves the `.blend` to `Wings/Blender/` and exports a `.glb` next to it.
+2. Claude Code downloads the `.glb` through the Drive connector and commits it to this repo.
+3. The app loads it with Three.js's `GLTFLoader` (`vendor/three/examples/jsm/loaders/`).
