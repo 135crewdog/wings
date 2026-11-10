@@ -109,17 +109,21 @@ export function separationStep(c, air, sep, dt) {
 /**
  * The lift curve from flight school: straight up to max lift at the stall
  * angle, then a drop onto a flat plate's lift. `sigma` is how stalled the
- * half is. Symmetric, and defined at every angle with no step: past 45
- * degrees the attached part fades the way the plate's does, through zero at
- * 90 and again at 180, so a wing tumbling backward while still partly
- * attached gets no jolt. `CLa` is the lift slope at the Mach number flown;
- * left out, it is the card's low-speed one.
+ * half is. Defined at every angle with no step: past 45 degrees the attached
+ * part fades the way the plate's does, through zero at 90 and again at 180,
+ * so a wing tumbling backward while still partly attached gets no jolt.
+ * `CLa` is the lift slope at the Mach number flown; left out, it is the
+ * card's low-speed one. `flaps` (0 up to 1 down) lifts the curve and its
+ * peak by the card's flapLift, so the stall angle stays where it was.
  */
-export function liftCurve(c, alpha, sigma, CLa = c.CLa) {
-  const a = Math.abs(alpha);
-  const attached = a <= Math.PI / 4 ? Math.min(CLa * a, c.CLmax) : c.CLmax * Math.sin(2 * a);
-  const plate = c.plateLift * Math.sin(2 * a);
-  return (alpha < 0 ? -1 : 1) * ((1 - sigma) * attached + sigma * plate);
+export function liftCurve(c, alpha, sigma, CLa = c.CLa, flaps = 0) {
+  const a = Math.abs(alpha), lift = flaps * c.flapLift;
+  const top = c.CLmax + lift;
+  const attached = a <= Math.PI / 4
+    ? clamp(CLa * alpha + lift, -c.CLmax, top)
+    : (alpha < 0 ? -c.CLmax : top) * Math.sin(2 * a);
+  const plate = (alpha < 0 ? -1 : 1) * c.plateLift * Math.sin(2 * a);
+  return (1 - sigma) * attached + sigma * plate;
 }
 
 /** The buffet cue: 0 in ordinary flight, rising over the last fifth of the way to the stall angle, 1 at it and while stalled. */
@@ -139,7 +143,7 @@ function halfFlow(v, omega, y) {
 export function wingForces(c, air, rho, sep) {
   const y = c.yHalf;
   const flows = [halfFlow(air.Vb, air.omega, y), halfFlow(air.Vb, air.omega, -y)];
-  const curves = flows.map((f, i) => ({ CL: liftCurve(c, f.alpha, sep[i], air.CLa), sigma: sep[i] }));
+  const curves = flows.map((f, i) => ({ CL: liftCurve(c, f.alpha, sep[i], air.CLa, air.flaps ?? 0), sigma: sep[i] }));
 
   // A stalled half that is driving the roll already under way is autorotation.
   // The card's spin tendency scales that drive: 1 leaves the lift curve as it
@@ -229,7 +233,8 @@ export function aeroForces(c, air, ctl, sep = [0, 0]) {
     + c.cmBreak * wing.sigma * clamp(sinA / Math.sin(air.alphaStall), -1, 1);
   const Cn = c.Cnb * beta + c.Cnr * rhat + c.rudder.cn * ctl.rudder - c.aileron.adverseYaw * roll;
 
-  const cd0 = zeroLiftDrag(c, air.mach);
+  // Gear and flaps (air.gear, air.flaps: 0 up to 1 down) add their own drag.
+  const cd0 = zeroLiftDrag(c, air.mach) + (air.gear ?? 0) * c.gearDrag + (air.flaps ?? 0) * c.flapDrag;
   const F = [
     wing.F[0] - qS * cd0 * Vhat[0],
     qS * (CY - cd0 * Vhat[1]),

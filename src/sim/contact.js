@@ -1,4 +1,7 @@
-// From 135crewdog/wings-v1, src/sim/contact.js.
+// From 135crewdog/wings-v1, src/sim/contact.js, with the changes of
+// docs/sim-core-review.md finding 17: the wheel brake is its own control, the
+// nose wheel steers, wheels are there only with the gear down, and only a
+// hard arrival ends a flight.
 // Ground contact. Normal and friction forces at each contact point, and the
 // touchdown check that ends a flight. Pure functions; the ground comes from the caller.
 //
@@ -22,7 +25,7 @@ export function pointState(state, r, ground) {
 }
 
 /** The world-axis force on one point ; zero when it isn't touching. */
-function pointForce(p, ps, state, ground, brakeOn) {
+function pointForce(p, ps, state, ground, brakeOn, steer) {
   if (ps.d <= 0) return null;
   const N = Math.max(0, p.k * ps.d + p.c * ps.dDot);
   if (N === 0) return null;
@@ -33,7 +36,10 @@ function pointForce(p, ps, state, ground, brakeOn) {
   const xw = qrotate(state.q, [1, 0, 0]);
   const flat = Math.hypot(xw[0], xw[1]);
   if (p.wheel && flat > 1e-6) {
-    const er = [xw[0] / flat, xw[1] / flat], es = [er[1], -er[0]];
+    // The nose wheel is turned by the steering angle (positive to the right).
+    const turn = p.steers ? steer : 0, cos = Math.cos(turn), sin = Math.sin(turn);
+    const fwd = [xw[0] / flat, xw[1] / flat];
+    const er = [fwd[0] * cos - fwd[1] * sin, fwd[0] * sin + fwd[1] * cos], es = [er[1], -er[0]];
     const along = vt[0] * er[0] + vt[1] * er[1], across = vt[0] * es[0] + vt[1] * es[1];
     const fr = -(mu.mu_roll + (p.brake && brakeOn ? mu.mu_brake : 0)) * N * sat(along / V_SLIP);
     const fs = -mu.mu_side * N * sat(across / V_SLIP);
@@ -50,13 +56,18 @@ function pointForce(p, ps, state, ground, brakeOn) {
 }
 
 
-/** Total body-axis contact force and moment. */
-export function contactForces(card, state, ground, ctl) {
+/** The points that can touch: the airframe always, the wheels only with the gear down. */
+export const contactPoints = (card, gearDown) => (gearDown ? card.contacts : card.contacts.filter((p) => !p.wheel));
+
+/**
+ * Total body-axis contact force and moment. ctl: { brake, steer } - wheel
+ * brakes on or off, and the nose wheel's steering angle (rad).
+ */
+export function contactForces(card, state, ground, ctl, gearDown = true) {
   const F = [0, 0, 0], M = [0, 0, 0];
-  if (!ground || card.contacts.length === 0) return { F, M };
-  const brakeOn = ctl.brake === true;   // wheel brakes are their own control (wings-v1 tied them to the airbrake)
-  for (const p of card.contacts) {
-    const fw = pointForce(p, pointState(state, p.r, ground), state, ground, brakeOn);
+  if (!ground) return { F, M };
+  for (const p of contactPoints(card, gearDown)) {
+    const fw = pointForce(p, pointState(state, p.r, ground), state, ground, ctl.brake === true, ctl.steer ?? 0);
     if (!fw) continue;
     const fb = qrotateInv(state.q, fw);
     const mb = cross(p.r, fb);
@@ -66,28 +77,27 @@ export function contactForces(card, state, ground, ctl) {
 }
 
 /** Which contact points are inside the ground (d > 0). */
-export function touching(card, state, ground) {
-  if (!ground) return card.contacts.map(() => false);
-  return card.contacts.map((p) => pointState(state, p.r, ground).d > 0);
+export function touching(card, state, ground, gearDown = true) {
+  const points = contactPoints(card, gearDown);
+  if (!ground) return points.map(() => false);
+  return points.map((p) => pointState(state, p.r, ground).d > 0);
 }
 
 /**
  * The touchdown check, after a step from `before` to `after`: a point that wasn't touching
- * and now is has touched down. Its speeds are the ones it arrived with, measured in `before`, the
- * last state before contact; within the step the contact's damping has already slowed it.
+ * and now is has touched down. Its sink rate is the one it arrived with, measured in `before`,
+ * the last state before contact; within the step the contact's damping has already slowed it.
+ * Only a hard arrival is a crash: scrapes, slides and wingtip touches survive.
  * Returns null, or the crash: { point, reason, value }.
  */
-export function crashCheck(card, before, after, ground, wasTouching) {
+export function crashCheck(card, before, after, ground, wasTouching, gearDown = true) {
   if (!ground) return null;
-  for (let i = 0; i < card.contacts.length; i++) {
-    const p = card.contacts[i];
+  const points = contactPoints(card, gearDown);
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
     if (wasTouching[i] || pointState(after, p.r, ground).d <= 0) continue;
-    const arrival = pointState(before, p.r, ground);
-    if (p.wheel && arrival.dDot > card.crash.wheelSink)
-      return { point: p.name, reason: "wheel sink rate", value: arrival.dDot };
-    const slide = Math.hypot(arrival.vw[0], arrival.vw[1]);
-    if (!p.wheel && slide > card.crash.skidSpeed)
-      return { point: p.name, reason: "skid speed along the ground", value: slide };
+    const sink = pointState(before, p.r, ground).dDot;
+    if (sink > (p.wheel ? card.crash.wheelSink : card.crash.bodySink)) return { point: p.name, reason: 'hard impact', value: sink };
   }
   return null;
 }
