@@ -4,7 +4,7 @@
 // never calls skipWaiting() on its own; the app offers the update and posts
 // "skip-waiting" when the pilot accepts.
 
-const VERSION = '0.0.5';   // the same value as APP_VERSION in src/version.js
+const VERSION = '0.0.6';   // the same value as APP_VERSION in src/version.js
 const CACHE = `wings-${VERSION}`;
 const FILES = [
   './',
@@ -19,6 +19,7 @@ const FILES = [
   './src/version.js',
   './src/flight.js',
   './src/field.js',
+  './src/input/tilt.js',
   './src/render/aircraft.js',
   './src/render/camera.js',
   './src/render/frames.js',
@@ -34,6 +35,7 @@ const FILES = [
   './src/sim/sim.js',
   './src/sim/trim.js',
   './src/sim/vec.js',
+  './src/ui/throttle.js',
   './vendor/three/build/three.module.js',
   './vendor/three/build/three.core.js',
   './vendor/three/examples/jsm/loaders/GLTFLoader.js',

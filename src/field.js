@@ -39,6 +39,9 @@ export function onGround(card, { kt = 0, sink = 0, pitch = 0, roll = 0, gear = t
   };
 }
 
+/** How a flight starts: parked, gear and flaps down, brakes on, engine at idle. */
+export const PARKED = Object.freeze({ elevator: 0, aileron: 0, throttle: 0, gear: true, flaps: true, brake: true });
+
 /** Where a flight starts: on the runway numbers at the south end, pointing north. */
 export function startState(card) {
   return onGround(card, { north: -FIELD.runway.length / 2 + FIELD.startBack, height: FIELD.height });
