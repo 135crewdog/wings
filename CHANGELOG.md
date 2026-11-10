@@ -2,6 +2,12 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.6
+
+- First flight. Tap Fly, and the F-4 flies: tilt the phone for the stick, slide the throttle on the left edge, and tap Gear, Flaps and Brakes on the right.
+- A pause button, with Resume, Restart and Recenter. The flight pauses by itself when the app is left or the phone is turned.
+- A hard crash ends the flight; Restart puts the jet back on the runway.
+
 ## 0.0.5
 
 - The F-4 sits on a runway, seen from behind: the test field for first flight. The look-around view, with the parts moving by themselves, is gone.

@@ -17,8 +17,54 @@
 </head>
 <body>
   <canvas id="view"></canvas>
-  <p id="label">Wings <span id="version"></span> <span id="credit">F-4 model by Artbor, CC BY 4.0</span></p>
-  <button id="update" hidden>New version, tap to update</button>
+
+  <div id="controls" hidden>
+    <div id="throttle" class="throttle" role="slider" aria-label="Throttle" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="track"><div class="mil"></div><div class="thumb"></div></div>
+    </div>
+    <button id="pause" aria-label="Pause">II</button>
+    <div id="toggles">
+      <button id="gear"></button>
+      <button id="flaps"></button>
+      <button id="brake"></button>
+    </div>
+  </div>
+
+  <section id="screen-start" class="screen">
+    <div class="card">
+      <h1>Wings</h1>
+      <p class="sub">Hold the phone like a steering wheel.</p>
+      <button id="fly" class="btn primary" disabled>Fly</button>
+      <button class="btn update" hidden>New version, tap to update</button>
+      <p class="about">Wings <span class="version"></span> · F-4 model by Artbor, CC BY 4.0</p>
+    </div>
+  </section>
+
+  <section id="screen-pause" class="screen" hidden>
+    <div class="card">
+      <h2>Paused</h2>
+      <button id="resume" class="btn primary">Resume</button>
+      <button id="restart" class="btn">Restart</button>
+      <button id="recenter" class="btn">Recenter</button>
+      <button class="btn update" hidden>New version, tap to update</button>
+      <p class="about">Wings <span class="version"></span> · F-4 model by Artbor, CC BY 4.0</p>
+    </div>
+  </section>
+
+  <section id="screen-crashed" class="screen" hidden>
+    <div class="card">
+      <h2>Crashed</h2>
+      <button id="crash-restart" class="btn primary">Restart</button>
+      <button class="btn update" hidden>New version, tap to update</button>
+    </div>
+  </section>
+
+  <section id="screen-denied" class="screen" hidden>
+    <div class="card">
+      <h2>Motion access denied</h2>
+      <p>Wings is flown by tilting the phone, so it needs motion access. Close the app completely, open it again, tap Fly and choose Allow.</p>
+    </div>
+  </section>
 
   <section id="rotate">
     <h1>Rotate your phone</h1>

@@ -6,7 +6,9 @@ import { deriveCard, FT, DEG } from '../src/sim/card.js';
 import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT, stepsFor } from '../src/sim/sim.js';
 import { qfromEuler, qrotate, qtoEuler } from '../src/sim/vec.js';
-import { FIELD, fieldGround, startState } from '../src/field.js';
+import { FIELD, PARKED, fieldGround, startState } from '../src/field.js';
+import { fly } from './fly.js';
+import { circuit } from './circuit.js';
 import { attitudeToThree, toThree } from '../src/render/frames.js';
 
 const near = (a, b, tolerance, what) => assert.ok(Math.abs(a - b) <= tolerance, `${what}: ${a} vs ${b}`);
@@ -14,10 +16,9 @@ const near = (a, b, tolerance, what) => assert.ok(Math.abs(a - b) <= tolerance, 
 test('at the start the jet sits still on its wheels on the runway numbers, pointing down the runway', () => {
   const card = deriveCard(F4C);
   const sim = new Sim(card, startState(card), { ground: fieldGround(), gear: true, flaps: true });
-  const parked = { throttle: 0, gear: true, flaps: true, brake: true };
-  for (let i = 0; i < 5 / DT; i++) sim.step(parked);
+  for (let i = 0; i < 5 / DT; i++) sim.step(PARKED);
   const settled = { x: [...sim.state.x], euler: qtoEuler(sim.state.q) };
-  for (let i = 0; i < 30 / DT; i++) sim.step(parked);
+  for (let i = 0; i < 30 / DT; i++) sim.step(PARKED);
   const moved = Math.hypot(...sim.state.x.map((x, i) => x - settled.x[i]));
   const euler = qtoEuler(sim.state.q);
   const ahead = (FIELD.runway.length / 2 - sim.state.x[0]) / FT;
@@ -62,4 +63,27 @@ test('the loop takes fixed steps: none are lost, and a long frame is cut short',
   const long = stepsFor(0, 0.25);
   assert.equal(long.steps, 8, 'a quarter-second frame takes 8 steps, not 30');
   assert.ok(long.carry < DT, 'and the rest is dropped');
+});
+
+test('a whole flight through the controls the app gives the player: take off, fly a circuit, land and stop on the runway', () => {
+  const card = deriveCard(F4C);
+  const sim = new Sim(card, startState(card), { ground: fieldGround(), gear: true, flaps: true });
+  for (let t = 0; t < 3; t += DT) sim.step(PARKED);   // as the app does before a flight
+  const pilot = circuit(), released = sim.t;
+  const log = fly(sim, 480, pilot, 1);
+  const e = pilot.events, half = FIELD.runway.length / 2, edge = FIELD.runway.width / 2;
+  assert.equal(sim.crashed, null, 'no crash');
+  for (const name of ['liftoff', 'base', 'flare', 'touchdown', 'stopped']) assert.ok(e[name], `the flight reached: ${name}`);
+  const along = (m) => Math.round((m + half) / FT);   // feet from the south end of the runway
+  const highest = Math.max(...log.map((r) => r.ft)), fastest = Math.max(...log.map((r) => r.kias));
+  console.log(`  lifts off at ${e.liftoff.kias.toFixed(0)} kt, ${along(e.liftoff.north)} ft down the runway, ${(e.liftoff.t - released).toFixed(0)} s after brake release`);
+  console.log(`  circuit: up to ${Math.round(highest)} ft and ${Math.round(fastest)} kt, ${(Math.max(...log.map((r) => r.east)) / 1852).toFixed(1)} nm wide; turns final ${(-(e.base.north + half) / 1852).toFixed(1)} nm out`);
+  console.log(`  touches down at ${e.touchdown.kias.toFixed(0)} kt, ${along(e.touchdown.north)} ft past the threshold, ${Math.abs(e.touchdown.east / FT).toFixed(0)} ft off the centreline`);
+  console.log(`  stops ${along(e.stopped.north)} ft down the runway, ${Math.round((e.stopped.north - e.touchdown.north) / FT)} ft after touchdown; the flight took ${((e.stopped.t - released) / 60).toFixed(1)} min`);
+  assert.ok(Math.abs(e.liftoff.north) < half, 'it lifts off before the end of the runway');
+  for (const name of ['touchdown', 'stopped']) {
+    assert.ok(Math.abs(e[name].north) < half && Math.abs(e[name].east) < edge, `${name} is on the runway`);
+  }
+  assert.ok(e.touchdown.north < 0, 'it touches down in the first half');
+  assert.ok(log.every((r) => !r.onGround || Math.abs(r.east) < edge), 'it never leaves the runway on the ground');
 });

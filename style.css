@@ -1,5 +1,5 @@
-/* Wings. The airplane on its field, the app's name and version in a
-   corner, the update offer, and the rotate screen. The platform rules (no scrolling,
+/* Wings. The flight, the controls over it, the screens (which carry the
+   name, version and update offer), and the rotate screen. The platform rules (no scrolling,
    zooming or selecting; everything inside the safe area) are from Rage's
    style.css. */
 
@@ -20,21 +20,60 @@ body { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 /* the flight: the whole screen */
 #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
-/* the name and version, bottom left, inside the safe area; the stand-in model's credit beside them */
-#label {
-  position: absolute; margin: 0;
-  left: calc(env(safe-area-inset-left, 0px) + 16px); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  font-size: 15px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); pointer-events: none;
-}
-#credit { margin-left: 10px; font-size: 12px; opacity: 0.85; }
+/* the controls, shown while flying, inside the safe area. Touches between them fall through. */
+#controls { position: absolute; inset: 0; pointer-events: none; }
+button { font: inherit; color: inherit; border: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button:active { opacity: 0.6; }
 
-/* the update offer, bottom right */
-#update {
-  position: absolute; border: 0; border-radius: 12px; padding: 12px 16px;
-  right: calc(env(safe-area-inset-right, 0px) + 16px); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  font: inherit; color: #fff; background: #007aff; touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+/* the throttle: the left edge (after Rage's) */
+.throttle {
+  position: absolute; left: calc(env(safe-area-inset-left, 0px) + 10px); width: 44px;
+  top: calc(env(safe-area-inset-top, 0px) + 28px); bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+  pointer-events: auto; touch-action: none;
 }
+.throttle .track { position: absolute; left: 50%; top: 0; bottom: 0; width: 6px; margin-left: -3px; border-radius: 3px; background: rgba(255, 255, 255, 0.3); }
+.throttle .mil { position: absolute; left: -9px; right: -9px; height: 2px; margin-top: -1px; background: rgba(255, 255, 255, 0.8); }
+.throttle .thumb {
+  position: absolute; left: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 15px;
+  background: rgba(255, 255, 255, 0.9); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.throttle.burner .thumb { background: #ff9f0a; }
+
+/* pause: top right */
+#pause {
+  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); top: calc(env(safe-area-inset-top, 0px) + 10px);
+  width: 40px; height: 40px; border-radius: 20px; background: rgba(0, 0, 0, 0.3);
+  font-size: 13px; font-weight: 700; letter-spacing: -1px; pointer-events: auto;
+}
+
+/* gear, flaps, brakes: the right edge. Lit when down or on. */
+#toggles {
+  position: absolute; right: calc(env(safe-area-inset-right, 0px) + 14px); bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+  display: flex; flex-direction: column; gap: 10px; pointer-events: auto;
+}
+#toggles button {
+  width: 104px; height: 44px; border-radius: 10px; font-size: 14px; font-weight: 600;
+  background: rgba(0, 0, 0, 0.3); color: rgba(255, 255, 255, 0.85);
+}
+#toggles button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.9); color: #1c1c1e; }
+
+/* the screens: start, pause, crashed, motion denied. The flight shows behind them. */
+.screen {
+  position: absolute; inset: 0; box-sizing: border-box; display: flex; background: rgba(0, 0, 0, 0.35);
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) calc(env(safe-area-inset-right, 0px) + 16px)
+           calc(env(safe-area-inset-bottom, 0px) + 12px) calc(env(safe-area-inset-left, 0px) + 16px);
+}
+.card {
+  width: min(320px, 100%); margin: 0 auto auto; box-sizing: border-box; padding: 14px 16px; border-radius: 14px;
+  display: flex; flex-direction: column; gap: 8px; text-align: center; background: rgba(28, 28, 30, 0.88);
+}
+.card h1 { margin: 0; font-size: 28px; }
+.card h2 { margin: 0; font-size: 17px; }
+.card p { margin: 0; }
+.card .sub, .card .about { font-size: 13px; color: #aeaeb2; }
+.btn { width: 100%; padding: 11px 16px; border-radius: 12px; font-size: 17px; font-weight: 600; background: rgba(255, 255, 255, 0.16); }
+.btn.primary, .btn.update { background: #007aff; }
+.btn:disabled { opacity: 0.4; }
 
 /* the rotate screen: iOS ignores orientation lock, so portrait gets this */
 #rotate {
