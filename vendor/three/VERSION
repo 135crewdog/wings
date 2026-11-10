@@ -1,1 +1,2 @@
 0.187.0 (r187), from npm pack three@0.187.0
+Only the files the app needs: build/ and, from examples/jsm/, GLTFLoader and the two utilities it imports.

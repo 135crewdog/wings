@@ -75,7 +75,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 ## Looks
 
 - **Airplanes must look right to a pilot.** The shape and proportions matter; tiny details nobody sees from the chase camera don't. Two rounds of revision per model, unless the owner asks for more.
-- **3D models are built in separate Claude chats, not by Claude Code.** In a Wings project chat on the owner's laptop, Claude drives his visible Blender through the Blender connector, never a hidden or background copy. The chat saves the Blender file and exports the `.glb` to `Wings/Blender/` in Drive. Claude Code moves the `.glb` into this repo and puts it in the app.
+- **3D models are built in separate Claude chats, not by Claude Code.** In a Wings project chat on the owner's laptop, Claude drives his visible Blender through the Blender connector, never a hidden or background copy. The chat saves the Blender file and exports the `.glb` to `Wings/Blender/` in Drive. The owner attaches the `.glb` to the Claude Code chat, because the Drive connector can't see files that come from the laptop. Claude Code puts it in this repo and in the app.
 - **`docs/models.md` is the handoff:** what the app needs from a model (scale, which way is forward, which parts move and where they pivot, size budget). Claude Code writes it and keeps it current; the model chats build to it.
 - **Markings:** real aircraft types and real military style (camouflage, national insignia). Tail codes, serials, nose art and units are invented. Airlines, resorts and other brands on the island are invented too.
 
