@@ -24,7 +24,7 @@ export const F4C = {
   // Tuned by feel on the phone. The 0..1 ones start in the middle.
   neutral_speed_kt: 350,
   stall_sharpness: 0.5,
-  nose_drop: 0.5,
+  nose_drop: 0,                  // the F-4 has no clean break: buffet, then a nose-high mush with a high sink rate
   spin_tendency: 0.5,
   gear_drag: 0.5,
   flap_drag: 0.5,

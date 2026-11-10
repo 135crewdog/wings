@@ -55,7 +55,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
   - Tuned by feel on the phone: neutral speed, stall sharpness, nose drop, spin tendency, gear and flap drag.
 
   Claude Code derives every engineering coefficient from these behind the scenes. The owner never sees or sets one.
-- **The stall** follows the lift curve from flight school: straight up to max lift, then a drop. Approaching it, the camera shakes like buffet. A clear nose drop at the break. A sloppy stall in a turn can drop a wing and start a spin. Let go and it recovers.
+- **The stall** follows the lift curve from flight school: straight up to max lift, then a drop. Approaching it, the camera shakes like buffet. How it breaks belongs to the airplane: the card's nose-drop number runs from a nose-high mush with a high sink rate (the F-4) to a clear nose drop. A sloppy stall in a turn can drop a wing and start a spin. Let go and it recovers.
 - **Limits come from the airplane, not a limiter.** Top speed is where thrust meets drag. Elevator power fades with speed, so full tilt gives about the card's g limit at any speed above corner; below corner the wing stalls first. Roll power fades at high speed the same way. No consequence for over-g. Gear and flaps have no limit speeds.
 - **Crashes are forgiving:** only a hard impact ends the flight. Scrapes and wingtip touches survive.
 - **Standard atmosphere,** always a standard day. No wind, weather, thermals or turbulence.

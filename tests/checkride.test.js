@@ -75,7 +75,6 @@ test('the lift curve rises straight to max lift at the stall angle, then drops',
     ['at angle of attack', `${round(stall, 1)} deg`],
     ['lift once stalled, same angle', round(stalled(stall), 2), `a ${round((1 - stalled(stall) / attached(stall)) * 100)}% drop`],
     ['stalled lift at 45 and 90 deg', `${round(stalled(45), 2)}, ${round(stalled(90), 2)}`],
-    ['stays stalled until', `${round(stall - c.stallHold / DEG, 1)} deg`, `${round(c.stallHold / DEG)} deg below the stall angle`],
   ]);
   assert.ok(Math.abs(attached(stall) - c.CLmax) < 1e-9, 'max lift is at the stall angle');
   for (let d = 0; d <= 180; d += 0.25) {
@@ -86,9 +85,13 @@ test('the lift curve rises straight to max lift at the stall angle, then drops',
   // A wing that is not stalled wants to stay that way below the stall angle, and to stall above it.
   assert.equal(separationWanted(c, (stall - 0.1) * DEG, 0), 0);
   assert.ok(separationWanted(c, (stall + 1) * DEG, 0) > 0);
-  // A stalled wing stays stalled just below the stall angle, and lets go well below it.
-  assert.equal(separationWanted(c, (stall - 1) * DEG, 1), 1);
-  assert.equal(separationWanted(c, stall * DEG - c.stallHold - 0.01, 1), 0);
+  // The F-4C mushes: its wing lets go of the stall as soon as the angle is back.
+  assert.equal(c.stallHold, 0);
+  assert.equal(separationWanted(c, (stall - 0.1) * DEG, 1), 0);
+  // An airplane with a clear break stays stalled just below the stall angle, and lets go well below it.
+  const snap = deriveCard({ ...c.pilot, nose_drop: 1 });
+  assert.equal(separationWanted(snap, (stall - 1) * DEG, 1), 1);
+  assert.equal(separationWanted(snap, stall * DEG - snap.stallHold - 0.01, 1), 0);
 });
 
 test('the stall adds no step in the forces', () => {
@@ -116,10 +119,9 @@ test('the stall adds no step in the forces', () => {
   assert.ok(Math.abs(roll(spinny, [1, 1], -1e-8) - roll(spinny, [1, 1], 1e-8)) < 1, 'no step at zero roll rate when stalled');
 });
 
-test('GRADED: clean stall speed', () => {
-  const c = card();
-  // Slow down in level flight at 1 g, low down, until the wing reaches the stall angle.
-  // At the break the pilot freezes the stick where it is.
+// Slow down in level flight at 1 g, low down, until the wing reaches the stall
+// angle; from there the pilot holds the stick exactly where it is.
+function stallStickHeld(c) {
   const sim = airborne(c, { ft: 3000, kt: 260, level: true });
   const hold = holdAltitude(3000);
   let frozen = null;
@@ -134,17 +136,38 @@ test('GRADED: clean stall speed', () => {
   const brk = log[i];
   const next = log.filter((r) => r.t >= brk.t && r.t <= brk.t + 5);
   const lowest = next.reduce((a, r) => (r.pitch < a.pitch ? r : a));
-  const firstBuffet = log.find((r) => r.buffet > 0);
-  table('Stall, clean, slowing in level flight at 3,000 ft', [
+  return { brk, next, lowest, end: next.at(-1), firstBuffet: log.find((r) => r.buffet > 0), noseDrop: brk.pitch - lowest.pitch };
+}
+
+test('GRADED: clean stall speed', () => {
+  const c = card();
+  const { brk, next, end, firstBuffet, noseDrop } = stallStickHeld(c);
+  table('Stall, clean, slowing in level flight at 3,000 ft, then stick held where it was', [
     ['stall speed', `${round(brk.kias, 1)} kt`, `${c.pilot.stall_clean_kt} kt +-5 (GRADED)`],
     ['g at the break', round(brk.g, 2)],
     ['buffet starts', `${round(firstBuffet.kias)} kt`, `${round(firstBuffet.kias - brk.kias)} kt of warning`],
-    ['g just after the break', round(Math.min(...next.map((r) => r.g)), 2)],
-    ['nose drop, stick held where it was', `${round(brk.pitch - lowest.pitch)} deg`, `from ${round(brk.pitch)} to ${round(lowest.pitch)} deg in ${round(lowest.t - brk.t, 1)} s`],
+    ['lowest g in the next 5 s', round(Math.min(...next.map((r) => r.g)), 2)],
+    ['nose, over the next 5 s', `${round(brk.pitch)} to ${round(end.pitch)} deg`, `falls ${round(noseDrop)} deg at most`],
+    ['angle of attack 5 s on', `${round(end.alpha)} deg`, `stall angle ${round(c.alphaStall / DEG)} deg`],
+    ['sink rate 5 s on', `${round(-end.fpm)} ft/min`, `${round(-brk.fpm)} ft/min at the break`],
+    ['speed 5 s on', `${round(end.kias)} kt`],
   ]);
-  assert.ok(brk.pitch - lowest.pitch > 10, 'a clear nose drop at the break');
   assert.ok(Math.abs(brk.g - 1) < 0.05, 'the stall was reached at 1 g');
   assert.ok(Math.abs(brk.kias - c.pilot.stall_clean_kt) <= 5, `stall speed ${brk.kias.toFixed(1)} kt is within 5 kt of the card`);
+});
+
+test('the nose-drop number runs from a mush to a clear break', () => {
+  const c = card();
+  const withNoseDrop = (x) => stallStickHeld(deriveCard({ ...c.pilot, nose_drop: x }));
+  const mush = withNoseDrop(0), snap = withNoseDrop(1);
+  table('The nose-drop feel number, stick held for 5 s after the stall', [
+    ['at 0: nose falls', `${round(mush.noseDrop)} deg`, `sinking ${round(-mush.end.fpm)} ft/min, lowest g ${round(Math.min(...mush.next.map((r) => r.g)), 2)}`],
+    ['at 1: nose falls', `${round(snap.noseDrop)} deg`, `sinking ${round(-snap.end.fpm)} ft/min, lowest g ${round(Math.min(...snap.next.map((r) => r.g)), 2)}`],
+  ]);
+  assert.ok(Math.abs(mush.brk.kias - snap.brk.kias) < 0.5, 'it does not move the stall speed');
+  assert.ok(snap.noseDrop > 10, 'at 1, a clear nose drop at the break');
+  assert.ok(mush.end.pitch > 10 && mush.noseDrop < snap.noseDrop / 2, 'at 0, the nose stays well above the horizon');
+  assert.ok(-mush.end.fpm > -mush.brk.fpm + 500, 'at 0, it sinks instead');
 });
 
 // Unstalled and quiet: no buffet, and no fast roll, for the next two seconds.

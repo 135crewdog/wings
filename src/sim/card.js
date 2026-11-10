@@ -70,11 +70,14 @@ export function deriveCard(pilot) {
     // onto a flat plate's lift, plateLift x sin(2 alpha).
     stallWidth: feel(10, 2, pilot.stall_sharpness) * DEG,
     plateLift: 0.85,
-    // The nose drop. Once stalled, the wing stays stalled until the angle of
-    // attack is this far back below the stall angle, and while stalled the
-    // nose is pushed down with the pitch moment of that much angle of attack.
-    stallHold: feel(4, 12, pilot.nose_drop) * DEG,
-    cmBreak: -CLa * staticMargin * feel(4, 12, pilot.nose_drop) * DEG,
+    // How the stall breaks, from the card's nose-drop number. Once stalled, the
+    // wing stays stalled until the angle of attack is `stallHold` back below
+    // the stall angle, and while stalled the nose is pushed down with the pitch
+    // moment of that much angle of attack. At 0 there is neither: lift just
+    // falls away and the airplane mushes, nose high, sinking. At 1 the break
+    // is a snap with a clear nose drop.
+    stallHold: feel(0, 12, pilot.nose_drop) * DEG,
+    cmBreak: -CLa * staticMargin * feel(0, 12, pilot.nose_drop) * DEG,
     // Each wing half's lift acts this far out. It sets the roll damping:
     // -2 CLa (yHalf / b)^2, about -0.29 here, typical of a fighter.
     yHalf: 0.23 * b,
