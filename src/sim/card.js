@@ -6,6 +6,9 @@
 // Parts marked "placeholder" are stand-ins until the milestone 1 pull request
 // that builds them: the engine and drag (3), the control powers (4) and the
 // ground systems (5).
+//
+// The feel numbers on a card run 0..1 and map onto physical quantities
+// through `feel(low, high, x)`: 0 gives `low`, 1 gives `high`.
 
 import { G0, atmosphere } from './atmosphere.js';
 
@@ -15,6 +18,7 @@ export const KT = 1852 / 3600;         // m/s
 export const DEG = Math.PI / 180;      // rad
 
 const RHO0 = atmosphere(0).rho;
+const feel = (low, high, x) => low + (high - low) * x;
 
 // Radius-of-gyration fractions typical of a jet fighter (Raymer's table):
 // roll on the half span, pitch on the half length, yaw on their mean.
@@ -62,6 +66,24 @@ export function deriveCard(pilot) {
     CLa,
     CLmax,
     alphaStall: CLmax / CLa,
+    // The stall (aero.js): past the stall angle, lift falls over `stallWidth`
+    // onto a flat plate's lift, plateLift x sin(2 alpha).
+    stallWidth: feel(10, 2, pilot.stall_sharpness) * DEG,
+    plateLift: 0.85,
+    // How the stall breaks, from the card's nose-drop number. Once stalled, the
+    // wing stays stalled until the angle of attack is `stallHold` back below
+    // the stall angle, and while stalled the nose is pushed down with the pitch
+    // moment of that much angle of attack. At 0 there is neither: lift just
+    // falls away and the airplane mushes, nose high, sinking. At 1 the break
+    // is a snap with a clear nose drop.
+    stallHold: feel(0, 12, pilot.nose_drop) * DEG,
+    cmBreak: -CLa * staticMargin * feel(0, 12, pilot.nose_drop) * DEG,
+    // Each wing half's lift acts this far out. It sets the roll damping:
+    // -2 CLa (yHalf / b)^2, about -0.29 here, typical of a fighter.
+    yHalf: 0.23 * b,
+    // How strongly a stalled wing half drives the roll it is already in: 1 is
+    // what the lift curve gives by itself, 0 none, 2 double.
+    autorotation: feel(0, 2, pilot.spin_tendency),
     K: 1 / (Math.PI * AR * 0.75),      // induced drag, with a span efficiency typical of a swept wing
     cd0: 0.02,                          // placeholder (3): comes from thrust = drag at top speed
     // speeds, for the checkride
@@ -75,10 +97,7 @@ export function deriveCard(pilot) {
     Cmq: -4,
     CYb: -0.7,
     Clb: -0.08,
-    Clp: -0.3,                          // placeholder (2): the two-half wing replaces it
-    ClrPerCL: 0.25,
     Cnb: 0.12,
-    CnpPerCL: -0.06,
     Cnr: -0.3,
     // control power at full deflection: placeholders (4)
     elevator: { cm: 0.1 },

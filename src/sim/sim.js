@@ -5,7 +5,7 @@
 // ground is given. Thrust joins with the engine.
 
 import { atmosphere, G0 } from './atmosphere.js';
-import { aeroForces, airData, groundEffect } from './aero.js';
+import { aeroForces, airData, groundEffect, separationStep } from './aero.js';
 import { rk4Step } from './body.js';
 import { contactForces, crashCheck, touching } from './contact.js';
 import { qrotate, qrotateInv } from './vec.js';
@@ -27,11 +27,11 @@ export function normalizeControls(ctl = {}) {
 }
 
 /** Body-axis force and moment on the airplane at a state: aero, gravity and, with a ground, contact. */
-export function totalForces(card, state, ctl, ground = null) {
+export function totalForces(card, state, ctl, ground = null, sep = [0, 0]) {
   const atm = atmosphere(-state.x[2]);
   const air = airData(card, state.v, state.omega, atm);
   if (ground) air.ge = groundEffect(-state.x[2] - ground.heightAt(state.x[0], state.x[1]), card.b);
-  const aero = aeroForces(card, air, ctl);
+  const aero = aeroForces(card, air, ctl, sep);
   const contact = contactForces(card, state, ground, ctl);
   const g = qrotateInv(state.q, G_W);
   const F = [0, 1, 2].map((i) => aero.F[i] + contact.F[i] + card.m * g[i]);
@@ -54,6 +54,7 @@ export class Sim {
     this.state = state;
     this.ground = ground;
     this.t = 0;
+    this.sep = [0, 0];     // how stalled each wing half is, right then left, 0..1
     this.crashed = null;   // set once: by the touchdown check, or by the safety net
     this.touching = touching(card, state, ground);
   }
@@ -62,7 +63,7 @@ export class Sim {
   step(controls) {
     if (this.crashed) return this.state;
     const ctl = normalizeControls(controls);
-    const forces = (s) => totalForces(this.card, s, ctl, this.ground);
+    const forces = (s) => totalForces(this.card, s, ctl, this.ground, this.sep);
     const before = this.state;
     const after = rk4Step(before, this.t, DT, forces, this.card.m, this.card.I);
     // The safety net: a state that is no longer a number ends the flight on the
@@ -74,6 +75,8 @@ export class Sim {
     after.omega = after.omega.map((w) => clamp(w, -MAX_RATE, MAX_RATE));
     this.state = after;
     this.t += DT;
+    const air = airData(this.card, after.v, after.omega, atmosphere(-after.x[2]));
+    this.sep = separationStep(this.card, air, this.sep, DT);
     if (this.ground) {
       this.crashed = crashCheck(this.card, before, after, this.ground, this.touching);
       this.touching = touching(this.card, after, this.ground);
@@ -83,7 +86,7 @@ export class Sim {
 
   /** Forces, air data and coefficients at the current state, for instruments and tests. */
   observe(controls) {
-    return totalForces(this.card, this.state, normalizeControls(controls), this.ground);
+    return totalForces(this.card, this.state, normalizeControls(controls), this.ground, this.sep);
   }
 
   /** World-axis velocity (m/s): north, east, down. */

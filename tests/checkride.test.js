@@ -5,12 +5,14 @@
 // the pull request that builds what it measures. Feel numbers are only
 // reported.
 //
-// So far: the core flies, with a placeholder lift curve, no engine and
-// placeholder control powers. Nothing is graded against the card yet.
+// So far: the core flies and stalls. There is no engine yet and the control
+// powers are placeholders. Graded: the clean stall speed.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { card, airborne, fly, readout, table, KT, FT, DEG, DT } from './fly.js';
+import { card, airborne, fly, holdAltitude, readout, table, KT, FT, DEG, DT } from './fly.js';
+import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
+import { deriveCard } from '../src/sim/card.js';
 import { Sim, finite, MAX_RATE } from '../src/sim/sim.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
 
@@ -62,6 +64,169 @@ test('hands off, it glides and settles near the neutral speed', () => {
   assert.equal(sim.crashed, null);
   assert.ok(Math.abs(end.roll) < 5, 'wings stay level hands off');
   assert.ok(glideRatio > 3 && glideRatio < 20, 'it glides like an airplane');
+});
+
+test('the lift curve rises straight to max lift at the stall angle, then drops', () => {
+  const c = card();
+  const stall = c.alphaStall / DEG;
+  const attached = (deg) => liftCurve(c, deg * DEG, 0), stalled = (deg) => liftCurve(c, deg * DEG, 1);
+  table('The lift curve', [
+    ['max lift', round(attached(stall), 3), `${round(c.CLmax, 3)} from the stall speed`],
+    ['at angle of attack', `${round(stall, 1)} deg`],
+    ['lift once stalled, same angle', round(stalled(stall), 2), `a ${round((1 - stalled(stall) / attached(stall)) * 100)}% drop`],
+    ['stalled lift at 45 and 90 deg', `${round(stalled(45), 2)}, ${round(stalled(90), 2)}`],
+  ]);
+  assert.ok(Math.abs(attached(stall) - c.CLmax) < 1e-9, 'max lift is at the stall angle');
+  for (let d = 0; d <= 180; d += 0.25) {
+    assert.ok(attached(d) <= c.CLmax + 1e-12, 'attached lift never exceeds max lift');
+    assert.ok(Math.abs(attached(d) + attached(-d)) < 1e-12 && Math.abs(stalled(d) + stalled(-d)) < 1e-12, 'the same upside down');
+  }
+  assert.ok(stalled(stall) < 0.85 * c.CLmax, 'lift drops when the wing stalls');
+  // A wing that is not stalled wants to stay that way below the stall angle, and to stall above it.
+  assert.equal(separationWanted(c, (stall - 0.1) * DEG, 0), 0);
+  assert.ok(separationWanted(c, (stall + 1) * DEG, 0) > 0);
+  // The F-4C mushes: its wing lets go of the stall as soon as the angle is back.
+  assert.equal(c.stallHold, 0);
+  assert.equal(separationWanted(c, (stall - 0.1) * DEG, 1), 0);
+  // An airplane with a clear break stays stalled just below the stall angle, and lets go well below it.
+  const snap = deriveCard({ ...c.pilot, nose_drop: 1 });
+  assert.equal(separationWanted(snap, (stall - 1) * DEG, 1), 1);
+  assert.equal(separationWanted(snap, stall * DEG - snap.stallHold - 0.01, 1), 0);
+});
+
+test('the stall adds no step in the forces', () => {
+  const c = card();
+  const atm = atmosphere(0);
+  // Tumbling through backward flight, through zero and through straight up and
+  // down, however stalled the wing is: forces and moments carry on smoothly.
+  const both = (deg, sep) => {
+    const a = deg * DEG, v = [100 * Math.cos(a), 0, 100 * Math.sin(a)];
+    const { F, M } = aeroForces(c, airData(c, v, [0, 0, 0], atm), { elevator: 0, aileron: 0, rudder: 0 }, sep);
+    return [...F, ...M];
+  };
+  const eps = 1e-6;
+  for (const sep of [[0, 0], [0.5, 0.5], [0.65, 0.56], [1, 1]]) {
+    for (const [lo, hi] of [[180 - eps, -180 + eps], [-eps, eps], [90 - eps, 90 + eps], [-90 - eps, -90 + eps], [45 - eps, 45 + eps]]) {
+      const before = both(lo, sep), after = both(hi, sep);
+      before.forEach((x, k) => assert.ok(Math.abs(x - after[k]) < 1, `no step between ${lo} and ${hi} deg with the wing ${sep} stalled`));
+    }
+  }
+  // The spin tendency belongs to the stall: in attached flight it changes nothing,
+  // and stalled it comes in gradually as the roll rate passes through zero.
+  const withSpin = (x) => deriveCard({ ...c.pilot, spin_tendency: x });
+  const roll = (cc, sep, p) => {
+    const a = 10 * DEG, v = [100 * Math.cos(a), 0, 100 * Math.sin(a)];
+    return aeroForces(cc, airData(cc, v, [p, 0, 0.3], atm), { elevator: 0, aileron: 0, rudder: 0 }, sep).M[0];
+  };
+  for (const p of [-0.2, -1e-8, 0, 1e-8, 0.2]) {
+    assert.equal(roll(withSpin(1), [0, 0], p), roll(withSpin(0), [0, 0], p), 'attached flight ignores the spin tendency');
+  }
+  const spinny = withSpin(1);
+  assert.ok(Math.abs(roll(spinny, [1, 1], -1e-8) - roll(spinny, [1, 1], 1e-8)) < 1, 'no step at zero roll rate when stalled');
+});
+
+// Slow down in level flight at 1 g, low down, until the wing reaches the stall
+// angle; from there the pilot holds the stick exactly where it is.
+function stallStickHeld(c) {
+  const sim = airborne(c, { ft: 3000, kt: 260, level: true });
+  const hold = holdAltitude(3000);
+  let frozen = null;
+  const log = fly(sim, 90, (r) => {
+    if (frozen) return frozen;
+    const ctl = hold(r);
+    if (r.sigma > 0) frozen = { elevator: ctl.elevator };
+    return ctl;
+  }, 0.05);
+  const i = log.findIndex((r) => r.sigma > 0);
+  assert.ok(i > 0, 'it reached the stall');
+  const brk = log[i];
+  const next = log.filter((r) => r.t >= brk.t && r.t <= brk.t + 5);
+  const lowest = next.reduce((a, r) => (r.pitch < a.pitch ? r : a));
+  return { brk, next, lowest, end: next.at(-1), firstBuffet: log.find((r) => r.buffet > 0), noseDrop: brk.pitch - lowest.pitch };
+}
+
+test('GRADED: clean stall speed', () => {
+  const c = card();
+  const { brk, next, end, firstBuffet, noseDrop } = stallStickHeld(c);
+  table('Stall, clean, slowing in level flight at 3,000 ft, then stick held where it was', [
+    ['stall speed', `${round(brk.kias, 1)} kt`, `${c.pilot.stall_clean_kt} kt +-5 (GRADED)`],
+    ['g at the break', round(brk.g, 2)],
+    ['buffet starts', `${round(firstBuffet.kias)} kt`, `${round(firstBuffet.kias - brk.kias)} kt of warning`],
+    ['lowest g in the next 5 s', round(Math.min(...next.map((r) => r.g)), 2)],
+    ['nose, over the next 5 s', `${round(brk.pitch)} to ${round(end.pitch)} deg`, `falls ${round(noseDrop)} deg at most`],
+    ['angle of attack 5 s on', `${round(end.alpha)} deg`, `stall angle ${round(c.alphaStall / DEG)} deg`],
+    ['sink rate 5 s on', `${round(-end.fpm)} ft/min`, `${round(-brk.fpm)} ft/min at the break`],
+    ['speed 5 s on', `${round(end.kias)} kt`],
+  ]);
+  assert.ok(Math.abs(brk.g - 1) < 0.05, 'the stall was reached at 1 g');
+  assert.ok(Math.abs(brk.kias - c.pilot.stall_clean_kt) <= 5, `stall speed ${brk.kias.toFixed(1)} kt is within 5 kt of the card`);
+});
+
+test('the nose-drop number runs from a mush to a clear break', () => {
+  const c = card();
+  const withNoseDrop = (x) => stallStickHeld(deriveCard({ ...c.pilot, nose_drop: x }));
+  const mush = withNoseDrop(0), snap = withNoseDrop(1);
+  table('The nose-drop feel number, stick held for 5 s after the stall', [
+    ['at 0: nose falls', `${round(mush.noseDrop)} deg`, `sinking ${round(-mush.end.fpm)} ft/min, lowest g ${round(Math.min(...mush.next.map((r) => r.g)), 2)}`],
+    ['at 1: nose falls', `${round(snap.noseDrop)} deg`, `sinking ${round(-snap.end.fpm)} ft/min, lowest g ${round(Math.min(...snap.next.map((r) => r.g)), 2)}`],
+  ]);
+  assert.ok(Math.abs(mush.brk.kias - snap.brk.kias) < 0.5, 'it does not move the stall speed');
+  assert.ok(snap.noseDrop > 10, 'at 1, a clear nose drop at the break');
+  assert.ok(mush.end.pitch > 10 && mush.noseDrop < snap.noseDrop / 2, 'at 0, the nose stays well above the horizon');
+  assert.ok(-mush.end.fpm > -mush.brk.fpm + 500, 'at 0, it sinks instead');
+});
+
+// Unstalled and quiet: no buffet, and no fast roll, for the next two seconds.
+const recovered = (log, from) => {
+  const after = log.filter((r) => r.t >= from);
+  const dt = after[1].t - after[0].t, span = Math.round(2 / dt);
+  return after.find((r, i) => i + span < after.length && after.slice(i, i + span).every((x) => x.buffet === 0 && Math.abs(x.rollRate) < 20));
+};
+
+test('let go in a stall and it recovers', () => {
+  const c = card();
+  const sim = airborne(c, { ft: 15000, kt: 300, level: true });
+  const hold = holdAltitude(15000);
+  let brk = null;
+  const log = fly(sim, 200, (r) => {
+    if (!brk && r.sigma > 0.5) brk = r;
+    return brk ? {} : hold(r);
+  }, 0.05);
+  assert.ok(brk, 'it stalled');
+  const rec = recovered(log, brk.t);
+  assert.ok(rec, 'it recovers hands off');
+  const after = log.filter((r) => r.t >= brk.t);
+  table('Stall, then hands off', [
+    ['flying again after', `${round(rec.t - brk.t, 1)} s`],
+    ['height lost by then', `${round(brk.ft - rec.ft)} ft`],
+    ['nose falls to', `${round(Math.min(...after.filter((r) => r.t < brk.t + 10).map((r) => r.pitch)))} deg`, `from ${round(brk.pitch)} deg at the break`],
+    ['wing drop', `${round(Math.max(...after.map((r) => Math.abs(r.roll))))} deg`, 'a straight stall has nothing to drop a wing'],
+  ]);
+  assert.ok(rec.t - brk.t < 10, 'within ten seconds');
+});
+
+test('a sloppy stall in a turn departs, and recovers when let go', () => {
+  const c = card();
+  const rows = [];
+  // In a 45-degree banked turn, haul the stick all the way back and hold it for 15 seconds.
+  const fling = (name, feet) => {
+    const sim = airborne(c, { ft: 25000, kt: 320, level: true, roll: 45 });
+    const log = fly(sim, 75, (r) => (r.t < 15 ? { elevator: 1, ...feet } : {}), 0.05);
+    const held = log.filter((r) => r.t < 15);
+    const rec = recovered(log, 15);
+    assert.equal(sim.crashed, null);
+    assert.ok(rec, `${name}: it recovers hands off`);
+    const rolls = held.reduce((sum, r) => sum + Math.abs(r.rollRate) * 0.05, 0) / 360;
+    rows.push([name, `roll to ${round(Math.max(...held.map((r) => Math.abs(r.rollRate))))} deg/s, ${round(rolls, 1)} rolls, yaw to ${round(Math.max(...held.map((r) => Math.abs(r.yawRate))))} deg/s, angle of attack to ${round(Math.max(...held.map((r) => r.alpha)))} deg`]);
+    rows.push(['  let go', `flying again in ${round(rec.t - 15, 1)} s, ${round(held.at(-1).ft - rec.ft)} ft lower`]);
+    return { held, rec };
+  };
+  const clean = fling('feet on the floor', {});
+  const sloppy = fling('a bootful of rudder', { rudder: 0.3 });
+  fling('everything crossed: full rudder and aileron', { rudder: 1, aileron: 1 });
+  table('Stall in a turn, stick held full back for 15 s', rows);
+  const peak = (run) => Math.max(...run.held.map((r) => Math.abs(r.rollRate)));
+  assert.ok(peak(sloppy) > 3 * peak(clean), 'the sloppy one drops a wing; the coordinated one does not');
 });
 
 test('aerobatics and abuse all end with a real state', () => {
