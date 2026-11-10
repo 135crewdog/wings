@@ -41,4 +41,5 @@ body { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 }
 #rotate h1 { font-size: 22px; margin: 0 0 8px; }
 #rotate p { margin: 0; color: #98989d; }
-@media (orientation: portrait) { #rotate { display: flex; } }
+/* black right to the screen's edges, behind the status bar and home indicator too */
+@media (orientation: portrait) { html, body { background: #000; } #rotate { display: flex; } }
