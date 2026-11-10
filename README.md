@@ -49,4 +49,4 @@ Then open <http://localhost:8000/>.
 
 A test cube made this trip in milestone 0 and drew in the app shell.
 
-`docs/models.md` says what a model must be. `tests/model.test.js` checks `models/f4c.glb` against it, and checks that the airplane's card has its wheels where the model's are.
+The app shows the airplane with `src/render/aircraft.js`, which drives the five motions every model carries. `docs/models.md` says what a model must be. `tests/model.test.js` checks `models/f4c.glb` against it, and checks that the airplane's card has its wheels where the model's are.

@@ -4,7 +4,7 @@
 // never calls skipWaiting() on its own; the app offers the update and posts
 // "skip-waiting" when the pilot accepts.
 
-const VERSION = '0.0.2';   // the same value as APP_VERSION in src/version.js
+const VERSION = '0.0.3';   // the same value as APP_VERSION in src/version.js
 const CACHE = `wings-${VERSION}`;
 const FILES = [
   './',
@@ -17,6 +17,15 @@ const FILES = [
   './icons/icon-512.png',
   './src/main.js',
   './src/version.js',
+  './src/hangar.js',
+  './src/demo.js',
+  './src/render/aircraft.js',
+  './vendor/three/build/three.module.js',
+  './vendor/three/build/three.core.js',
+  './vendor/three/examples/jsm/loaders/GLTFLoader.js',
+  './vendor/three/examples/jsm/utils/BufferGeometryUtils.js',
+  './vendor/three/examples/jsm/utils/SkeletonUtils.js',
+  './models/f4c.glb',
 ];
 
 self.addEventListener('install', (event) => {
