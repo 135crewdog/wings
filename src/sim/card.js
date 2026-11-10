@@ -4,13 +4,14 @@
 // coefficients"). No browser code.
 //
 // Parts marked "placeholder" are stand-ins until the milestone 1 pull request
-// that builds them: the engine and drag (3), the control powers (4) and the
-// ground systems (5).
+// that builds them: the control powers (4) and the ground systems (5).
 //
 // The feel numbers on a card run 0..1 and map onto physical quantities
 // through `feel(low, high, x)`: 0 gives `low`, 1 gives `high`.
 
 import { G0, atmosphere } from './atmosphere.js';
+import { liftSlope, liftDragFactor } from './aero.js';
+import { thrust } from './engine.js';
 
 export const LB = 0.45359237;          // kg
 export const FT = 0.3048;              // m
@@ -23,6 +24,7 @@ const feel = (low, high, x) => low + (high - low) * x;
 // Radius-of-gyration fractions typical of a jet fighter (Raymer's table):
 // roll on the half span, pitch on the half length, yaw on their mean.
 const GYRATION = { roll: 0.23, pitch: 0.38, yaw: 0.52 };
+const SUBSONIC_CD0 = 0.022;   // a clean jet fighter's own drag, below the drag rise
 
 /** The derived card. `pilot` is a card from src/sim/cards/. */
 export function deriveCard(pilot) {
@@ -35,7 +37,7 @@ export function deriveCard(pilot) {
   const AR = (b * b) / S;
 
   // Lift-curve slope of a swept, low-aspect-ratio wing at low speed (per radian).
-  const CLa = (2 * Math.PI * AR) / (2 + Math.sqrt(4 + AR * AR * (1 + Math.tan(sweep) ** 2)));
+  const CLa = liftSlope(AR, sweep, 0);
 
   // Stall speed sets the most lift the wing can make: at the stall, lift equals weight.
   const vStall = pilot.stall_clean_kt * KT;
@@ -46,7 +48,7 @@ export function deriveCard(pilot) {
   const CLneutral = (2 * W) / (RHO0 * S * vNeutral * vNeutral);
   const staticMargin = 0.08;
 
-  return {
+  const c = {
     name: pilot.name,
     pilot,
     // mass and inertia
@@ -85,7 +87,9 @@ export function deriveCard(pilot) {
     // what the lift curve gives by itself, 0 none, 2 double.
     autorotation: feel(0, 2, pilot.spin_tendency),
     K: 1 / (Math.PI * AR * 0.75),      // induced drag, with a span efficiency typical of a swept wing
-    cd0: 0.02,                          // placeholder (3): comes from thrust = drag at top speed
+    // engine: both thrust numbers are at sea level, standing still
+    thrustMil: pilot.thrust_mil_lb * LB * G0,
+    thrustAfterburner: pilot.thrust_afterburner_lb * LB * G0,
     // speeds, for the checkride
     vStall,
     vNeutral,
@@ -107,4 +111,24 @@ export function deriveCard(pilot) {
     contacts: [],
     crash: { wheelSink: Infinity, skidSpeed: Infinity },
   };
+
+  // Top speed is where thrust meets drag, so each top speed on the card says
+  // what the airplane's own drag must be there. A jet whose low top speed is
+  // already supersonic gives two points on the supersonic drag line, and its
+  // subsonic drag is a typical figure for a fighter; otherwise the low top
+  // speed gives the subsonic drag and the high one the supersonic.
+  const high = atmosphere(pilot.top_speed_high_ft * FT);
+  const low = dragAtTopSpeed(c, pilot.top_speed_low_kt * KT, atmosphere(0));
+  const hi = dragAtTopSpeed(c, pilot.top_speed_high_mach * high.a, high);
+  c.drag = low.mach > 0.85
+    ? { subsonic: Math.min(SUBSONIC_CD0, low.cd), at: [low.mach, low.cd, hi.mach, hi.cd] }
+    : { subsonic: low.cd, at: [1.05, hi.cd, Math.max(hi.mach, 1.1), hi.cd] };
+  return c;
+}
+
+/** The zero-lift drag coefficient that makes full-afterburner thrust equal drag in level flight at speed V. */
+function dragAtTopSpeed(c, V, atm) {
+  const mach = V / atm.a, qS = 0.5 * atm.rho * V * V * c.S;
+  const CL = c.W / qS;
+  return { mach, cd: thrust(c, 2, mach, atm.rho / RHO0) / qS - liftDragFactor(c, mach) * CL * CL };
 }

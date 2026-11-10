@@ -6,6 +6,8 @@ import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT } from '../src/sim/sim.js';
 import { qfromEuler, qtoEuler } from '../src/sim/vec.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
+import { calibratedAirspeed } from '../src/sim/airdata.js';
+import { trimLevel } from '../src/sim/trim.js';
 
 export { FT, KT, DEG, DT };
 export const G = 9.80665;
@@ -14,32 +16,55 @@ export const card = () => deriveCard(F4C);
 
 /**
  * A sim in the air at `ft` and `kt` (true), pitched or rolled (degrees). With
- * `level: true` it starts at the angle of attack that holds 1 g, flying level.
+ * `level: true` it starts at the angle of attack for level flight, and
+ * `sim.trim` holds the elevator and throttle that keep it there. The engine
+ * starts at `throttle`: a position 0..1, or 'trim' for the trimmed one.
  */
-export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level = false } = {}) {
+export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level = false, throttle = 0 } = {}) {
   const V = kt * KT;
-  const alpha = level ? (2 * c.W) / (atmosphere(ft * FT).rho * V * V * c.S * c.CLa) : 0;
-  return new Sim(c, {
+  const trim = level ? trimLevel(c, V, ft * FT) : null;
+  const alpha = trim ? trim.alpha : 0;
+  const sim = new Sim(c, {
     x: [0, 0, -ft * FT],
     v: [V * Math.cos(alpha), 0, V * Math.sin(alpha)],
     q: qfromEuler(roll * DEG, pitch * DEG + alpha, 0),
     omega: [0, 0, 0],
-  });
+  }, { throttle: throttle === 'trim' ? trim.throttle : throttle });
+  sim.trim = trim;
+  return sim;
 }
+
+const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+const Q_REF = 0.5 * RHO0 * (250 * KT) ** 2;   // the stick gains below were set at 250 knots
+
+/**
+ * A pilot flying g with the elevator: returns pull(readout, gWanted) → the
+ * elevator position. The stick is moved less the faster the airplane goes,
+ * as a pilot does. `elevator` is where the stick starts.
+ */
+export function gPilot(elevator = 0) {
+  let trim = elevator;
+  return (r, gWanted) => {
+    const soft = Math.min(1, Q_REF / Math.max(r.qbar, 1));
+    const err = gWanted - r.g;
+    trim = clamp(trim + 0.6 * soft * err * DT, -1, 1);
+    return clamp(trim + soft * (0.25 * err - 0.01 * r.pitchRate), -1, 1);
+  };
+}
+
+/** Wings level with the aileron. */
+export const wingsLevel = (r) => clamp(-0.02 * r.roll - 0.01 * r.rollRate, -1, 1);
 
 /**
  * A pilot holding altitude `ft`: returns controls(readout) that fly level with
- * the elevator, wings held level with the aileron. Used to slow down at 1 g.
+ * the elevator, wings held level with the aileron. `elevator` is where the
+ * stick starts. Add a throttle to what it returns to use the engine.
  */
-export function holdAltitude(ft) {
-  let trim = 0;
-  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+export function holdAltitude(ft, elevator = 0) {
+  const pull = gPilot(elevator);
   return (r) => {
     const climb = clamp((ft - r.ft) * 4, -600, 600);            // ft/min wanted, from the altitude error
-    const gWanted = clamp(1 + (climb - r.fpm) / 3000, 0.8, 1.2);
-    const err = gWanted - r.g;
-    trim = clamp(trim + 0.6 * err * DT, -1, 1);
-    return { elevator: trim + 0.25 * err - 0.01 * r.pitchRate, aileron: clamp(-0.02 * r.roll - 0.01 * r.rollRate, -1, 1) };
+    return { elevator: pull(r, clamp(1 + (climb - r.fpm) / 3000, 0.8, 1.2)), aileron: wingsLevel(r) };
   };
 }
 
@@ -51,7 +76,11 @@ export function readout(sim, controls = {}) {
   return {
     t: sim.t,
     kt: obs.air.V / KT,
-    kias: (obs.air.V / KT) * Math.sqrt(obs.air.rho / RHO0),   // what the airspeed needle shows
+    kias: calibratedAirspeed(obs.air.V, atmosphere(-sim.state.x[2])) / KT,   // what the airspeed readout shows
+    mach: obs.air.mach,
+    qbar: obs.air.qbar,
+    thrust: obs.thrust,
+    power: sim.power,
     ft: -sim.state.x[2] / FT,
     fpm: (-vw[2] / FT) * 60,
     alpha: obs.air.alpha / DEG,
