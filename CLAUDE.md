@@ -76,7 +76,8 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 
 - **Airplanes must look right to a pilot.** The shape and proportions matter; tiny details nobody sees from the chase camera don't. Two rounds of revision per model, unless the owner asks for more.
 - **3D models are built in separate Claude chats, not by Claude Code.** In a Wings project chat on the owner's laptop, Claude drives his visible Blender through the Blender connector, never a hidden or background copy. The chat saves the Blender file and exports the `.glb` to `Wings/Blender/` in Drive. The owner attaches the `.glb` to the Claude Code chat, because the Drive connector can't see files that come from the laptop. Claude Code puts it in this repo and in the app.
-- **`docs/models.md` is the handoff:** what the app needs from a model (scale, which way is forward, which parts move and where they pivot, size budget). Claude Code writes it and keeps it current; the model chats build to it.
+- **`docs/models.md` is the handoff:** what the app needs from a model (real size, which way is forward, the origin at the centre of gravity, five named motions for the gear, flaps and controls, named wheels, a size budget). Claude Code writes it and keeps it current; the model chats build to it. A test checks every model against it.
+- **The F-4 in the app is a stand-in** until the owner's own F-4C replaces it: a free model by Artbor, credited beside the version on screen, as its licence requires. The owner's F-4C is a side track, not part of any milestone: when he attaches it, Claude Code swaps it in with one small pull request and removes the credit.
 - **Markings:** real aircraft types and real military style (camouflage, national insignia). Tail codes, serials, nose art and units are invented. Airlines, resorts and other brands on the island are invented too.
 
 ## The world
@@ -107,7 +108,7 @@ One big invented island, sized for a jet: minutes to cross at 500 knots, with at
 |---|---|---|
 | 0 | **Setup.** Repo, Pages, connectors, Drive folder, an empty app shell | A test pull request goes through Codex review, merges and deploys; the empty app installs on the owner's iPhone and takes an update |
 | 1 | **The sim core.** Wings-v1's core, fixed and simplified; the F-4C card; the checkride | The F-4C flies its checkride headless and the results match its card within the tolerances |
-| 2 | **The F-4C model.** Claude Code writes `docs/models.md`; a model chat builds the F-4C to it; Claude Code puts it in the app with moving control surfaces, gear and flaps | The owner approves it in the app |
+| 2 | **An F-4 in the app.** Claude Code writes `docs/models.md`, converts the stand-in F-4 to it, and puts it in the app with moving control surfaces, gear and flaps | The owner approves the stand-in in the app |
 | 3 | **First flight.** The F-4C over a plain test field with a runway, on the phone | The owner takes off, flies and lands the F-4C on his iPhone |
 | 4 | **The island** | Designed first, in its own conversation |
 
@@ -115,6 +116,7 @@ Every milestone starts deliberately in Plan Mode. Claude Code plans each one whe
 
 Notes for planning:
 - **Milestone 1** is large and all headless, so plan it as pull requests in this order: the core copied in, with the safety net and the checkride harness; the lift curve and stall; the engine and Mach; the limits; the ground systems (gear, flaps, brakes, steering, trim). In `docs/sim-core-review.md`, findings 8, 10 and 23–25 are optional. Besides the card's numbers, the checkride reports the g from full back tilt at 250, 350 and 450 knots, and the tilt needed for level flight at 250, 450 and 600 knots, so the feel shows before it reaches the phone.
-- **Milestone 2** starts with `docs/models.md`, before the model chat begins. Reference images go in `Wings/Reference/` in Drive, the Blender file in `Wings/Blender/`, and the finished `.glb` in this repo.
-  - The sim's wheels must be where the model's wheels are. Today the contact points (`contactPoints` in `src/sim/card.js`) are placed by rule of thumb from the jet's length and span. `docs/models.md` takes the wheel and centre-of-gravity positions from the F-4 three-view the model is built from, and the sim's contact points are changed to match.
+- **Milestone 2** starts with `docs/models.md`. Until milestone 3 there is no flying, so the app shows the jet hanging in the sky: drag to look around it, with its gear, flaps and controls moving by themselves in a slow cycle.
+  - The sim's wheels must be where the model's wheels are. The card carries the wheel and airframe contact positions, read from the model file, and a test fails if the two disagree, so a model can't be swapped without the sim following. The stand-in's centre of gravity is an estimate; the owner's F-4C brings the real one.
+- **The owner's F-4C:** reference images go in `Wings/Reference/` in Drive, the Blender file and the exported `.glb` in `Wings/Blender/`, and the finished `.glb` in this repo as `models/f4c.glb`.
 - **Milestone 3:** check the takeoff rotation on the phone. At the end of milestone 1 the nose comes up at 164 knots with the stick full back and the jet lifts off at 172. If that is still late with the real wheel positions, give the elevator more power at low speed; don't move the wheels again.
