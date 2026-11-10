@@ -6,7 +6,6 @@ import * as THREE from 'three';
 import { createAircraft } from './render/aircraft.js';
 import { demoAt } from './demo.js';
 
-const DISTANCE = 26;             // m, camera to airplane
 const DEG = Math.PI / 180;
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -26,11 +25,25 @@ export function startHangar(canvas) {
   scene.add(airplane);
   const camera = new THREE.PerspectiveCamera(30, 1, 1, 500);
 
-  // Looking around: the camera rides a sphere about the airplane.
+  // Looking around: the camera rides a sphere about the middle of the
+  // airplane, far enough out that the whole airplane fits from any angle.
   let around = 35 * DEG, above = 12 * DEG, finger = null;
+  const middle = new THREE.Vector3();
+  let radius = 10, distance = 40;
+  const frame = () => {
+    // The narrower of the view's two angles decides how far back to stand.
+    const vertical = (camera.fov * DEG) / 2, horizontal = Math.atan(Math.tan(vertical) * camera.aspect);
+    distance = (radius * 1.08) / Math.sin(Math.min(vertical, horizontal));
+  };
+  airplane.ready.then(() => {
+    const ball = new THREE.Box3().setFromObject(airplane).getBoundingSphere(new THREE.Sphere());
+    middle.copy(ball.center);
+    radius = ball.radius;
+    frame();
+  });
   const aim = () => {
-    camera.position.set(DISTANCE * Math.sin(around) * Math.cos(above), DISTANCE * Math.sin(above), -DISTANCE * Math.cos(around) * Math.cos(above));
-    camera.lookAt(0, 0, 0);
+    camera.position.set(Math.sin(around) * Math.cos(above), Math.sin(above), -Math.cos(around) * Math.cos(above)).multiplyScalar(distance).add(middle);
+    camera.lookAt(middle);
   };
   canvas.addEventListener('pointerdown', (event) => {
     if (finger) return;
@@ -55,22 +68,30 @@ export function startHangar(canvas) {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    frame();
   };
   new ResizeObserver(fit).observe(canvas);
   fit();
 
   // Draw only while the app is on screen; the demo's clock stops with it.
-  let seconds = 0, last = null;
-  const frame = (now) => {
-    if (document.hidden) { last = null; return; }
+  // One loop at most: a frame still waiting when the app is hidden is
+  // cancelled, so coming back never starts a second loop beside it.
+  let seconds = 0, last = null, waiting = null;
+  const draw = (now) => {
     if (last !== null) seconds += Math.min((now - last) / 1000, 0.1);
     last = now;
     airplane.set(demoAt(seconds));
     aim();
     renderer.render(scene, camera);
-    requestAnimationFrame(frame);
+    waiting = requestAnimationFrame(draw);
   };
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) requestAnimationFrame(frame); });
-  requestAnimationFrame(frame);
+  const run = () => {
+    if (waiting !== null) cancelAnimationFrame(waiting);
+    waiting = null;
+    last = null;
+    if (!document.hidden) waiting = requestAnimationFrame(draw);
+  };
+  document.addEventListener('visibilitychange', run);
+  run();
   return { airplane, ready: airplane.ready };
 }
