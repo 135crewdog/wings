@@ -12,6 +12,12 @@ npm test
 
 The same command runs in GitHub Actions on every push and pull request.
 
+It also flies the **checkride** (`tests/checkride.test.js`): the F-4C flown headless through maneuvers, printing what it did in knots, feet, degrees and g next to its card (`src/sim/cards/f4c.js`). To see just that:
+
+```
+node --test tests/checkride.test.js
+```
+
 ## Running it locally
 
 Any static file server works. From the repo's folder:
