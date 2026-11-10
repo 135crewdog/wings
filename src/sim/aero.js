@@ -14,6 +14,7 @@ import { norm } from './vec.js';
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const smoothstep = (x) => x * x * (3 - 2 * x);
 const STALL_LAG = 0.1;   // s
+const AUTOROTATION_ONSET = 0.005;   // lift-coefficient difference x roll rate (rad/s) at which the spin tendency is fully in
 
 /**
  * How stalled a wing half wants to be at angle of attack alpha, 0 attached to
@@ -70,10 +71,13 @@ export function wingForces(c, air, rho, sep) {
   const curves = flows.map((f, i) => ({ CL: liftCurve(c, f.alpha, sep[i]), sigma: sep[i] }));
 
   // A stalled half that is driving the roll already under way is autorotation.
-  // The card's spin tendency scales that drive: 1 leaves the lift curve as it is.
+  // The card's spin tendency scales that drive: 1 leaves the lift curve as it
+  // is. It comes in with the stall and with the drive, so it changes nothing
+  // in attached flight and has no step at zero roll rate.
   const mean = (curves[0].CL + curves[1].CL) / 2;
   let diff = (curves[0].CL - curves[1].CL) / 2;
-  if (-diff * air.omega[0] > 0) diff *= c.autorotation;   // more lift on the right rolls left
+  const drive = -diff * air.omega[0];   // more lift on the right rolls left
+  diff *= 1 + (c.autorotation - 1) * Math.max(sep[0], sep[1]) * clamp(drive / AUTOROTATION_ONSET, 0, 1);
   const CLs = [mean + diff, mean - diff];
 
   let Fx = 0, Fz = 0, Mx = 0, Mz = 0;
@@ -134,9 +138,12 @@ export function aeroForces(c, air, ctl, sep = [0, 0]) {
   const CY = c.CYb * beta + c.rudder.cy * ctl.rudder;
   const Cl = c.Clb * beta + c.aileron.cl * ctl.aileron + c.rudder.cl * ctl.rudder;
   // sin(alpha) keeps the pitch moment continuous through +-180 degrees. The
-  // break is the nose drop: a nose-down push that comes in with the stall.
-  const Cm = c.Cm0 + c.Cma * Math.sin(alpha) + c.Cmq * qhat + c.elevator.cm * ctl.elevator
-    + c.cmBreak * wing.sigma * Math.sign(alpha);
+  // break is the nose drop: a push toward lower angle of attack that comes in
+  // with the stall, full strength from the stall angle on, fading to nothing
+  // at 0 and at +-180 degrees so that it too has no step.
+  const sinA = Math.sin(alpha);
+  const Cm = c.Cm0 + c.Cma * sinA + c.Cmq * qhat + c.elevator.cm * ctl.elevator
+    + c.cmBreak * wing.sigma * clamp(sinA / Math.sin(c.alphaStall), -1, 1);
   const Cn = c.Cnb * beta + c.Cnr * rhat + c.rudder.cn * ctl.rudder + c.aileron.cn * ctl.aileron;
 
   const F = [

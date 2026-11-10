@@ -11,7 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { card, airborne, fly, holdAltitude, readout, table, KT, FT, DEG, DT } from './fly.js';
-import { liftCurve, separationWanted } from '../src/sim/aero.js';
+import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
+import { deriveCard } from '../src/sim/card.js';
 import { Sim, finite, MAX_RATE } from '../src/sim/sim.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
 
@@ -88,6 +89,31 @@ test('the lift curve rises straight to max lift at the stall angle, then drops',
   // A stalled wing stays stalled just below the stall angle, and lets go well below it.
   assert.equal(separationWanted(c, (stall - 1) * DEG, 1), 1);
   assert.equal(separationWanted(c, stall * DEG - c.stallHold - 0.01, 1), 0);
+});
+
+test('the stall adds no step in the forces', () => {
+  const c = card();
+  const atm = atmosphere(0);
+  const moment = (deg, sep, omega = [0, 0, 0]) => {
+    const a = deg * DEG, v = [100 * Math.cos(a), 0, 100 * Math.sin(a)];
+    return aeroForces(c, airData(c, v, omega, atm), { elevator: 0, aileron: 0, rudder: 0 }, sep).M;
+  };
+  // Tumbling backward through +-180 degrees fully stalled, and through zero: the pitch moment carries on smoothly.
+  for (const [lo, hi] of [[179.999999, -179.999999], [-0.000001, 0.000001]]) {
+    assert.ok(Math.abs(moment(lo, [1, 1])[1] - moment(hi, [1, 1])[1]) < 1, `pitch moment is continuous between ${lo} and ${hi} deg`);
+  }
+  // The spin tendency belongs to the stall: in attached flight it changes nothing,
+  // and stalled it comes in gradually as the roll rate passes through zero.
+  const withSpin = (x) => deriveCard({ ...c.pilot, spin_tendency: x });
+  const roll = (cc, sep, p) => {
+    const a = 10 * DEG, v = [100 * Math.cos(a), 0, 100 * Math.sin(a)];
+    return aeroForces(cc, airData(cc, v, [p, 0, 0.3], atm), { elevator: 0, aileron: 0, rudder: 0 }, sep).M[0];
+  };
+  for (const p of [-0.2, -1e-8, 0, 1e-8, 0.2]) {
+    assert.equal(roll(withSpin(1), [0, 0], p), roll(withSpin(0), [0, 0], p), 'attached flight ignores the spin tendency');
+  }
+  const spinny = withSpin(1);
+  assert.ok(Math.abs(roll(spinny, [1, 1], -1e-8) - roll(spinny, [1, 1], 1e-8)) < 1, 'no step at zero roll rate when stalled');
 });
 
 test('GRADED: clean stall speed', () => {
