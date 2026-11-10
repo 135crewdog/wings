@@ -12,7 +12,7 @@ Changed for Wings, by `convert-standin.mjs`:
 - Its origin moved to an estimated centre of gravity: 0.6 m ahead of the main wheels and 2.0 m above the runway.
 - Its twelve animations replaced by the five motions of `docs/models.md`: gear, flaps, elevator, aileron and rudder. The poses are the author's, except:
   - the rudder, which he gave no motion: it now swings 25° each way about its leading edge;
-  - the ailerons, which his clips move together: they now move opposite ways, with the spoiler rising on the down-going wing;
+  - the ailerons, which his clips move together, up and down: they now move as the real F-4's do, down only, with the spoiler rising on the other wing;
   - the gear legs, which shrink to nothing over the last tenth of the way up, because the wheels are thicker than the wing they fold into.
 - Its tyres renamed `wheel_nose`, `wheel_left` and `wheel_right`.
 
