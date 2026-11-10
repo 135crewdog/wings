@@ -47,6 +47,3 @@ offer.addEventListener('click', () => {
   updateAccepted = true;
   waiting.postMessage('skip-waiting');
 });
-
-// ---- TEMPORARY: the model-path test (removed before merge) ----
-import('./model-test.js');
