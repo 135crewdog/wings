@@ -5,13 +5,13 @@
 // the pull request that builds what it measures. Feel numbers are only
 // reported.
 //
-// So far: the core flies and stalls, with an engine and Mach effects. The
-// control powers are placeholders. Graded: the clean stall speed and both top
-// speeds.
+// So far: the core flies and stalls, with an engine, Mach effects and its
+// limits. Graded: the clean stall speed, both top speeds, the g limit and the
+// roll rate.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { card, airborne, fly, holdAltitude, gPilot, readout, table, KT, FT, DEG, DT } from './fly.js';
+import { card, airborne, fly, holdAltitude, gPilot, levelTurn, degreesTurned, readout, table, KT, FT, DEG, DT } from './fly.js';
 import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
 import { deriveCard } from '../src/sim/card.js';
 import { Sim, finite, MAX_RATE } from '../src/sim/sim.js';
@@ -19,8 +19,9 @@ import { atmosphere } from '../src/sim/atmosphere.js';
 import { powerStep, powerWanted, throttleFor, thrust, MIL_THROTTLE } from '../src/sim/engine.js';
 import { calibratedAirspeed } from '../src/sim/airdata.js';
 import { LB } from '../src/sim/card.js';
+import { trimLevel } from '../src/sim/trim.js';
 
-const round = (x, n = 0) => Number(x.toFixed(n));
+const round = (x, n = 0) => (n < 0 ? Math.round(x / 10 ** -n) * 10 ** -n : Number(x.toFixed(n)));
 
 test('the card derives into sensible numbers', () => {
   const c = card();
@@ -225,9 +226,14 @@ test('a sloppy stall in a turn departs, and recovers when let go', () => {
     rows.push(['  let go', `flying again in ${round(rec.t - 15, 1)} s, ${round(held.at(-1).ft - rec.ft)} ft lower`]);
     return { held, rec };
   };
-  const clean = fling('feet on the floor', {});
-  const sloppy = fling('a bootful of rudder', { rudder: 0.3 });
-  fling('everything crossed: full rudder and aileron', { rudder: 1, aileron: 1 });
+  // The game has no rudder pedal: the feet fly themselves. So the slop a
+  // player can add at the stall is aileron, which is also how the real F-4
+  // departs. The two rudder rows are for the record; nothing in the game can
+  // fly them.
+  const clean = fling('stick straight back', {});
+  const sloppy = fling('and full tilt into the turn', { aileron: 1 });
+  fling('(a bootful of rudder: not possible in the game)', { rudder: 0.3 });
+  fling('(full rudder and aileron: not possible in the game)', { rudder: 1, aileron: 1 });
   table('Stall in a turn, stick held full back for 15 s', rows);
   const peak = (run) => Math.max(...run.held.map((r) => Math.abs(r.rollRate)));
   assert.ok(peak(sloppy) > 3 * peak(clean), 'the sloppy one drops a wing; the coordinated one does not');
@@ -352,6 +358,107 @@ test('performance with the engine', () => {
   ]);
   assert.ok(ab !== null && (dry === null || ab < dry), 'the afterburner accelerates faster than MIL');
   assert.ok(milLow.kt < c.pilot.top_speed_low_kt, 'and MIL is slower than afterburner');
+});
+
+// From trimmed level flight at 1,000 ft at `kias`, snatch the stick to `stick` and hold it for 4 s.
+function snatch(c, kias, stick) {
+  const sim = airborne(c, { ft: 1000, kt: kias * 1.015, level: true, throttle: 'trim' });
+  const log = fly(sim, 4.5, (r) => ({ elevator: r.t < 0.5 ? sim.trim.elevator : stick, throttle: 1 }), 0.02);
+  const top = log.reduce((a, r) => (stick > 0 ? r.g > a.g : r.g < a.g) ? r : a);
+  return { g: top.g, after: top.t - 0.5, kias: top.kias, stalled: Math.max(...log.map((r) => r.sigma)) > 0.5, alpha: Math.max(...log.map((r) => r.alpha)) };
+}
+
+test('GRADED: g limit', () => {
+  const c = card();
+  const limit = c.pilot.g_limit, corner = c.vCorner / KT;
+  const fast = [500, 600, 700].map((kias) => ({ ...snatch(c, kias, 1), kias }));
+  const slow = [250, 350, 450].map((kias) => ({ ...snatch(c, kias, 1), kias }));
+  // And held: full back stick in a level turn in afterburner at 10,000 ft, read a quarter of the way round.
+  const sim = airborne(c, { ft: 10000, kt: 520, level: true, throttle: 1 });
+  const turn = levelTurn(10000, 1);
+  const log = fly(sim, 12, (r) => ({ ...(r.t < 1.5 ? { elevator: sim.trim.elevator, aileron: turn(r).aileron } : turn(r)), throttle: 1 }), 0.1);
+  const turned = degreesTurned(log);
+  const quarter = log[turned.findIndex((d) => d >= 90)];
+  const push = snatch(c, 500, -1);
+  table('Full back tilt, snatched from level flight at 1,000 ft', [
+    ...fast.map((r) => [`at ${round(r.kias, -1)} kt`, `${round(r.g, 1)} g`, `${limit} g +-10% (GRADED), reached in ${round(r.after, 1)} s`]),
+    [`held in a level turn at 10,000 ft, a quarter of the way round at ${round(quarter.kias)} kt`, `${round(quarter.g, 1)} g`, `${limit} g +-10% (GRADED)`],
+    ...slow.map((r) => [`at ${round(r.kias, -1)} kt`, `${round(r.g, 1)} g`, r.stalled ? `the wing stalls first (corner is ${round(corner)} kt)` : 'no stall']),
+    ['full forward tilt at 500 kt', `${round(push.g, 1)} g`],
+  ]);
+  for (const r of fast) assert.ok(Math.abs(r.g / limit - 1) <= 0.1, `full back tilt at ${r.kias} kt gives ${r.g.toFixed(1)} g, within 10% of the card`);
+  assert.ok(Math.abs(quarter.g / limit - 1) <= 0.1, `held in a turn it gives ${quarter.g.toFixed(1)} g, within 10% of the card`);
+  assert.ok(quarter.kias > corner, 'read while still above corner speed');
+  for (const r of slow.filter((x) => x.kias < corner - 50)) {
+    assert.ok(r.stalled, `below corner at ${r.kias} kt the wing stalls first`);
+    assert.ok(r.g < limit * 0.9, 'and gives less than the limit');
+  }
+});
+
+// Full right stick from trimmed level flight; the steady rate is the average from 1.5 to 3 s in.
+function rollAt(c, ft, kt) {
+  const sim = airborne(c, { ft, kt, level: true, throttle: 'trim' });
+  const log = fly(sim, 3, () => ({ elevator: sim.trim.elevator, aileron: 1, throttle: sim.trim.throttle }), 0.02);
+  const late = log.filter((r) => r.t >= 1.5);
+  let rolled = 0, quarterAt = null;
+  for (let i = 1; i < log.length && quarterAt === null; i++) {
+    rolled += log[i].rollRate * (log[i].t - log[i - 1].t);
+    if (rolled >= 90) quarterAt = log[i].t;
+  }
+  return { rate: late.reduce((a, r) => a + r.rollRate, 0) / late.length, quarterAt, kias: log[0].kias, slip: Math.max(...log.map((r) => Math.abs(r.slip))) };
+}
+
+test('GRADED: roll rate', () => {
+  const c = card();
+  const p = c.pilot;
+  const at = rollAt(c, 0, p.roll_rate_at_kt);
+  const rows = [[250, 0], [600, 0], [600, 30000]].map(([kt, ft]) => ({ kt, ft, ...rollAt(c, ft, kt) }));
+  table('Full right tilt from level flight', [
+    [`at ${p.roll_rate_at_kt} kt, sea level`, `${round(at.rate)} deg/s`, `${p.roll_rate_dps} deg/s +-10% (GRADED); 90 deg of bank in ${round(at.quarterAt, 1)} s`],
+    ...rows.map((r) => [`at ${r.kt} kt true, ${r.ft === 0 ? 'sea level' : `${r.ft} ft (${round(r.kias)} indicated)`}`, `${round(r.rate)} deg/s`]),
+  ]);
+  assert.ok(Math.abs(at.rate / p.roll_rate_dps - 1) <= 0.1, `roll rate ${at.rate.toFixed(0)} deg/s is within 10% of the card`);
+  assert.ok(rows[0].rate < at.rate, 'slower, it rolls slower');
+  assert.ok(rows[1].rate < 1.15 * at.rate, 'faster, the roll rate holds instead of growing');
+});
+
+test('hard turns bleed speed, and the feet fly themselves', () => {
+  const c = card();
+  const hard = (throttle) => {
+    const sim = airborne(c, { ft: 10000, kt: 520, level: true, throttle });
+    const turn = levelTurn(10000, 1);
+    const log = fly(sim, 60, (r) => ({ ...(r.t < 1.5 ? { elevator: sim.trim.elevator, aileron: turn(r).aileron } : turn(r)), throttle }), 0.1);
+    const turned = degreesTurned(log);
+    const at = (deg) => { const i = turned.findIndex((d) => d >= deg); return i < 0 ? null : log[i]; };
+    const entry = log.find((r) => r.t >= 1.5);
+    const say = (r) => (r ? `${round(r.t - 1.5)} s, ${round(r.kias)} kt, ${round(r.g, 1)} g` : 'not reached in a minute');
+    assert.equal(sim.crashed, null);
+    assert.ok(Math.max(...log.map((r) => Math.abs(r.ft - 10000))) < 500, 'the turn was level');
+    return { entry, half: at(180), full: at(360), say };
+  };
+  const ab = hard(1), mil = hard(MIL_THROTTLE);
+  const level = [250, 450, 600].map((kt) => [kt, trimLevel(c, kt * KT, 0).elevator]);
+  // Feet: the same full-stick roll with the rudder flown automatically, and with it held still.
+  const feet = (rudder) => {
+    const sim = airborne(c, { ft: 0, kt: 300, level: true, throttle: 'trim' });
+    const log = fly(sim, 2, () => ({ elevator: sim.trim.elevator, aileron: 1, throttle: sim.trim.throttle, rudder }), 0.02);
+    return Math.max(...log.map((r) => Math.abs(r.slip)));
+  };
+  const auto = feet(undefined), still = feet(0);
+  table('Turning (reported, not graded)', [
+    [`full back tilt, level, afterburner, from ${round(ab.entry.kias)} kt at 10,000 ft`, ''],
+    ['  half way round', ab.say(ab.half)],
+    ['  all the way round', ab.say(ab.full)],
+    ['the same at MIL', ''],
+    ['  half way round', mil.say(mil.half)],
+    ['  all the way round', mil.say(mil.full)],
+    ...level.map(([kt, e]) => [`tilt for level flight at ${kt} kt, sea level`, `${round(Math.abs(e) * 100)}% ${e >= 0 ? 'back' : 'forward'}`]),
+    ['sideslip in a full-tilt roll at 300 kt', `${round(auto, 1)} deg`, `${round(still, 1)} deg with the rudder held still`],
+  ]);
+  assert.ok(ab.half.kias < ab.entry.kias, 'a hard turn costs speed even in afterburner');
+  assert.ok(mil.half.kias < ab.half.kias, 'and more at MIL');
+  assert.ok(auto < still, 'auto-coordination cuts the sideslip');
+  assert.ok(level[0][1] > 0 && level[2][1] < 0, 'slower than neutral speed takes back tilt; faster takes forward');
 });
 
 test('aerobatics and abuse all end with a real state', () => {

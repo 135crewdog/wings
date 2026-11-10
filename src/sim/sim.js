@@ -5,7 +5,7 @@
 // when a ground is given.
 
 import { atmosphere, G0 } from './atmosphere.js';
-import { aeroForces, airData, groundEffect, separationStep } from './aero.js';
+import { aeroForces, aileronPower, airData, groundEffect, separationStep } from './aero.js';
 import { rk4Step } from './body.js';
 import { contactForces, crashCheck, touching } from './contact.js';
 import { powerStep, powerWanted, thrust } from './engine.js';
@@ -18,15 +18,31 @@ const RHO0 = atmosphere(0).rho;
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
-/** Controls in pilot sense, clamped to their ranges. Back stick, right stick and right rudder are positive; throttle is 0..1. */
+const FULL_RUDDER_SLIP = (4 * Math.PI) / 180;   // sideslip that calls for full rudder
+
+/**
+ * Controls in pilot sense, clamped to their ranges. Back stick, right stick
+ * and right rudder are positive; throttle is 0..1. Rudder is left out in the
+ * game, and auto-coordination then flies it (see coordinate).
+ */
 export function normalizeControls(ctl = {}) {
   return {
     elevator: clamp(ctl.elevator ?? 0, -1, 1),
     aileron: clamp(ctl.aileron ?? 0, -1, 1),
-    rudder: clamp(ctl.rudder ?? 0, -1, 1),
+    rudder: ctl.rudder === undefined ? undefined : clamp(ctl.rudder, -1, 1),
     throttle: clamp(ctl.throttle ?? 0, 0, 1),
     brake: ctl.brake === true,
   };
+}
+
+/**
+ * Auto-coordination (wings-v1's auto-rudder, always on): the rudder a pilot's
+ * feet would hold, leading the ailerons against their adverse yaw and then
+ * in proportion to the sideslip left.
+ */
+export function coordinate(card, ctl, beta, qbar) {
+  const lead = (card.aileron.adverseYaw * aileronPower(card, qbar)) / card.rudder.cn;
+  return clamp(lead * ctl.aileron + beta / FULL_RUDDER_SLIP, -1, 1);
 }
 
 /**
@@ -38,9 +54,11 @@ export function totalForces(card, state, ctl, ground = null, sep = [0, 0], power
   const atm = atmosphere(-state.x[2]);
   const air = airData(card, state.v, state.omega, atm);
   if (ground) air.ge = groundEffect(-state.x[2] - ground.heightAt(state.x[0], state.x[1]), card.b);
-  const aero = aeroForces(card, air, ctl, sep);
-  const contact = contactForces(card, state, ground, ctl);
   const g = qrotateInv(state.q, G_W);
+  air.gravity = g;
+  const flown = ctl.rudder === undefined ? { ...ctl, rudder: coordinate(card, ctl, air.beta, air.qbar) } : ctl;
+  const aero = aeroForces(card, air, flown, sep);
+  const contact = contactForces(card, state, ground, ctl);
   const T = thrust(card, power, air.mach, atm.rho / RHO0);
   const F = [0, 1, 2].map((i) => aero.F[i] + contact.F[i] + card.m * g[i]);
   F[0] += T;
