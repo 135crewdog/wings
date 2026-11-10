@@ -559,6 +559,24 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   assert.equal(wingtip.sim.crashed, null, 'so is a wingtip');
 });
 
+test('wheels that lock down at the moment of touchdown still count the arrival', () => {
+  const c = card();
+  // Coming down at 12 m/s (2,400 ft/min), level, the wheels a hand's width above the runway.
+  const arrive = (gearAtStart) => {
+    const sim = onRunway(c, { kt: 150, sink: 2362 });
+    sim.gear = gearAtStart;
+    sim.touching = sim.touching.slice(gearAtStart >= 1 ? 0 : 3);
+    for (let i = 0; i < 120 && !sim.crashed; i++) sim.step({ gear: true });
+    return sim.crashed;
+  };
+  assert.equal(arrive(1)?.reason, 'hard impact', 'with the gear already down, that is a crash');
+  // The gear one step short of locked, a few steps short, and half way down: the same arrival is still a crash,
+  // on the wheels if they lock in time and on the belly if they do not.
+  for (const gear of [1 - DT / 4, 1 - (3 * DT) / 4, 0.5]) {
+    assert.equal(arrive(gear)?.reason, 'hard impact', `gear at ${gear.toFixed(3)} when it starts`);
+  }
+});
+
 test('aerobatics and abuse all end with a real state', () => {
   const c = card();
   const rows = [];

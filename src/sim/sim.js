@@ -109,9 +109,27 @@ export class Sim {
   step(controls) {
     if (this.crashed) return this.state;
     const ctl = normalizeControls(controls);
+    const before = this.state;
+    // Gear and flaps travel first, so the whole step sees one set of contact
+    // points. When the wheels lock down or come up, the points that can touch
+    // change: wheels that appear already in the ground have arrived, and
+    // arrive at the speed the airplane is coming down.
+    const hadWheels = this.gear >= 1;
+    this.gear = travel(this.gear, ctl.gear, GEAR_SECONDS, DT);
+    this.flaps = travel(this.flaps, ctl.flaps, FLAP_SECONDS, DT);
+    const wheels = this.gear >= 1;
+    if (wheels !== hadWheels && this.ground) {
+      const airframe = this.touching.slice(hadWheels ? this.card.contacts.filter((p) => p.wheel).length : 0);
+      if (wheels) {
+        let i = 0;
+        const was = this.card.contacts.map((p) => (p.wheel ? false : airframe[i++]));
+        this.crashed = crashCheck(this.card, before, before, this.ground, was, true);
+        if (this.crashed) return this.state;
+      }
+      this.touching = touching(this.card, before, this.ground, wheels);
+    }
     const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps };
     const forces = (s) => totalForces(this.card, s, ctl, this.ground, sys);
-    const before = this.state;
     const after = rk4Step(before, this.t, DT, forces, this.card.m, this.card.I);
     // The safety net: a state that is no longer a number ends the flight on the
     // last good state, the way a crash does, instead of freezing the game.
@@ -125,12 +143,8 @@ export class Sim {
     const air = airData(this.card, after.v, after.omega, atmosphere(-after.x[2]));
     this.sep = separationStep(this.card, air, this.sep, DT);
     this.power = powerStep(this.power, powerWanted(ctl.throttle), DT);
-    const wheels = this.gear >= 1;
     if (this.ground) this.crashed = crashCheck(this.card, before, after, this.ground, this.touching, wheels);
-    this.gear = travel(this.gear, ctl.gear, GEAR_SECONDS, DT);
-    this.flaps = travel(this.flaps, ctl.flaps, FLAP_SECONDS, DT);
-    // The wheels arriving or leaving changes which points can touch, so this is read afresh.
-    this.touching = touching(this.card, after, this.ground, this.gear >= 1);
+    this.touching = touching(this.card, after, this.ground, wheels);
     return this.state;
   }
 
