@@ -42,11 +42,14 @@ export function separationStep(c, air, sep, dt) {
 /**
  * The lift curve from flight school: straight up to max lift at the stall
  * angle, then a drop onto a flat plate's lift. `sigma` is how stalled the
- * half is. Symmetric, and defined at every angle.
+ * half is. Symmetric, and defined at every angle with no step: past 45
+ * degrees the attached part fades the way the plate's does, through zero at
+ * 90 and again at 180, so a wing tumbling backward while still partly
+ * attached gets no jolt.
  */
 export function liftCurve(c, alpha, sigma) {
   const a = Math.abs(alpha);
-  const attached = Math.min(c.CLa * a, c.CLmax);
+  const attached = a <= Math.PI / 4 ? Math.min(c.CLa * a, c.CLmax) : c.CLmax * Math.sin(2 * a);
   const plate = c.plateLift * Math.sin(2 * a);
   return (alpha < 0 ? -1 : 1) * ((1 - sigma) * attached + sigma * plate);
 }

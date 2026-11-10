@@ -97,13 +97,19 @@ test('the lift curve rises straight to max lift at the stall angle, then drops',
 test('the stall adds no step in the forces', () => {
   const c = card();
   const atm = atmosphere(0);
-  const moment = (deg, sep, omega = [0, 0, 0]) => {
+  // Tumbling through backward flight, through zero and through straight up and
+  // down, however stalled the wing is: forces and moments carry on smoothly.
+  const both = (deg, sep) => {
     const a = deg * DEG, v = [100 * Math.cos(a), 0, 100 * Math.sin(a)];
-    return aeroForces(c, airData(c, v, omega, atm), { elevator: 0, aileron: 0, rudder: 0 }, sep).M;
+    const { F, M } = aeroForces(c, airData(c, v, [0, 0, 0], atm), { elevator: 0, aileron: 0, rudder: 0 }, sep);
+    return [...F, ...M];
   };
-  // Tumbling backward through +-180 degrees fully stalled, and through zero: the pitch moment carries on smoothly.
-  for (const [lo, hi] of [[179.999999, -179.999999], [-0.000001, 0.000001]]) {
-    assert.ok(Math.abs(moment(lo, [1, 1])[1] - moment(hi, [1, 1])[1]) < 1, `pitch moment is continuous between ${lo} and ${hi} deg`);
+  const eps = 1e-6;
+  for (const sep of [[0, 0], [0.5, 0.5], [0.65, 0.56], [1, 1]]) {
+    for (const [lo, hi] of [[180 - eps, -180 + eps], [-eps, eps], [90 - eps, 90 + eps], [-90 - eps, -90 + eps], [45 - eps, 45 + eps]]) {
+      const before = both(lo, sep), after = both(hi, sep);
+      before.forEach((x, k) => assert.ok(Math.abs(x - after[k]) < 1, `no step between ${lo} and ${hi} deg with the wing ${sep} stalled`));
+    }
   }
   // The spin tendency belongs to the stall: in attached flight it changes nothing,
   // and stalled it comes in gradually as the roll rate passes through zero.
