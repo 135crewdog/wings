@@ -5,19 +5,42 @@ import { deriveCard, FT, KT, DEG } from '../src/sim/card.js';
 import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT } from '../src/sim/sim.js';
 import { qfromEuler, qtoEuler } from '../src/sim/vec.js';
+import { atmosphere } from '../src/sim/atmosphere.js';
 
 export { FT, KT, DEG, DT };
 export const G = 9.80665;
+const RHO0 = atmosphere(0).rho;
 export const card = () => deriveCard(F4C);
 
-/** A sim in the air at `ft` and `kt` (true), nose along the flight path unless pitched or rolled (degrees). */
-export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0 } = {}) {
+/**
+ * A sim in the air at `ft` and `kt` (true), pitched or rolled (degrees). With
+ * `level: true` it starts at the angle of attack that holds 1 g, flying level.
+ */
+export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level = false } = {}) {
+  const V = kt * KT;
+  const alpha = level ? (2 * c.W) / (atmosphere(ft * FT).rho * V * V * c.S * c.CLa) : 0;
   return new Sim(c, {
     x: [0, 0, -ft * FT],
-    v: [kt * KT, 0, 0],
-    q: qfromEuler(roll * DEG, pitch * DEG, 0),
+    v: [V * Math.cos(alpha), 0, V * Math.sin(alpha)],
+    q: qfromEuler(roll * DEG, pitch * DEG + alpha, 0),
     omega: [0, 0, 0],
   });
+}
+
+/**
+ * A pilot holding altitude `ft`: returns controls(readout) that fly level with
+ * the elevator, wings held level with the aileron. Used to slow down at 1 g.
+ */
+export function holdAltitude(ft) {
+  let trim = 0;
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+  return (r) => {
+    const climb = clamp((ft - r.ft) * 4, -600, 600);            // ft/min wanted, from the altitude error
+    const gWanted = clamp(1 + (climb - r.fpm) / 3000, 0.8, 1.2);
+    const err = gWanted - r.g;
+    trim = clamp(trim + 0.6 * err * DT, -1, 1);
+    return { elevator: trim + 0.25 * err - 0.01 * r.pitchRate, aileron: clamp(-0.02 * r.roll - 0.01 * r.rollRate, -1, 1) };
+  };
 }
 
 /** What a pilot would read off the airplane right now. */
@@ -28,6 +51,7 @@ export function readout(sim, controls = {}) {
   return {
     t: sim.t,
     kt: obs.air.V / KT,
+    kias: (obs.air.V / KT) * Math.sqrt(obs.air.rho / RHO0),   // what the airspeed needle shows
     ft: -sim.state.x[2] / FT,
     fpm: (-vw[2] / FT) * 60,
     alpha: obs.air.alpha / DEG,
@@ -35,6 +59,10 @@ export function readout(sim, controls = {}) {
     roll: euler.roll / DEG,
     g: -obs.F[2] / sim.card.W + Math.cos(euler.pitch) * Math.cos(euler.roll),   // what the seat feels, along the airplane's "up"
     rollRate: sim.state.omega[0] / DEG,
+    pitchRate: sim.state.omega[1] / DEG,
+    yawRate: sim.state.omega[2] / DEG,
+    sigma: obs.coef?.sigma ?? 0,        // how stalled the wing is, 0..1
+    buffet: obs.coef?.buffet ?? 0,
     north: sim.state.x[0],
   };
 }
