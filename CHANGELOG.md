@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.4
+
+- The F-4 rolls the way the real one does: an aileron goes down on one wing and a spoiler comes up on the other. The ailerons no longer move up.
+
 ## 0.0.3
 
 - An F-4 hangs in the sky. Drag to look around it; its gear, flaps and controls move by themselves. It is a stand-in model by Artbor, credited beside the version.

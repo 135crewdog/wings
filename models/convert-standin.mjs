@@ -84,16 +84,18 @@ for (const side of ['left', 'right']) {
   const { up, down } = upAndDown(half, endOf('elecators_out', half, 0.5), endOf('elecators_in', half, 0.5));
   rotate('elevator', half, [[0, down], [0.5, rest(half)], [1, up]]);
 }
-// Aileron: 0 s is full left stick (left aileron up, right down). His clips
-// move both ailerons the same way, and the right one's keys run backward, so
-// take each side's two extremes and pair them properly. The F-4 also rolls
-// with its spoilers: the one on the down-going wing comes up.
+// Aileron: 0 s is full left stick. The F-4 rolls the way few fighters do: its
+// ailerons only go down, and a spoiler on top of the other wing comes up. So
+// for a left roll the right aileron goes down and the left spoiler rises,
+// while the left aileron stays where it is. His clips move both ailerons the
+// same way, up and down, and the right one's keys run backward; all that is
+// taken from them is each aileron's down position.
 {
   const left = node('left_1st_flap'), right = node('right_1st_flap');
   const l = upAndDown(left, endOf('ailerons_out', left, 0.5), endOf('ailerons_in', left, 0.5));
   const r = upAndDown(right, endOf('ailerons_out', right, 0), endOf('ailerons_in', right, 0));
-  rotate('aileron', left, [[0, l.up], [0.5, rest(left)], [1, l.down]]);
-  rotate('aileron', right, [[0, r.down], [0.5, rest(right)], [1, r.up]]);
+  rotate('aileron', left, [[0, rest(left)], [0.5, rest(left)], [1, l.down]]);
+  rotate('aileron', right, [[0, r.down], [0.5, rest(right)], [1, rest(right)]]);
   const leftSpoiler = node('left_3rd_spoiler'), rightSpoiler = node('right_3rd_spoiler');
   rotate('aileron', leftSpoiler, [[0, endOf('spoilers_out', leftSpoiler, 0.5)], [0.5, rest(leftSpoiler)], [1, rest(leftSpoiler)]]);
   rotate('aileron', rightSpoiler, [[0, rest(rightSpoiler)], [0.5, rest(rightSpoiler)], [1, endOf('spoilers_out', rightSpoiler, 0.5)]]);
