@@ -13,9 +13,11 @@
   <link rel="apple-touch-icon" href="./icons/icon-180.png">
   <link rel="icon" href="./icons/icon-32.png">
   <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }</script>
 </head>
 <body>
-  <p id="label">Wings <span id="version"></span></p>
+  <canvas id="view"></canvas>
+  <p id="label">Wings <span id="version"></span> <span id="credit">F-4 model by Artbor, CC BY 4.0</span></p>
   <button id="update" hidden>New version, tap to update</button>
 
   <section id="rotate">

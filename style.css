@@ -1,5 +1,5 @@
-/* Wings. The empty shell: a sky, the app's name and version in a corner, the
-   update offer, and the rotate screen. The platform rules (no scrolling,
+/* Wings. A sky with the airplane in it, the app's name and version in a
+   corner, the update offer, and the rotate screen. The platform rules (no scrolling,
    zooming or selecting; everything inside the safe area) are from Rage's
    style.css. */
 
@@ -17,12 +17,16 @@ body { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 @supports (height: 100dvh) { body { height: 100dvh; } }
 [hidden] { display: none !important; }
 
-/* the name and version, bottom left, inside the safe area */
+/* the airplane: the whole screen, with the sky showing behind it */
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+/* the name and version, bottom left, inside the safe area; the stand-in model's credit beside them */
 #label {
   position: absolute; margin: 0;
   left: calc(env(safe-area-inset-left, 0px) + 16px); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  font-size: 15px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  font-size: 15px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); pointer-events: none;
 }
+#credit { margin-left: 10px; font-size: 12px; opacity: 0.85; }
 
 /* the update offer, bottom right */
 #update {

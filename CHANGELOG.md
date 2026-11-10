@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.3
+
+- An F-4 hangs in the sky. Drag to look around it; its gear, flaps and controls move by themselves. It is a stand-in model by Artbor, credited beside the version.
+
 ## 0.0.2
 
 - The rotate screen is black to the edges of the screen, with no blue bands at the top and bottom.

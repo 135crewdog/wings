@@ -1,8 +1,10 @@
-// The empty shell: shows the version and offers updates. The update logic is
+// Shows the airplane and the version, and offers updates. The update logic is
 // Rage's (135crewdog/rage, src/main.js).
 import { APP_VERSION } from './version.js';
+import { startHangar } from './hangar.js';
 
 document.getElementById('version').textContent = APP_VERSION;
+startHangar(document.getElementById('view'));
 
 // iOS ignores user-scalable=no for pinch and double-tap in some versions.
 for (const type of ['gesturestart', 'dblclick']) {
