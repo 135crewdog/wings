@@ -4,22 +4,29 @@
 // uncached.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_VERSION } from '../src/version.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sw = readFileSync(join(root, 'sw.js'), 'utf8');
 
-function filesUnder(dir) {
-  const out = [];
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) out.push(...filesUnder(p));
-    else out.push(p);
-  }
-  return out;
+// Every module the app loads: src/main.js and whatever it imports, followed
+// to the end. Code the app doesn't load yet (the simulation, until first
+// flight) isn't cached, so adding it doesn't push an update to phones.
+function modulesLoaded(entry) {
+  const seen = new Set();
+  const visit = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const source = readFileSync(join(root, file), 'utf8');
+    for (const m of source.matchAll(/(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      visit('./' + posix.normalize(posix.join(posix.dirname(file), m[1])));
+    }
+  };
+  visit(entry);
+  return [...seen];
 }
 
 test('the version is the same in src/version.js, sw.js and CHANGELOG.md', () => {
@@ -33,14 +40,14 @@ test('the version is the same in src/version.js, sw.js and CHANGELOG.md', () => 
   console.log(`  version ${APP_VERSION}`);
 });
 
-test('sw.js caches every file under src/, and lists only files that exist', () => {
+test('sw.js caches every module the app loads, and lists only files that exist', () => {
   const listed = [...sw.matchAll(/'(\.\/[^']+)'/g)].map((m) => m[1]);
   const files = listed.filter((f) => f !== './');
   const missing = files.filter((f) => !existsSync(join(root, f)));
   assert.deepEqual(missing, [], 'listed but not on disk');
-  const modules = filesUnder(join(root, 'src')).map((p) => './' + relative(root, p).split('\\').join('/'));
+  const modules = modulesLoaded('./src/main.js');
   const uncached = modules.filter((m) => !files.includes(m));
-  assert.deepEqual(uncached, [], 'under src/ but not in sw.js');
+  assert.deepEqual(uncached, [], 'loaded by the app but not in sw.js');
   assert.equal(new Set(files).size, files.length, 'no file listed twice');
-  console.log(`  ${files.length} files cached, ${modules.length} under src/`);
+  console.log(`  ${files.length} files cached, ${modules.length} modules loaded by the app`);
 });
