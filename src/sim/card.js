@@ -3,9 +3,6 @@
 // its stall solver (docs/sim-core-review.md, finding 5 and "Pilot numbers to
 // coefficients"). No browser code.
 //
-// Parts marked "placeholder" are stand-ins until the milestone 1 pull request
-// that builds them: the ground systems (5).
-//
 // The feel numbers on a card run 0..1 and map onto physical quantities
 // through `feel(low, high, x)`: 0 gives `low`, 1 gives `high`.
 
@@ -119,9 +116,14 @@ export function deriveCard(pilot) {
     // Full rudder holds about 6 degrees of sideslip. There is no rudder pedal
     // in the game: the sim's auto-coordination flies it.
     rudder: { cn: 0.12 * 6 * DEG, cy: -0.1, cl: -0.002 },
-    // ground contact: placeholders (5)
-    contacts: [],
-    crash: { wheelSink: Infinity, skidSpeed: Infinity },
+    // Flaps: the landing stall speed says how much more lift they give.
+    flapLift: (2 * W) / (RHO0 * S * (pilot.stall_landing_kt * KT) ** 2) - CLmax,
+    flapDrag: feel(0.02, 0.08, pilot.flap_drag),
+    gearDrag: feel(0.01, 0.04, pilot.gear_drag),
+    // Ground contact: where the airplane can touch, from its size.
+    contacts: contactPoints(W, m, b, length),
+    // Only a hard arrival ends a flight (m/s of sink at the point that touches).
+    crash: { wheelSink: 8, bodySink: 6 },
   };
 
   // Top speed is where thrust meets drag, so each top speed on the card says
@@ -160,6 +162,32 @@ export function rollRate(c, V) {
     if (t >= 1.5) { sum += sim.state.omega[0]; n++; }
   }
   return sum / n;
+}
+
+/**
+ * Contact points in body axes (x forward, y right, z down, from the CG), for
+ * a tricycle-gear jet of this size: proportions typical of a fighter. Wheels
+ * are there only with the gear down; the rest is the airframe itself. Each
+ * has a spring and damper sized to carry its share of the weight.
+ */
+function contactPoints(W, m, b, length) {
+  const wheelbase = 0.4 * length, track = 0.465 * b, height = 0.115 * length;
+  const strut = (share, sag) => {
+    const k = (share * W) / sag;
+    return { k, c: Math.sqrt(k * share * m) };   // about half of critical damping
+  };
+  const wheel = (name, r, share, extra) => ({ name, wheel: true, r, ...strut(share, 0.15), ...extra });
+  const skid = (name, r) => ({ name, wheel: false, r, ...strut(1, 0.1) });
+  return [
+    wheel('nose wheel', [0.93 * wheelbase, 0, height], 0.07, { steers: true }),
+    wheel('left main', [-0.07 * wheelbase, -track / 2, height], 0.465, { brake: true }),
+    wheel('right main', [-0.07 * wheelbase, track / 2, height], 0.465, { brake: true }),
+    skid('nose', [0.5 * length, 0, 0.3 * height]),
+    skid('belly', [0.1 * length, 0, 0.5 * height]),
+    skid('tail', [-0.45 * length, 0, 0.2 * height]),
+    skid('left wingtip', [-0.15 * length, -b / 2, 0.1 * height]),
+    skid('right wingtip', [-0.15 * length, b / 2, 0.1 * height]),
+  ];
 }
 
 /** The zero-lift drag coefficient that makes full-afterburner thrust equal drag in level flight at speed V. */

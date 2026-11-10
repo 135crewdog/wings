@@ -5,13 +5,11 @@
 // the pull request that builds what it measures. Feel numbers are only
 // reported.
 //
-// So far: the core flies and stalls, with an engine, Mach effects and its
-// limits. Graded: the clean stall speed, both top speeds, the g limit and the
-// roll rate.
+// Graded: both stall speeds, both top speeds, the g limit and the roll rate.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { card, airborne, fly, holdAltitude, gPilot, levelTurn, degreesTurned, readout, table, KT, FT, DEG, DT } from './fly.js';
+import { card, airborne, onRunway, fly, holdAltitude, gPilot, levelTurn, degreesTurned, readout, table, KT, FT, DEG, DT } from './fly.js';
 import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
 import { deriveCard } from '../src/sim/card.js';
 import { Sim, finite, MAX_RATE } from '../src/sim/sim.js';
@@ -459,6 +457,124 @@ test('hard turns bleed speed, and the feet fly themselves', () => {
   assert.ok(mil.half.kias < ab.half.kias, 'and more at MIL');
   assert.ok(auto < still, 'auto-coordination cuts the sideslip');
   assert.ok(level[0][1] > 0 && level[2][1] < 0, 'slower than neutral speed takes back tilt; faster takes forward');
+});
+
+test('GRADED: landing stall speed, and what gear and flaps do', () => {
+  const c = card();
+  const p = c.pilot;
+  // Gear and flaps down, slowing in level flight at 1 g until the wing reaches the stall angle.
+  const sim = airborne(c, { ft: 3000, kt: 220, level: true, gear: true, flaps: true });
+  const hold = holdAltitude(3000, sim.trim.elevator);
+  const log = fly(sim, 90, (r) => ({ ...hold(r), gear: true, flaps: true }), 0.05);
+  const brk = log.find((r) => r.sigma > 0);
+  assert.ok(brk, 'it reached the stall');
+  // Level at 180 kt at sea level: the throttle and tilt it takes, clean and dirty.
+  const level = (config) => trimLevel(c, 180 * KT, 0, config);
+  const clean = level({}), gear = level({ gear: true }), dirty = level({ gear: true, flaps: true });
+  const pct = (x) => `${round(Math.abs(x) * 100)}%`;
+  // Hands off with gear and flaps down, engine at idle: the speed it settles at.
+  const glide = airborne(c, { ft: 15000, kt: 220, level: true, gear: true, flaps: true });
+  const settled = fly(glide, 180, () => ({ gear: true, flaps: true }), 1).filter((r) => r.t >= 120);
+  const handsOff = settled.reduce((a, r) => a + r.kias, 0) / settled.length;
+  // Gear and flaps travelling.
+  const moving = airborne(c, { ft: 5000, kt: 200, level: true });
+  let gearDown = null, flapsDown = null;
+  fly(moving, 10, (r) => {
+    if (gearDown === null && moving.gear >= 1) gearDown = r.t;
+    if (flapsDown === null && moving.flaps >= 1) flapsDown = r.t;
+    return { elevator: moving.trim.elevator, gear: true, flaps: true };
+  }, 0.1);
+  table('Gear and flaps', [
+    ['stall speed, gear and flaps down', `${round(brk.kias, 1)} kt`, `${p.stall_landing_kt} kt +-5 (GRADED)`],
+    ['g at the break', round(brk.g, 2)],
+    ['level at 180 kt, clean', `throttle ${pct(clean.throttle)}, tilt ${pct(clean.elevator)} back`],
+    ['  gear down', `throttle ${pct(gear.throttle)}`],
+    ['  gear and flaps down', `throttle ${pct(dirty.throttle)}, tilt ${pct(dirty.elevator)} back`],
+    ['hands off, gear and flaps down, settles at', `${round(handsOff)} kt`, `${p.neutral_speed_kt} kt clean`],
+    ['gear travel / flap travel', `${round(gearDown, 1)} s / ${round(flapsDown, 1)} s`],
+  ]);
+  assert.ok(Math.abs(brk.g - 1) < 0.05, 'the stall was reached at 1 g');
+  assert.ok(Math.abs(brk.kias - p.stall_landing_kt) <= 5, `landing stall speed ${brk.kias.toFixed(1)} kt is within 5 kt of the card`);
+  assert.ok(gear.throttle > clean.throttle && dirty.throttle > gear.throttle, 'gear adds drag, and flaps add more');
+  assert.ok(dirty.elevator < clean.elevator, 'flaps carry the weight at less angle of attack');
+});
+
+test('on the ground: it sits, rolls, steers, stops and takes off', () => {
+  const c = card();
+  const down = { gear: true };
+  // Parked with the brakes on, then let go at idle, then held on the brakes at MIL and in afterburner.
+  const after = (seconds, controls) => fly(onRunway(c), seconds, () => ({ ...down, ...controls }), 1).at(-1);
+  const parked = after(20, { brake: true });
+  const creep = after(20, {}), mil = after(15, { brake: true, throttle: MIL_THROTTLE }), burner = after(15, { brake: true, throttle: 1 });
+  // Taxi at about 15 kt and hold half tilt to the right.
+  const taxi = onRunway(c, { kt: 15 });
+  const turn = fly(taxi, 8, () => ({ ...down, throttle: 0.1, aileron: 0.5 }), 0.5);
+  // Takeoff: flaps down, full afterburner, stick full back from 80 kt, then hold the nose 10 degrees up.
+  const takeoff = (flaps) => {
+    const sim = onRunway(c, { flaps });
+    const log = fly(sim, 40, (r) => ({
+      ...down, flaps, throttle: 1,
+      elevator: r.onGround ? (r.kias > 80 ? 1 : 0) : Math.max(-1, Math.min(1, 0.08 * (10 - r.pitch) - 0.03 * r.pitchRate)),
+    }), 0.1);
+    const nose = log.find((r) => r.pitch > 3);
+    const off = log.find((r, i) => r.t > 1 && !r.onGround && log.slice(i, i + 10).every((x) => !x.onGround));
+    assert.equal(sim.crashed, null);
+    assert.ok(off, 'it lifts off');
+    return { nose, off, end: log.at(-1) };
+  };
+  const flapsDown = takeoff(true), flapsUp = takeoff(false);
+  // Landing: touch down at 140 kt, nose 8 degrees up, then idle and brakes.
+  const landing = (sink, controls = {}, start = {}) => {
+    const sim = onRunway(c, { kt: 140, sink, pitch: 8, flaps: true, ...start });
+    const log = fly(sim, 90, (r) => ({ ...down, flaps: true, brake: r.onGround, ...controls }), 0.1);
+    const stop = log.find((r) => r.groundKt < 1);
+    return { sim, stop, feet: stop ? stop.north / FT : null };
+  };
+  const firm = landing(600), noBrakes = landing(600, { brake: false }), carrier = landing(1500), smash = landing(1900);
+  const belly = landing(300, { gear: false }, { gear: false, pitch: 5 });
+  const wingtip = landing(300, {}, { roll: 14 });
+  table('On the ground (reported, not graded)', [
+    ['parked on the brakes for 20 s', `moves ${round(parked.north, 1)} m`],
+    ['brakes off at idle for 20 s', `creeps to ${round(creep.groundKt)} kt`],
+    ['brakes held at MIL / in afterburner for 15 s', `${round(mil.groundKt)} kt / ${round(burner.groundKt)} kt`, 'the brakes about hold MIL and lose to the afterburner'],
+    ['taxi at 15 kt, half tilt right for 8 s', `turns ${round(turn.at(-1).heading)} deg right`, `leaning ${round(Math.max(...turn.map((r) => Math.abs(r.roll))), 1)} deg`],
+    ['takeoff, flaps down: nose comes up at', `${round(flapsDown.nose.kias)} kt`],
+    ['  lifts off at', `${round(flapsDown.off.kias)} kt`, `after ${round(flapsDown.off.north / FT, -2)} ft and ${round(flapsDown.off.t)} s`],
+    ['takeoff, flaps up: lifts off at', `${round(flapsUp.off.kias)} kt`, `after ${round(flapsUp.off.north / FT, -2)} ft`],
+    ['landing at 140 kt, 600 ft/min, brakes on: stops in', `${round(firm.feet, -2)} ft`, `${round(firm.stop.t)} s`],
+    ['  the same with no brakes', noBrakes.stop ? `${round(noBrakes.feet, -2)} ft` : 'still rolling after 90 s'],
+    ['arriving at 1,500 ft/min', carrier.sim.crashed ? 'crash' : 'survives'],
+    ['arriving at 1,900 ft/min', smash.sim.crashed ? `crash: ${smash.sim.crashed.point}, ${round(smash.sim.crashed.value * 196.85, -2)} ft/min` : 'survives'],
+    ['gear-up landing at 300 ft/min', belly.sim.crashed ? 'crash' : `survives, slides ${round(belly.feet, -2)} ft`],
+    ['touching down on a wingtip, 14 deg of bank', wingtip.sim.crashed ? 'crash' : 'survives'],
+  ]);
+  assert.ok(Math.abs(parked.north) < 1 && Math.abs(parked.pitch) < 2 && parked.onGround, 'it sits still on its wheels');
+  assert.ok(turn.at(-1).heading > 20, 'tilt steers the nose wheel');
+  assert.ok(flapsDown.off.kias < flapsUp.off.kias, 'flaps shorten the takeoff');
+  assert.ok(firm.stop && firm.sim.crashed === null, 'a firm landing stops on the runway');
+  assert.ok(!noBrakes.stop || noBrakes.feet > 1.5 * firm.feet, 'the brakes do the stopping');
+  assert.equal(carrier.sim.crashed, null, 'a hard landing survives');
+  assert.equal(smash.sim.crashed?.reason, 'hard impact', 'only a harder one ends the flight');
+  assert.equal(belly.sim.crashed, null, 'a gear-up landing is a scrape, not a crash');
+  assert.equal(wingtip.sim.crashed, null, 'so is a wingtip');
+});
+
+test('wheels that lock down at the moment of touchdown still count the arrival', () => {
+  const c = card();
+  // Coming down at 12 m/s (2,400 ft/min), level, the wheels a hand's width above the runway.
+  const arrive = (gearAtStart) => {
+    const sim = onRunway(c, { kt: 150, sink: 2362 });
+    sim.gear = gearAtStart;
+    sim.touching = sim.touching.slice(gearAtStart >= 1 ? 0 : 3);
+    for (let i = 0; i < 120 && !sim.crashed; i++) sim.step({ gear: true });
+    return sim.crashed;
+  };
+  assert.equal(arrive(1)?.reason, 'hard impact', 'with the gear already down, that is a crash');
+  // The gear one step short of locked, a few steps short, and half way down: the same arrival is still a crash,
+  // on the wheels if they lock in time and on the belly if they do not.
+  for (const gear of [1 - DT / 4, 1 - (3 * DT) / 4, 0.5]) {
+    assert.equal(arrive(gear)?.reason, 'hard impact', `gear at ${gear.toFixed(3)} when it starts`);
+  }
 });
 
 test('aerobatics and abuse all end with a real state', () => {

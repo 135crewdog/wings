@@ -4,7 +4,8 @@
 import { deriveCard, FT, KT, DEG } from '../src/sim/card.js';
 import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT } from '../src/sim/sim.js';
-import { qfromEuler, qtoEuler } from '../src/sim/vec.js';
+import { qfromEuler, qtoEuler, qrotateInv } from '../src/sim/vec.js';
+import { flatGround } from '../src/sim/ground.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
 import { calibratedAirspeed } from '../src/sim/airdata.js';
 import { trimLevel } from '../src/sim/trim.js';
@@ -19,19 +20,41 @@ export const card = () => deriveCard(F4C);
  * `level: true` it starts at the angle of attack for level flight, and
  * `sim.trim` holds the elevator and throttle that keep it there. The engine
  * starts at `throttle`: a position 0..1, or 'trim' for the trimmed one.
+ * `gear` and `flaps` start down when true; `ground` is a ground to land on.
  */
-export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level = false, throttle = 0 } = {}) {
+export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level = false, throttle = 0, gear = false, flaps = false, ground = null } = {}) {
   const V = kt * KT;
-  const trim = level ? trimLevel(c, V, ft * FT) : null;
+  const trim = level ? trimLevel(c, V, ft * FT, { gear, flaps }) : null;
   const alpha = trim ? trim.alpha : 0;
   const sim = new Sim(c, {
     x: [0, 0, -ft * FT],
     v: [V * Math.cos(alpha), 0, V * Math.sin(alpha)],
     q: qfromEuler(roll * DEG, pitch * DEG + alpha, 0),
     omega: [0, 0, 0],
-  }, { throttle: throttle === 'trim' ? trim.throttle : throttle });
+  }, { throttle: throttle === 'trim' ? trim.throttle : throttle, gear, flaps, ground });
   sim.trim = trim;
   return sim;
+}
+
+/**
+ * A sim on a flat runway at sea level, on its wheels, rolling north at `kt`,
+ * gear down. `sink` (ft/min) starts it just above the runway coming down
+ * instead, as at touchdown, nose `pitch` degrees up.
+ */
+export function onRunway(c, { kt = 0, sink = 0, pitch = 0, roll = 0, flaps = false, gear = true, throttle = 0 } = {}) {
+  const ground = flatGround(0);
+  const points = c.contacts.filter((p) => !p.wheel || gear);
+  const th = pitch * DEG, ph = roll * DEG;
+  // How far below the CG the lowest point hangs at this attitude.
+  const low = Math.max(...points.map((p) => -Math.sin(th) * p.r[0] + Math.cos(th) * (Math.sin(ph) * p.r[1] + Math.cos(ph) * p.r[2])));
+  const q = qfromEuler(ph, th, 0);
+  const down = (sink * FT) / 60;
+  return new Sim(c, {
+    x: [0, 0, -(low + (sink > 0 ? 0.05 : -0.1))],
+    v: qrotateInv(q, [kt * KT, 0, down]),
+    q,
+    omega: [0, 0, 0],
+  }, { ground, gear, flaps, throttle });
 }
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -117,6 +140,9 @@ export function readout(sim, controls = {}) {
     sigma: obs.coef?.sigma ?? 0,        // how stalled the wing is, 0..1
     buffet: obs.coef?.buffet ?? 0,
     north: sim.state.x[0],
+    east: sim.state.x[1],
+    groundKt: Math.hypot(vw[0], vw[1]) / KT,
+    onGround: sim.touching.some(Boolean),
   };
 }
 

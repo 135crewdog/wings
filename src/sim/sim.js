@@ -15,6 +15,10 @@ export const DT = 1 / 120;
 export const MAX_RATE = 20;   // rad/s: body rates are held inside this, far beyond any real maneuver
 const G_W = [0, 0, G0];
 const RHO0 = atmosphere(0).rho;
+const AT_REST = { sep: [0, 0], power: 0, gear: 0, flaps: 0 };
+const GEAR_SECONDS = 4, FLAP_SECONDS = 3;   // full travel
+const MAX_STEER = (30 * Math.PI) / 180;      // the nose wheel's steering angle at full tilt, standing still
+const STEER_FADE = 15;                       // m/s: by this speed the steering is down to half
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -31,6 +35,8 @@ export function normalizeControls(ctl = {}) {
     aileron: clamp(ctl.aileron ?? 0, -1, 1),
     rudder: ctl.rudder === undefined ? undefined : clamp(ctl.rudder, -1, 1),
     throttle: clamp(ctl.throttle ?? 0, 0, 1),
+    gear: ctl.gear === true,     // the three toggles: true is gear down, flaps down, brakes on
+    flaps: ctl.flaps === true,
     brake: ctl.brake === true,
   };
 }
@@ -47,19 +53,24 @@ export function coordinate(card, ctl, beta, qbar) {
 
 /**
  * Body-axis force and moment on the airplane at a state: aero, thrust along
- * the nose through the CG, gravity and, with a ground, contact. `sep` is the
- * wing halves' stall state and `power` the engine's.
+ * the nose through the CG, gravity and, with a ground, contact. `sys` is the
+ * airplane's own state: { sep, power, gear, flaps } - the wing halves' stall
+ * state, the engine's power, and the gear and flap positions (0 up, 1 down).
  */
-export function totalForces(card, state, ctl, ground = null, sep = [0, 0], power = 0) {
+export function totalForces(card, state, ctl, ground = null, sys = AT_REST) {
   const atm = atmosphere(-state.x[2]);
   const air = airData(card, state.v, state.omega, atm);
   if (ground) air.ge = groundEffect(-state.x[2] - ground.heightAt(state.x[0], state.x[1]), card.b);
   const g = qrotateInv(state.q, G_W);
   air.gravity = g;
+  air.gear = sys.gear;
+  air.flaps = sys.flaps;
   const flown = ctl.rudder === undefined ? { ...ctl, rudder: coordinate(card, ctl, air.beta, air.qbar) } : ctl;
-  const aero = aeroForces(card, air, flown, sep);
-  const contact = contactForces(card, state, ground, ctl);
-  const T = thrust(card, power, air.mach, atm.rho / RHO0);
+  const aero = aeroForces(card, air, flown, sys.sep);
+  // On the ground, tilt steers the nose wheel: a lot when slow, a little when fast.
+  const steer = (ctl.aileron * MAX_STEER) / (1 + (air.V / STEER_FADE) ** 2);
+  const contact = contactForces(card, state, ground, { brake: ctl.brake, steer }, sys.gear >= 1);
+  const T = thrust(card, sys.power, air.mach, atm.rho / RHO0);
   const F = [0, 1, 2].map((i) => aero.F[i] + contact.F[i] + card.m * g[i]);
   F[0] += T;
   const M = [0, 1, 2].map((i) => aero.M[i] + contact.M[i]);
@@ -71,29 +82,54 @@ export function finite(state) {
   return [state.x, state.v, state.q, state.omega].every((a) => a.every(Number.isFinite));
 }
 
+// One step of dt for a gear or flap position toward up (0) or down (1), taking `seconds` for the full travel.
+const travel = (position, down, seconds, dt) => clamp(position + (down ? dt : -dt) / seconds, 0, 1);
+
 export class Sim {
   /**
    * card: from deriveCard. state: { x, v, q, omega } (see body.js).
-   * options: { ground, throttle }. Without a ground there is nothing to land on
-   * (headless flight). The engine starts spooled to `throttle`.
+   * options: { ground, throttle, gear, flaps }. Without a ground there is
+   * nothing to land on (headless flight). The engine starts spooled to
+   * `throttle`; `gear` and `flaps` say whether each starts down.
    */
-  constructor(card, state, { ground = null, throttle = 0 } = {}) {
+  constructor(card, state, { ground = null, throttle = 0, gear = false, flaps = false } = {}) {
     this.card = card;
     this.state = state;
     this.ground = ground;
     this.t = 0;
     this.sep = [0, 0];     // how stalled each wing half is, right then left, 0..1
     this.power = powerWanted(throttle);   // the engine: 0 idle, 1 MIL, 2 full afterburner
+    this.gear = gear ? 1 : 0;             // 0 up, 1 down and locked
+    this.flaps = flaps ? 1 : 0;           // 0 up, 1 down
     this.crashed = null;   // set once: by the touchdown check, or by the safety net
-    this.touching = touching(card, state, ground);
+    this.touching = touching(card, state, ground, this.gear >= 1);
   }
 
   /** Advance one fixed step with the given controls. After a crash the sim no longer steps. */
   step(controls) {
     if (this.crashed) return this.state;
     const ctl = normalizeControls(controls);
-    const forces = (s) => totalForces(this.card, s, ctl, this.ground, this.sep, this.power);
     const before = this.state;
+    // Gear and flaps travel first, so the whole step sees one set of contact
+    // points. When the wheels lock down or come up, the points that can touch
+    // change: wheels that appear already in the ground have arrived, and
+    // arrive at the speed the airplane is coming down.
+    const hadWheels = this.gear >= 1;
+    this.gear = travel(this.gear, ctl.gear, GEAR_SECONDS, DT);
+    this.flaps = travel(this.flaps, ctl.flaps, FLAP_SECONDS, DT);
+    const wheels = this.gear >= 1;
+    if (wheels !== hadWheels && this.ground) {
+      const airframe = this.touching.slice(hadWheels ? this.card.contacts.filter((p) => p.wheel).length : 0);
+      if (wheels) {
+        let i = 0;
+        const was = this.card.contacts.map((p) => (p.wheel ? false : airframe[i++]));
+        this.crashed = crashCheck(this.card, before, before, this.ground, was, true);
+        if (this.crashed) return this.state;
+      }
+      this.touching = touching(this.card, before, this.ground, wheels);
+    }
+    const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps };
+    const forces = (s) => totalForces(this.card, s, ctl, this.ground, sys);
     const after = rk4Step(before, this.t, DT, forces, this.card.m, this.card.I);
     // The safety net: a state that is no longer a number ends the flight on the
     // last good state, the way a crash does, instead of freezing the game.
@@ -107,16 +143,15 @@ export class Sim {
     const air = airData(this.card, after.v, after.omega, atmosphere(-after.x[2]));
     this.sep = separationStep(this.card, air, this.sep, DT);
     this.power = powerStep(this.power, powerWanted(ctl.throttle), DT);
-    if (this.ground) {
-      this.crashed = crashCheck(this.card, before, after, this.ground, this.touching);
-      this.touching = touching(this.card, after, this.ground);
-    }
+    if (this.ground) this.crashed = crashCheck(this.card, before, after, this.ground, this.touching, wheels);
+    this.touching = touching(this.card, after, this.ground, wheels);
     return this.state;
   }
 
   /** Forces, air data and coefficients at the current state, for instruments and tests. */
   observe(controls) {
-    return totalForces(this.card, this.state, normalizeControls(controls), this.ground, this.sep, this.power);
+    const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps };
+    return totalForces(this.card, this.state, normalizeControls(controls), this.ground, sys);
   }
 
   /** World-axis velocity (m/s): north, east, down. */
