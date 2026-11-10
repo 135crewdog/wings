@@ -77,6 +77,21 @@ export function totalForces(card, state, ctl, ground = null, sys = AT_REST) {
   return { F, M, air, coef: aero.coef, thrust: T };
 }
 
+/**
+ * How many fixed steps to take for a frame that lasted `elapsed` seconds,
+ * with `carry` seconds left over from the frame before (after Rage's
+ * stepsFor). A long frame takes at most `maxSteps` and drops the rest, so a
+ * slow phone slows the flight down instead of falling ever further behind.
+ * `fraction` is how far the picture is between the last two steps, 0..1.
+ */
+export function stepsFor(carry, elapsed, maxSteps = 8, dt = DT) {
+  let time = carry + Math.max(0, elapsed);
+  let steps = Math.floor(time / dt + 1e-9);
+  if (steps > maxSteps) { steps = maxSteps; time = maxSteps * dt; }
+  time -= steps * dt;
+  return { steps, carry: time, fraction: time / dt };
+}
+
 /** Whether every number in a state is finite. */
 export function finite(state) {
   return [state.x, state.v, state.q, state.omega].every((a) => a.every(Number.isFinite));

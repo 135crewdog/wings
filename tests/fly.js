@@ -4,7 +4,8 @@
 import { deriveCard, FT, KT, DEG } from '../src/sim/card.js';
 import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT } from '../src/sim/sim.js';
-import { qfromEuler, qtoEuler, qrotateInv } from '../src/sim/vec.js';
+import { qfromEuler, qtoEuler } from '../src/sim/vec.js';
+import { onGround } from '../src/field.js';
 import { flatGround } from '../src/sim/ground.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
 import { calibratedAirspeed } from '../src/sim/airdata.js';
@@ -42,19 +43,7 @@ export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level =
  * instead, as at touchdown, nose `pitch` degrees up.
  */
 export function onRunway(c, { kt = 0, sink = 0, pitch = 0, roll = 0, flaps = false, gear = true, throttle = 0 } = {}) {
-  const ground = flatGround(0);
-  const points = c.contacts.filter((p) => gear || !(p.wheel || p.gearOnly));
-  const th = pitch * DEG, ph = roll * DEG;
-  // How far below the CG the lowest point hangs at this attitude.
-  const low = Math.max(...points.map((p) => -Math.sin(th) * p.r[0] + Math.cos(th) * (Math.sin(ph) * p.r[1] + Math.cos(ph) * p.r[2])));
-  const q = qfromEuler(ph, th, 0);
-  const down = (sink * FT) / 60;
-  return new Sim(c, {
-    x: [0, 0, -(low + (sink > 0 ? 0.05 : -0.1))],
-    v: qrotateInv(q, [kt * KT, 0, down]),
-    q,
-    omega: [0, 0, 0],
-  }, { ground, gear, flaps, throttle });
+  return new Sim(c, onGround(c, { kt, sink, pitch, roll, gear }), { ground: flatGround(0), gear, flaps, throttle });
 }
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
