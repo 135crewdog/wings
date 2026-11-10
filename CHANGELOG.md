@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.7
+
+- Readouts: airspeed in knots and altitude in feet across the top. Below 2,000 feet above the ground, radar altitude shows under the altitude.
+- Near the stall the picture shakes like buffet, harder the closer you get.
+
 ## 0.0.6
 
 - First flight. Tap Fly, and the F-4 flies: tilt the phone for the stick, slide the throttle on the left edge, and tap Gear, Flaps and Brakes on the right.

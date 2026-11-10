@@ -7,6 +7,9 @@ import * as THREE from 'three';
 import { deriveCard } from './sim/card.js';
 import { F4C } from './sim/cards/f4c.js';
 import { Sim, DT, coordinate, normalizeControls, stepsFor } from './sim/sim.js';
+import { FT, KT } from './sim/card.js';
+import { atmosphere } from './sim/atmosphere.js';
+import { calibratedAirspeed } from './sim/airdata.js';
 import { FIELD, PARKED, fieldGround, startState } from './field.js';
 import { createAircraft } from './render/aircraft.js';
 import { createChaseCamera } from './render/camera.js';
@@ -16,11 +19,12 @@ import { attitudeToThree, toThree } from './render/frames.js';
 /**
  * Puts the flight on a canvas, parked on the runway and holding still.
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
- * when a flight ends in a crash. Returns { ready, fly(), hold(), restart() }:
+ * when a flight ends in a crash; `onReadout(knots, feet, feetAboveGround)` is
+ * called every frame with what the instruments read. Returns { ready, fly(), hold(), restart() }:
  * fly() lets time run, hold() stops it (the picture stays), restart() puts
  * the airplane back on the runway.
  */
-export function startFlight(canvas, { controls, onCrash }) {
+export function startFlight(canvas, { controls, onCrash, onReadout }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   const scene = new THREE.Scene();
   const world = createWorld(scene, renderer, FIELD);
@@ -30,6 +34,9 @@ export function startFlight(canvas, { controls, onCrash }) {
 
   const card = deriveCard(F4C);
   const ground = fieldGround();
+  // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
+  const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2]));
+  const BUFFET_FULL = 2000;   // Pa of dynamic pressure: below this (about 110 knots) the buffet shake is weaker
   let sim, now, before, carry = 0, flying = false;
 
   // Where the airplane is, in the picture's axes.
@@ -81,14 +88,17 @@ export function startFlight(canvas, { controls, onCrash }) {
     airplane.quaternion.copy(shown.quaternion);
     // The model's parts: gear and flaps where the simulation has them, the
     // controls where the pilot's stick and the automatic rudder are.
-    const stick = normalizeControls(flown), air = sim.observe(flown).air;
+    const stick = normalizeControls(flown), seen = sim.observe(flown), air = seen.air;
     airplane.set({
       gear: sim.gear, flaps: sim.flaps,
       elevator: 0.5 + 0.5 * stick.elevator, aileron: 0.5 + 0.5 * stick.aileron,
       rudder: 0.5 + 0.5 * coordinate(card, stick, air.beta, air.qbar),
     });
     fit();   // every frame: iOS can report the new size late after a rotation
-    chase.update(shown.position, shown.quaternion, elapsed, FIELD.height);
+    const height = -sim.state.x[2] - wheels;
+    onReadout(calibratedAirspeed(air.V, atmosphere(-sim.state.x[2])) / KT, height / FT, (height - ground.heightAt(sim.state.x[0], sim.state.x[1])) / FT);
+    const buffet = (seen.coef?.buffet ?? 0) * Math.min(1, air.qbar / BUFFET_FULL);
+    chase.update(shown.position, shown.quaternion, elapsed, FIELD.height, flying ? buffet : 0);
     world.follow(chase.camera);
     renderer.render(scene, chase.camera);
     waiting = requestAnimationFrame(draw);
