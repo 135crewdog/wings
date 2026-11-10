@@ -56,8 +56,9 @@ function pointForce(p, ps, state, ground, brakeOn, steer) {
 }
 
 
-/** The points that can touch: the airframe always, the wheels only with the gear down. */
-export const contactPoints = (card, gearDown) => (gearDown ? card.contacts : card.contacts.filter((p) => !p.wheel));
+/** The points that can touch: the airframe always; the wheels and the rest of the gear only with the gear down. */
+export const onGear = (p) => p.wheel || p.gearOnly === true;
+export const contactPoints = (card, gearDown) => (gearDown ? card.contacts : card.contacts.filter((p) => !onGear(p)));
 
 /**
  * Total body-axis contact force and moment. ctl: { brake, steer } - wheel

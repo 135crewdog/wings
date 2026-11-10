@@ -120,8 +120,8 @@ export function deriveCard(pilot) {
     flapLift: (2 * W) / (RHO0 * S * (pilot.stall_landing_kt * KT) ** 2) - CLmax,
     flapDrag: feel(0.02, 0.08, pilot.flap_drag),
     gearDrag: feel(0.01, 0.04, pilot.gear_drag),
-    // Ground contact: where the airplane can touch, from its size.
-    contacts: contactPoints(W, m, b, length),
+    // Ground contact: where the airplane can touch, as measured from its 3D model.
+    contacts: contactPoints(W, m, pilot),
     // Only a hard arrival ends a flight (m/s of sink at the point that touches).
     crash: { wheelSink: 8, bodySink: 6 },
   };
@@ -165,28 +165,34 @@ export function rollRate(c, V) {
 }
 
 /**
- * Contact points in body axes (x forward, y right, z down, from the CG), for
- * a tricycle-gear jet of this size: proportions typical of a fighter. Wheels
- * are there only with the gear down; the rest is the airframe itself. Each
- * has a spring and damper sized to carry its share of the weight.
+ * Contact points in body axes (x forward, y right, z down, metres from the
+ * CG), from the card's measurements of the 3D model. Wheels, and the other
+ * gear points, are there only with the gear down; the rest is the airframe
+ * itself. Each has a spring and
+ * damper sized to the share of the weight it carries: for the wheels, the
+ * share that balances the airplane on them.
  */
-function contactPoints(W, m, b, length) {
-  const wheelbase = 0.4 * length, track = 0.465 * b, height = 0.115 * length;
+function contactPoints(W, m, pilot) {
+  const metres = (p) => p.map((x) => x * FT);
   const strut = (share, sag) => {
     const k = (share * W) / sag;
     return { k, c: Math.sqrt(k * share * m) };   // about half of critical damping
   };
-  const wheel = (name, r, share, extra) => ({ name, wheel: true, r, ...strut(share, 0.15), ...extra });
-  const skid = (name, r) => ({ name, wheel: false, r, ...strut(1, 0.1) });
+  // A wheel is two contact points, at the two edges of its tyre, sharing its load.
+  const wheel = (name, key, share, extra) => [-1, 1].map((side) => {
+    const [x, y, z] = pilot.wheels_ft[key];
+    return { name, wheel: true, r: metres([x, y + (side * pilot.tyre_width_ft[key]) / 2, z]), ...strut(share / 2, 0.15), ...extra };
+  });
+  const skid = (r, i) => ({ name: `airframe ${i + 1}`, wheel: false, r: metres(r), ...strut(1, 0.1) });
+  const { nose, left } = pilot.wheels_ft;
+  // The mains sit behind the CG and the nose wheel ahead: the nose wheel carries what the lever leaves it.
+  const noseShare = -left[0] / (nose[0] - left[0]);
   return [
-    wheel('nose wheel', [0.93 * wheelbase, 0, height], 0.07, { steers: true }),
-    wheel('left main', [-0.07 * wheelbase, -track / 2, height], 0.465, { brake: true }),
-    wheel('right main', [-0.07 * wheelbase, track / 2, height], 0.465, { brake: true }),
-    skid('nose', [0.5 * length, 0, 0.3 * height]),
-    skid('belly', [0.1 * length, 0, 0.5 * height]),
-    skid('tail', [-0.45 * length, 0, 0.2 * height]),
-    skid('left wingtip', [-0.15 * length, -b / 2, 0.1 * height]),
-    skid('right wingtip', [-0.15 * length, b / 2, 0.1 * height]),
+    ...wheel('nose wheel', 'nose', noseShare, { steers: true }),
+    ...wheel('left main', 'left', (1 - noseShare) / 2, { brake: true }),
+    ...wheel('right main', 'right', (1 - noseShare) / 2, { brake: true }),
+    ...pilot.gear_ft.map((r, i) => ({ ...skid(r, i), name: `gear ${i + 1}`, gearOnly: true })),
+    ...pilot.airframe_ft.map(skid),
   ];
 }
 
