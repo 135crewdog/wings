@@ -7,7 +7,7 @@
 import { atmosphere, G0 } from './atmosphere.js';
 import { aeroForces, aileronPower, airData, groundEffect, separationStep } from './aero.js';
 import { rk4Step } from './body.js';
-import { contactForces, crashCheck, touching } from './contact.js';
+import { contactForces, crashCheck, onGear, touching } from './contact.js';
 import { powerStep, powerWanted, thrust } from './engine.js';
 import { qrotate, qrotateInv } from './vec.js';
 
@@ -119,10 +119,10 @@ export class Sim {
     this.flaps = travel(this.flaps, ctl.flaps, FLAP_SECONDS, DT);
     const wheels = this.gear >= 1;
     if (wheels !== hadWheels && this.ground) {
-      const airframe = this.touching.slice(hadWheels ? this.card.contacts.filter((p) => p.wheel).length : 0);
+      const airframe = this.touching.slice(hadWheels ? this.card.contacts.filter(onGear).length : 0);
       if (wheels) {
         let i = 0;
-        const was = this.card.contacts.map((p) => (p.wheel ? false : airframe[i++]));
+        const was = this.card.contacts.map((p) => (onGear(p) ? false : airframe[i++]));
         this.crashed = crashCheck(this.card, before, before, this.ground, was, true);
         if (this.crashed) return this.state;
       }

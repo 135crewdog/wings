@@ -72,10 +72,11 @@ export function worldMatrices(json, pose = {}) {
   return world;
 }
 
-/** Every vertex under a node (itself and its children), in world axes. */
-export function verticesUnder(glb, index, world) {
+/** Every vertex under a node (itself and its children), in world axes, leaving out the nodes in `skip` and all under them. */
+export function verticesUnder(glb, index, world, skip = []) {
   const out = [];
   const walk = (i) => {
+    if (skip.includes(i)) return;
     const node = glb.json.nodes[i];
     if (node.mesh !== undefined) {
       for (const primitive of glb.json.meshes[node.mesh].primitives) {

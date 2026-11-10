@@ -43,7 +43,7 @@ export function airborne(c, { ft = 10000, kt = 350, pitch = 0, roll = 0, level =
  */
 export function onRunway(c, { kt = 0, sink = 0, pitch = 0, roll = 0, flaps = false, gear = true, throttle = 0 } = {}) {
   const ground = flatGround(0);
-  const points = c.contacts.filter((p) => !p.wheel || gear);
+  const points = c.contacts.filter((p) => gear || !(p.wheel || p.gearOnly));
   const th = pitch * DEG, ph = roll * DEG;
   // How far below the CG the lowest point hangs at this attitude.
   const low = Math.max(...points.map((p) => -Math.sin(th) * p.r[0] + Math.cos(th) * (Math.sin(ph) * p.r[1] + Math.cos(ph) * p.r[2])));

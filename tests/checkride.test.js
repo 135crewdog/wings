@@ -565,7 +565,7 @@ test('wheels that lock down at the moment of touchdown still count the arrival',
   const arrive = (gearAtStart) => {
     const sim = onRunway(c, { kt: 150, sink: 2362 });
     sim.gear = gearAtStart;
-    sim.touching = sim.touching.slice(gearAtStart >= 1 ? 0 : 3);
+    sim.touching = sim.touching.slice(gearAtStart >= 1 ? 0 : c.contacts.filter((p) => p.wheel || p.gearOnly).length);
     for (let i = 0; i < 120 && !sim.crashed; i++) sim.step({ gear: true });
     return sim.crashed;
   };

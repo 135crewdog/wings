@@ -166,8 +166,9 @@ export function rollRate(c, V) {
 
 /**
  * Contact points in body axes (x forward, y right, z down, metres from the
- * CG), from the card's measurements of the 3D model. Wheels are there only
- * with the gear down; the rest is the airframe itself. Each has a spring and
+ * CG), from the card's measurements of the 3D model. Wheels, and the other
+ * gear points, are there only with the gear down; the rest is the airframe
+ * itself. Each has a spring and
  * damper sized to the share of the weight it carries: for the wheels, the
  * share that balances the airplane on them.
  */
@@ -177,21 +178,21 @@ function contactPoints(W, m, pilot) {
     const k = (share * W) / sag;
     return { k, c: Math.sqrt(k * share * m) };   // about half of critical damping
   };
-  const wheel = (name, r, share, extra) => ({ name, wheel: true, r: metres(r), ...strut(share, 0.15), ...extra });
-  const skid = (name, r) => ({ name, wheel: false, r: metres(r), ...strut(1, 0.1) });
-  const { nose, left, right } = pilot.wheels_ft, air = pilot.airframe_ft;
+  // A wheel is two contact points, at the two edges of its tyre, sharing its load.
+  const wheel = (name, key, share, extra) => [-1, 1].map((side) => {
+    const [x, y, z] = pilot.wheels_ft[key];
+    return { name, wheel: true, r: metres([x, y + (side * pilot.tyre_width_ft[key]) / 2, z]), ...strut(share / 2, 0.15), ...extra };
+  });
+  const skid = (r, i) => ({ name: `airframe ${i + 1}`, wheel: false, r: metres(r), ...strut(1, 0.1) });
+  const { nose, left } = pilot.wheels_ft;
   // The mains sit behind the CG and the nose wheel ahead: the nose wheel carries what the lever leaves it.
   const noseShare = -left[0] / (nose[0] - left[0]);
-  const tip = air.wingtip;
   return [
-    wheel('nose wheel', nose, noseShare, { steers: true }),
-    wheel('left main', left, (1 - noseShare) / 2, { brake: true }),
-    wheel('right main', right, (1 - noseShare) / 2, { brake: true }),
-    skid('nose', air.nose),
-    skid('belly', air.belly),
-    skid('tail', air.tail),
-    skid('left wingtip', [tip[0], -tip[1], tip[2]]),
-    skid('right wingtip', tip),
+    ...wheel('nose wheel', 'nose', noseShare, { steers: true }),
+    ...wheel('left main', 'left', (1 - noseShare) / 2, { brake: true }),
+    ...wheel('right main', 'right', (1 - noseShare) / 2, { brake: true }),
+    ...pilot.gear_ft.map((r, i) => ({ ...skid(r, i), name: `gear ${i + 1}`, gearOnly: true })),
+    ...pilot.airframe_ft.map(skid),
   ];
 }
 

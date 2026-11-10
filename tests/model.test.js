@@ -96,9 +96,49 @@ test('the card\'s wheels and airframe are where the model\'s are', () => {
   const model = contactPoints(glb);
   const close = (a, b, what) => a.forEach((x, k) => assert.ok(Math.abs(x - b[k]) <= 0.05, `${what}: the card says ${JSON.stringify(b)} ft, the model ${JSON.stringify(a)} ft`));
   for (const [name, at] of Object.entries(model.wheels)) close(at, F4C.wheels_ft[name], `${name} wheel`);
-  for (const [name, at] of Object.entries(model.airframe)) close(at, F4C.airframe_ft[name], name);
+  for (const [name, width] of Object.entries(model.tyres)) close([width], [F4C.tyre_width_ft[name]], `${name} tyre width`);
+  assert.equal(F4C.airframe_ft.length, model.airframe.length, 'the same number of airframe points');
+  model.airframe.forEach((at, i) => close(at, F4C.airframe_ft[i], `airframe point ${i + 1}`));
+  assert.equal(F4C.gear_ft.length, model.gear.length, 'the same number of gear points');
+  model.gear.forEach((at, i) => close(at, F4C.gear_ft[i], `gear point ${i + 1}`));
   const { nose, left, right } = model.wheels;
   console.log(`  wheelbase ${(nose[0] - left[0]).toFixed(1)} ft, track ${(right[1] - left[1]).toFixed(1)} ft, mains ${(-left[0]).toFixed(1)} ft behind the centre of gravity, which sits ${nose[2].toFixed(1)} ft above the runway`);
   assert.ok(left[0] < 0 && nose[0] > 0, 'the mains are behind the centre of gravity and the nose wheel ahead');
   assert.ok(Math.abs(left[1] + right[1]) < 0.05 && Math.abs(left[2] - right[2]) < 0.05, 'the mains are a matched pair');
+});
+
+test('nothing on the model reaches the ground before the card\'s points do', () => {
+  // Checked against every vertex of the model itself, at attitudes between
+  // and beyond the ones the points were chosen at: this does not use the
+  // function that chose them.
+  const DEG = Math.PI / 180;
+  const hang = ([x, y, z], pitch, roll) => -Math.sin(pitch) * x + Math.cos(pitch) * (Math.sin(roll) * y + Math.cos(roll) * z);
+  const toBody = ([x, y, z]) => [-z, x, -y];
+  const metres = (p) => p.map((v) => v * FT);
+  const deepest = (points, pitch, roll) => Math.max(...points.map((p) => hang(p, pitch * DEG, roll * DEG)));
+  const tyreNodes = ['wheel_nose', 'wheel_left', 'wheel_right'].map((name) => json.nodes.findIndex((n) => n.name === name));
+  const tyreEdges = Object.entries(F4C.wheels_ft).flatMap(([name, [x, y, z]]) => [-1, 1].map((side) => [x, y + (side * F4C.tyre_width_ft[name]) / 2, z]));
+  let worst = { gap: 0 };
+  // Everything but the tyres, gear up and gear down, pitched and banked.
+  for (const [gear, card] of [[0, F4C.airframe_ft], [1, [...F4C.airframe_ft, ...F4C.gear_ft, ...tyreEdges]]]) {
+    const skin = verticesUnder(glb, root, worldMatrices(json, poseAt(glb, 'gear', gear)), tyreNodes).map(toBody), points = card.map(metres);
+    for (let pitch = -10; pitch <= 20; pitch += 2.5) {
+      for (let roll = -30; roll <= 30; roll += 2.5) {
+        const gap = deepest(skin, pitch, roll) - deepest(points, pitch, roll);
+        if (gap > worst.gap) worst = { gap, pitch, roll, what: `gear ${gear ? 'down' : 'up'}` };
+      }
+    }
+  }
+  // The tyres themselves: a wheel is its contact line, as wide as the tyre, so
+  // check them banked but level. Pitched, a round tyre rolls onto a new
+  // contact point; the model's are blocky, and their corners are not the
+  // airplane's to land on.
+  const down = worldMatrices(json, poseAt(glb, 'gear', 1));
+  const tyres = tyreNodes.flatMap((node) => verticesUnder(glb, node, down)).map(toBody);
+  for (let roll = -30; roll <= 30; roll += 2.5) {
+    const gap = deepest(tyres, 0, roll) - deepest(tyreEdges.map(metres), 0, roll);
+    if (gap > worst.gap) worst = { gap, pitch: 0, roll, what: 'the tyres' };
+  }
+  console.log(`  ${F4C.airframe_ft.length} airframe points and ${F4C.gear_ft.length} gear points; the most the model dips below the card is ${(worst.gap * 100).toFixed(1)} cm${worst.gap ? ` (${worst.what}, ${worst.pitch} deg nose up, ${worst.roll} deg of bank)` : ''}`);
+  assert.ok(worst.gap < 0.05, 'within 5 cm at every attitude from nose 10 down to 20 up and 30 degrees of bank');
 });
