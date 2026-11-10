@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.5
+
+- The F-4 sits on a runway, seen from behind: the test field for first flight. The look-around view, with the parts moving by themselves, is gone.
+
 ## 0.0.4
 
 - The F-4 rolls the way the real one does: an aileron goes down on one wing and a spoiler comes up on the other. The ailerons no longer move up.

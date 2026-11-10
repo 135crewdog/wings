@@ -62,20 +62,18 @@ test('sw.js caches every file the app loads, and lists only files that exist', (
   console.log(`  ${files.length} files cached, ${modules.length} loaded by the app's code`);
 });
 
-test('the hangar demo moves every part and returns it to where it started', async () => {
-  const { demoAt } = await import('../src/demo.js');
-  const rest = { gear: 1, flaps: 0, elevator: 0.5, aileron: 0.5, rudder: 0.5 };
-  assert.deepEqual(demoAt(0), rest, 'it starts at rest: gear down, flaps up, controls neutral');
-  const seen = Object.fromEntries(Object.keys(rest).map((name) => [name, [Infinity, -Infinity]]));
-  let period = 0;
-  for (let t = 0; t < 120; t += 0.05) {
-    const at = demoAt(t);
-    for (const [name, x] of Object.entries(at)) {
-      assert.ok(x >= 0 && x <= 1, `${name} stays between 0 and 1`);
-      seen[name] = [Math.min(seen[name][0], x), Math.max(seen[name][1], x)];
-    }
-    if (!period && t > 1 && JSON.stringify(at) === JSON.stringify(rest) && JSON.stringify(demoAt(t + 0.05)) !== JSON.stringify(rest)) period = t;
+test('sw.js lists no code the app does not load', () => {
+  const listed = [...sw.matchAll(/'(\.\/(?:src|vendor)\/[^']+)'/g)].map((m) => m[1]);
+  const loaded = filesLoaded('./src/main.js');
+  assert.deepEqual(listed.filter((f) => !loaded.includes(f)), [], 'cached but never loaded');
+});
+
+test('the simulation and the field contain no browser or Three.js code', () => {
+  const files = filesLoaded('./src/field.js').concat(filesLoaded('./src/render/frames.js'), filesLoaded('./src/sim/trim.js'), filesLoaded('./src/sim/airdata.js'));
+  for (const file of new Set(files)) {
+    assert.ok(file.startsWith('./src/sim/') || file === './src/field.js' || file === './src/render/frames.js', `${file} is headless code`);
+    const source = readFileSync(join(root, file), 'utf8');
+    assert.doesNotMatch(source, /\b(document|window|navigator|requestAnimationFrame|THREE)\b\s*[.(]/, `${file} uses nothing from the browser`);
   }
-  for (const [name, [low, high]] of Object.entries(seen)) assert.ok(low < 0.02 && high > 0.98, `${name} goes all the way both ways`);
-  console.log(`  every motion sweeps its full travel`);
+  console.log(`  ${new Set(files).size} headless files`);
 });
