@@ -9,7 +9,7 @@ Claude Code writes this page and keeps it current. If a rule here is impractical
 - **Real size, in metres.** An F-4C is 17.7 m long with a span of 11.7 m. The test allows 2% either way.
 - **Axes in the exported file:** nose along −Z, right wing along +X, up along +Y. In Blender, which has Z up, that means the nose points along +Y and the right wing along +X; the glTF exporter's "+Y Up" option (on by default) does the rest.
 - **The origin is the centre of gravity.** Put the model's origin where the real airplane balances, taken from the reference drawings: on the centreline, about a third of the way back along the wing's mean chord, which on the F-4 is a little ahead of the main wheels. The simulation turns and pitches the airplane around this point, so a wrong origin makes it look as if it pivots about its nose or tail.
-- Apply all scale and rotation before export (Ctrl-A, "All Transforms"), so the file carries no hidden scaling.
+- Apply rotation and scale to every object before animating anything (Ctrl-A, "Rotation & Scale"), so the file carries no hidden scaling. Not "All Transforms" and not "Location": those move each object's origin to the middle of the scene, which throws away the hinges below.
 
 ## The parts that move
 
