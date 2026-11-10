@@ -8,6 +8,7 @@ import { Sim, DT, stepsFor } from '../src/sim/sim.js';
 import { qfromEuler, qrotate, qtoEuler } from '../src/sim/vec.js';
 import { FIELD, PARKED, fieldGround, startState } from '../src/field.js';
 import { fly } from './fly.js';
+import { readouts } from '../src/readouts.js';
 import { circuit } from './circuit.js';
 import { attitudeToThree, toThree } from '../src/render/frames.js';
 
@@ -86,4 +87,14 @@ test('a whole flight through the controls the app gives the player: take off, fl
   }
   assert.ok(e.touchdown.north < 0, 'it touches down in the first half');
   assert.ok(log.every((r) => !r.onGround || Math.abs(r.east) < edge), 'it never leaves the runway on the ground');
+});
+
+test('readouts: knots and feet, with radar altitude only below 2,000 ft above the ground', () => {
+  assert.deepEqual(readouts(0, -0.4, -0.4), { airspeed: '0', altitude: '0', radar: 'R 0' }, 'on the runway everything reads zero');
+  assert.deepEqual(readouts(349.6, 12344, 9000), { airspeed: '350', altitude: '12,340', radar: '' }, 'high up: no radar altitude');
+  assert.equal(readouts(300, 5000, 2000).radar, '', 'none at exactly 2,000 ft');
+  assert.equal(readouts(300, 5000, 1996).radar, 'R 2,000', 'just below, it appears, to the nearest 10 ft');
+  assert.equal(readouts(150, 3237, 237).radar, 'R 240');
+  assert.equal(readouts(150, 3047.4, 47.4).radar, 'R 47', 'below 100 ft, to the foot');
+  assert.equal(readouts(150, 3047.4, 47.4).altitude, '3,050', 'over high ground the two differ');
 });
