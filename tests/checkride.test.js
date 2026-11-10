@@ -5,16 +5,20 @@
 // the pull request that builds what it measures. Feel numbers are only
 // reported.
 //
-// So far: the core flies and stalls. There is no engine yet and the control
-// powers are placeholders. Graded: the clean stall speed.
+// So far: the core flies and stalls, with an engine and Mach effects. The
+// control powers are placeholders. Graded: the clean stall speed and both top
+// speeds.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { card, airborne, fly, holdAltitude, readout, table, KT, FT, DEG, DT } from './fly.js';
+import { card, airborne, fly, holdAltitude, gPilot, readout, table, KT, FT, DEG, DT } from './fly.js';
 import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
 import { deriveCard } from '../src/sim/card.js';
 import { Sim, finite, MAX_RATE } from '../src/sim/sim.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
+import { powerStep, powerWanted, throttleFor, thrust, MIL_THROTTLE } from '../src/sim/engine.js';
+import { calibratedAirspeed } from '../src/sim/airdata.js';
+import { LB } from '../src/sim/card.js';
 
 const round = (x, n = 0) => Number(x.toFixed(n));
 
@@ -54,7 +58,7 @@ test('hands off, it glides and settles near the neutral speed', () => {
   const mean = kias.reduce((a, b) => a + b) / kias.length;
   const end = log.at(-1), start = late[0];
   const glideRatio = (end.north - start.north) / ((start.ft - end.ft) * FT);
-  table('Glide, hands off, no engine, from 30,000 ft', [
+  table('Glide, hands off, engine at idle, from 30,000 ft', [
     ['indicated speed, last minute', `${round(mean)} kt`, `${c.pilot.neutral_speed_kt} kt neutral speed (not graded)`],
     ['speed wander, last minute', `${round(Math.max(...kias) - Math.min(...kias))} kt`],
     ['glide ratio', `${round(glideRatio, 1)} : 1`],
@@ -229,6 +233,127 @@ test('a sloppy stall in a turn departs, and recovers when let go', () => {
   assert.ok(peak(sloppy) > 3 * peak(clean), 'the sloppy one drops a wing; the coordinated one does not');
 });
 
+test('the engine gives the card\'s thrust, with lag and an afterburner', () => {
+  const c = card();
+  const lb = (n) => n / (LB * 9.80665);
+  assert.ok(Math.abs(lb(thrust(c, 1, 0, 1)) - c.pilot.thrust_mil_lb) < 1, 'MIL thrust, sea level, standing still');
+  assert.ok(Math.abs(lb(thrust(c, 2, 0, 1)) - c.pilot.thrust_afterburner_lb) < 1, 'afterburner thrust, sea level, standing still');
+  for (let p = 0; p < 2; p += 0.05) assert.ok(thrust(c, p + 0.05, 0.5, 0.7) > thrust(c, p, 0.5, 0.7), 'more power, more thrust');
+  for (const t of [0, 0.3, MIL_THROTTLE, 0.9, 1]) assert.ok(Math.abs(throttleFor(powerWanted(t)) - t) < 1e-12);
+  // Slam the throttle from idle to full and time the engine; then chop it.
+  const timeTo = (from, throttle, reached) => {
+    let p = from, t = 0;
+    while (!reached(p) && t < 60) { p = powerStep(p, powerWanted(throttle), DT); t += DT; }
+    return t;
+  };
+  const toMil = timeTo(0, 1, (p) => p >= 0.95), toFull = timeTo(0, 1, (p) => p >= 1.95), down = timeTo(2, 0, (p) => p <= 1);
+  table('Engine', [
+    ['MIL thrust, sea level, standing still', `${round(lb(thrust(c, 1, 0, 1)))} lb`, `${c.pilot.thrust_mil_lb} lb`],
+    ['afterburner', `${round(lb(thrust(c, 2, 0, 1)))} lb`, `${c.pilot.thrust_afterburner_lb} lb`],
+    ['idle', `${round(lb(thrust(c, 0, 0, 1)))} lb`],
+    ['afterburner at 500 kt, sea level', `${round(lb(thrust(c, 2, (500 * KT) / atmosphere(0).a, 1)))} lb`],
+    ['afterburner at Mach 2.2, 40,000 ft', `${round(lb(thrust(c, 2, 2.2, atmosphere(40000 * FT).rho / atmosphere(0).rho)))} lb`],
+    ['thrust to weight, afterburner, standing still', round(c.thrustAfterburner / c.W, 2)],
+    ['throttle slammed: idle to 95% of MIL', `${round(toMil, 1)} s`],
+    ['then to full afterburner', `${round(toFull, 1)} s from idle`],
+    ['throttle chopped: afterburner out in', `${round(down, 1)} s`],
+  ]);
+  assert.ok(toMil > 2 && toMil < 8, 'the engine takes a few seconds to spool');
+  assert.ok(toFull > toMil, 'the afterburner lights after the engine reaches MIL');
+});
+
+test('the airspeed indicator reads true speed at sea level and less up high', () => {
+  for (const kt of [100, 400, 780]) assert.ok(Math.abs(calibratedAirspeed(kt * KT, atmosphere(0)) / KT - kt) < 0.01);
+  const high = atmosphere(40000 * FT);
+  const kias = calibratedAirspeed(2.2 * high.a, high) / KT;
+  assert.ok(kias > 600 && kias < 800, `Mach 2.2 at 40,000 ft reads ${kias.toFixed(0)} kt`);
+});
+
+test('trimmed, it flies level and steady with the controls held still', () => {
+  const c = card();
+  const rows = [];
+  for (const [ft, kt] of [[5000, 300], [20000, 450], [35000, 550]]) {
+    const sim = airborne(c, { ft, kt, level: true, throttle: 'trim' });
+    assert.ok(sim.trim.possible);
+    const start = readout(sim);
+    const log = fly(sim, 60, () => ({ elevator: sim.trim.elevator, throttle: sim.trim.throttle }), 1);
+    const end = log.at(-1);
+    rows.push([`${ft} ft, ${round(start.kias)} kt indicated`, `throttle ${round(sim.trim.throttle * 100)}%, a minute later ${round(end.ft - ft)} ft, ${round(end.kias - start.kias)} kt`]);
+    assert.ok(Math.abs(end.ft - ft) < 200 && Math.abs(end.kias - start.kias) < 5, `steady at ${ft} ft`);
+  }
+  table('Level-flight trim, controls held still for a minute', rows);
+});
+
+// Full afterburner in level flight until the speed settles.
+function topSpeed(c, ft, kt, seconds) {
+  const sim = airborne(c, { ft, kt, level: true, throttle: 1 });
+  const hold = holdAltitude(ft, sim.trim.elevator);
+  const log = fly(sim, seconds, (r) => ({ ...hold(r), throttle: 1 }), 5);
+  const end = log.at(-1), before = log.at(-3);
+  assert.equal(sim.crashed, null);
+  assert.ok(Math.abs(end.ft - ft) < 100, 'held level');
+  assert.ok(Math.abs((end.kt - before.kt) / (end.t - before.t)) < 0.1, 'the speed has settled');
+  return end;
+}
+
+test('GRADED: top speeds', () => {
+  const c = card();
+  const p = c.pilot;
+  // Each one approached from below and from above; the top speed is where they meet.
+  const low = [0.9, 1.1].map((f) => topSpeed(c, 0, f * p.top_speed_low_kt, 150));
+  const aHigh = atmosphere(p.top_speed_high_ft * FT).a / KT;
+  const high = [0.9, 1.07].map((f) => topSpeed(c, p.top_speed_high_ft, f * p.top_speed_high_mach * aHigh, 400));
+  const lowKt = (low[0].kt + low[1].kt) / 2, highMach = (high[0].mach + high[1].mach) / 2;
+  table('Top speed, full afterburner, level', [
+    ['sea level', `${round(lowKt)} kt`, `${p.top_speed_low_kt} kt +-5% (GRADED)`],
+    ['  from below / from above', `${round(low[0].kt)} / ${round(low[1].kt)} kt`, `Mach ${round(low[0].mach, 2)}`],
+    [`${p.top_speed_high_ft} ft`, `Mach ${round(highMach, 2)}`, `Mach ${p.top_speed_high_mach} +-5% (GRADED)`],
+    ['  from below / from above', `Mach ${round(high[0].mach, 2)} / ${round(high[1].mach, 2)}`, `${round(high[0].kt)} kt true, ${round(high[0].kias)} kt indicated`],
+  ]);
+  assert.ok(Math.abs(lowKt / p.top_speed_low_kt - 1) <= 0.05, `sea-level top speed ${lowKt.toFixed(0)} kt is within 5% of the card`);
+  assert.ok(Math.abs(highMach / p.top_speed_high_mach - 1) <= 0.05, `high top speed Mach ${highMach.toFixed(2)} is within 5% of the card`);
+  assert.ok(Math.abs(low[0].kt - low[1].kt) < 0.02 * lowKt && Math.abs(high[0].mach - high[1].mach) < 0.02 * highMach, 'the same from below and from above');
+});
+
+test('performance with the engine', () => {
+  const c = card();
+  // MIL power, level: how fast without the afterburner.
+  const mil = (ft, kt) => {
+    const sim = airborne(c, { ft, kt, level: true, throttle: MIL_THROTTLE });
+    const hold = holdAltitude(ft, sim.trim.elevator);
+    return fly(sim, 300, (r) => ({ ...hold(r), throttle: MIL_THROTTLE }), 5).at(-1);
+  };
+  const milLow = mil(0, 500), milHigh = mil(30000, 500);
+  // Level acceleration at 10,000 ft from 300 to 500 kt indicated.
+  const accel = (throttle) => {
+    const sim = airborne(c, { ft: 10000, kt: 300, level: true, throttle });
+    const hold = holdAltitude(10000, sim.trim.elevator);
+    const log = fly(sim, 240, (r) => ({ ...hold(r), throttle }), 0.1);
+    const from = log.find((r) => r.kias >= 300), to = log.find((r) => r.kias >= 500);
+    return to ? to.t - from.t : null;
+  };
+  // Level at 1,000 ft in afterburner: the knots gained per second passing 400
+  // kt, and the steady climb rate the same spare thrust would give instead.
+  const spare = (() => {
+    const sim = airborne(c, { ft: 1000, kt: 350, level: true, throttle: 1 });
+    const hold = holdAltitude(1000, sim.trim.elevator);
+    const log = fly(sim, 30, (r) => ({ ...hold(r), throttle: 1 }), 0.5);
+    const i = log.findIndex((r) => r.kt >= 400);
+    const ktPerS = (log[i + 1].kt - log[i - 1].kt) / (log[i + 1].t - log[i - 1].t);
+    return { ktPerS, fpm: ((ktPerS * KT * 400 * KT) / 9.80665 / FT) * 60 };
+  })();
+  const ab = accel(1), dry = accel(MIL_THROTTLE);
+  table('Performance (reported, not graded)', [
+    ['top speed at MIL, sea level', `${round(milLow.kt)} kt`, `Mach ${round(milLow.mach, 2)}`],
+    ['top speed at MIL, 30,000 ft', `Mach ${round(milHigh.mach, 2)}`, `${round(milHigh.kias)} kt indicated`],
+    ['300 to 500 kt, 10,000 ft, afterburner', ab ? `${round(ab, 1)} s` : 'does not get there'],
+    ['300 to 500 kt, 10,000 ft, MIL', dry ? `${round(dry, 1)} s` : 'does not get there'],
+    ['acceleration through 400 kt, 1,000 ft, afterburner', `${round(spare.ktPerS, 1)} kt/s`, `worth ${Math.round(spare.fpm / 1000) * 1000} ft/min of climb`],
+  ]);
+  assert.ok(ab !== null && (dry === null || ab < dry), 'the afterburner accelerates faster than MIL');
+  assert.ok(milLow.kt < c.pilot.top_speed_low_kt, 'and MIL is slower than afterburner');
+});
+
 test('aerobatics and abuse all end with a real state', () => {
   const c = card();
   const rows = [];
@@ -241,14 +366,15 @@ test('aerobatics and abuse all end with a real state', () => {
     return log;
   };
 
-  // A loop: hold back stick until the nose has come all the way round. With no
-  // engine yet it runs out of speed over the top and falls through; that still
-  // has to end with a real state.
+  // A loop in afterburner: pull 4 g until the nose has come all the way round.
   let turned = 0;
-  check('loop, no engine', airborne(c, { ft: 15000, kt: 450 }), 40, (r, sim) => {
+  const pull = gPilot();
+  const loop = check('loop', airborne(c, { ft: 15000, kt: 450, level: true, throttle: 1 }), 60, (r, sim) => {
     turned += sim.state.omega[1] * DT;
-    return { elevator: turned < 2 * Math.PI ? 0.6 : 0 };
-  }, (log) => `${round(turned / DEG)} deg of pitch travel, top g ${round(Math.max(...log.map((r) => r.g)), 1)}, slowest ${round(Math.min(...log.map((r) => r.kt)))} kt`);
+    return turned < 2 * Math.PI ? { elevator: pull(r, 4), aileron: 0, throttle: 1 } : { throttle: 1 };
+  }, (log) => `${round(turned / DEG)} deg of pitch travel, top g ${round(Math.max(...log.map((r) => r.g)), 1)}, ${round(Math.min(...log.map((r) => r.kias)))} kt over the top, ${round(Math.max(...log.map((r) => r.ft)) - 15000)} ft gained`);
+  assert.ok(turned >= 2 * Math.PI, 'the loop goes all the way round');
+  assert.ok(Math.min(...loop.map((r) => r.kias)) > 100, 'with flying speed over the top');
 
   // A roll: full right stick for four seconds.
   check('roll', airborne(c, { ft: 15000, kt: 400 }), 4, () => ({ aileron: 1 }),
