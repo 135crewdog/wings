@@ -52,6 +52,28 @@ export function gPilot(elevator = 0) {
   };
 }
 
+/**
+ * A pilot in a hard level turn to the right: holds `stick` back, and banks
+ * with the aileron to whatever keeps the altitude at `ft`. Returns
+ * controls(readout); add a throttle to what it returns.
+ */
+export function levelTurn(ft, stick) {
+  return (r) => {
+    const level = Math.acos(clamp(1 / Math.max(r.g, 1), 0, 1)) / DEG;   // the bank that holds this g level
+    const bank = clamp(level + clamp((r.ft - ft) * 0.02 + r.fpm * 0.004, -15, 15), r.t < 3 ? 78 : 0, 88);
+    return { elevator: stick, aileron: clamp(0.04 * (bank - r.roll) - 0.015 * r.rollRate, -1, 1) };
+  };
+}
+
+/** Degrees turned through between consecutive readouts, added up: headings wrap at +-180. */
+export function degreesTurned(log) {
+  let total = 0;
+  return log.map((r, i) => {
+    if (i > 0) total += ((r.heading - log[i - 1].heading + 540) % 360) - 180;
+    return total;
+  });
+}
+
 /** Wings level with the aileron. */
 export const wingsLevel = (r) => clamp(-0.02 * r.roll - 0.01 * r.rollRate, -1, 1);
 
@@ -86,6 +108,8 @@ export function readout(sim, controls = {}) {
     alpha: obs.air.alpha / DEG,
     pitch: euler.pitch / DEG,
     roll: euler.roll / DEG,
+    heading: euler.yaw / DEG,
+    slip: obs.air.beta / DEG,
     g: -obs.F[2] / sim.card.W + Math.cos(euler.pitch) * Math.cos(euler.roll),   // what the seat feels, along the airplane's "up"
     rollRate: sim.state.omega[0] / DEG,
     pitchRate: sim.state.omega[1] / DEG,

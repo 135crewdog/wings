@@ -4,10 +4,13 @@
 // already settled. No browser code.
 
 import { atmosphere } from './atmosphere.js';
-import { liftSlope, liftDragFactor, zeroLiftDrag } from './aero.js';
+import { liftSlope, liftDragFactor, zeroLiftDrag, elevatorPower } from './aero.js';
 import { thrust, throttleFor } from './engine.js';
 
 const RHO0 = atmosphere(0).rho;
+
+// The stick position (-1..1) that gives a pitch moment, for an elevator with powers { up, down }.
+const stick = (c, moment, power) => Math.max(-1, Math.min(1, moment >= 0 ? moment / Math.max(power.up, 1e-9) : moment / power.down));
 
 /**
  * Trim at true airspeed V (m/s) and altitude h (m). Returns { alpha,
@@ -36,7 +39,7 @@ export function trimLevel(c, V, h) {
   const power = (lo + hi) / 2;
   return {
     alpha,
-    elevator: -(c.Cm0 + c.Cma * Math.sin(alpha)) / c.elevator.cm,
+    elevator: stick(c, -(c.Cm0 + c.Cma * Math.sin(alpha)), elevatorPower(c, V, 0.5 * atm.rho * V * V, CLa, c.CLmax / CLa)),
     throttle: throttleFor(power),
     power,
     possible: CL <= c.CLmax && thrust(c, 2, mach, density) >= T && thrust(c, 0, mach, density) <= T,

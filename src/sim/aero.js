@@ -9,10 +9,15 @@
 // lift and drag from the one lift curve. Roll damping, the wing drop at the
 // stall, autorotation and its natural limit all come from that.
 //
+// Limits come from control power (findings 6 and 9): full stick asks for the
+// card's g limit and roll rate, and the wing stalls first when it can't give
+// them.
+//
 // Mach changes three things (finding 7): the lift slope, the drag that comes
 // with lift, and the airplane's own drag, which rises through Mach 1.
 
 import { norm } from './vec.js';
+import { G0 } from './atmosphere.js';
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const smoothstep = (x) => x * x * (3 - 2 * x);
@@ -54,6 +59,29 @@ export function zeroLiftDrag(c, mach) {
   if (mach >= MACH_WAVE) return line(mach);
   return subsonic + (line(MACH_WAVE) - subsonic) * smoothstep((mach - MACH_DD) / (MACH_WAVE - MACH_DD));
 }
+
+/**
+ * The elevator's pitch power at full back stick (`up`) and full forward
+ * (`down`), fading as the air gets harder, so that full back stick holds the
+ * card's g limit in a turn and full forward its negative one. Holding g means
+ * holding a pitch rate too, which the airplane's pitch damping resists, so
+ * the power covers both. Slow, the angle of attack that g needs is beyond
+ * the wing: it is held to a little past the stall angle, so below corner
+ * speed the wing stalls first.
+ */
+export function elevatorPower(c, V, qbar, CLa, alphaStall) {
+  const perG = c.W / (Math.max(qbar, 1) * c.S * CLa);   // angle of attack per g
+  const most = 1.2 * alphaStall;
+  const power = (g) => {
+    const alpha = Math.min(g * perG, most), held = alpha / perG;   // the g actually held
+    const rate = (G0 * Math.max(held - 1 / Math.max(held, 1), 0)) / Math.max(V, 1);   // pitch rate of a level turn at that g
+    return -c.Cma * Math.sin(alpha) - c.Cmq * (rate * c.cbar) / (2 * Math.max(V, 1));
+  };
+  return { up: Math.max(power(c.gLimit) - c.Cm0, 0), down: c.Cm0 + power(c.gDown) };
+}
+
+/** The aileron's roll power: full up to the card's roll-rate speed, then fading so the roll rate holds instead of growing. */
+export const aileronPower = (c, qbar) => c.aileron.cl * Math.min(1, Math.sqrt(c.qRoll / Math.max(qbar, 1)));
 
 /**
  * How stalled a wing half wants to be at angle of attack alpha, 0 attached to
@@ -182,15 +210,24 @@ export function aeroForces(c, air, ctl, sep = [0, 0]) {
   // The rest of the airplane: its own drag along the airflow, the fin's side
   // force, and the stability, damping and control moments.
   const CY = c.CYb * beta + c.rudder.cy * ctl.rudder;
-  const Cl = c.Clb * beta + c.aileron.cl * ctl.aileron + c.rudder.cl * ctl.rudder;
+  const roll = aileronPower(c, air.qbar) * ctl.aileron;
+  const Cl = c.Clb * beta + roll + c.rudder.cl * ctl.rudder;
   // sin(alpha) keeps the pitch moment continuous through +-180 degrees. The
   // break is the nose drop: a push toward lower angle of attack that comes in
   // with the stall, full strength from the stall angle on, fading to nothing
   // at 0 and at +-180 degrees so that it too has no step.
   const sinA = Math.sin(alpha);
-  const Cm = c.Cm0 + c.Cma * sinA + c.Cmq * qhat + c.elevator.cm * ctl.elevator
+  const pitch = elevatorPower(c, air.V, air.qbar, air.CLa, air.alphaStall);
+  // Two kinds of pitch damping. Cmq resists pitch rate, which a steady turn
+  // has, so it costs held g. Cmad resists the angle of attack changing, which
+  // a steady turn does not, so it settles the nose after a stick input for
+  // free. The rate of change is pitch rate less the curve the flight path is
+  // making, under the wing's lift and gravity (air.gravity, body axes).
+  const alphaDot = air.omega[1] + (wing.F[2] / c.m + (air.gravity ? air.gravity[2] : 0)) / air.V;
+  const Cm = c.Cm0 + c.Cma * sinA + c.Cmq * qhat + (c.Cmad * alphaDot * c.cbar) / (2 * air.V)
+    + (ctl.elevator >= 0 ? pitch.up : pitch.down) * ctl.elevator
     + c.cmBreak * wing.sigma * clamp(sinA / Math.sin(air.alphaStall), -1, 1);
-  const Cn = c.Cnb * beta + c.Cnr * rhat + c.rudder.cn * ctl.rudder + c.aileron.cn * ctl.aileron;
+  const Cn = c.Cnb * beta + c.Cnr * rhat + c.rudder.cn * ctl.rudder - c.aileron.adverseYaw * roll;
 
   const cd0 = zeroLiftDrag(c, air.mach);
   const F = [

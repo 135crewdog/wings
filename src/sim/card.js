@@ -4,7 +4,7 @@
 // coefficients"). No browser code.
 //
 // Parts marked "placeholder" are stand-ins until the milestone 1 pull request
-// that builds them: the control powers (4) and the ground systems (5).
+// that builds them: the ground systems (5).
 //
 // The feel numbers on a card run 0..1 and map onto physical quantities
 // through `feel(low, high, x)`: 0 gives `low`, 1 gives `high`.
@@ -12,6 +12,9 @@
 import { G0, atmosphere } from './atmosphere.js';
 import { liftSlope, liftDragFactor } from './aero.js';
 import { thrust } from './engine.js';
+import { Sim, DT } from './sim.js';
+import { trimLevel } from './trim.js';
+import { qfromEuler } from './vec.js';
 
 export const LB = 0.45359237;          // kg
 export const FT = 0.3048;              // m
@@ -47,6 +50,7 @@ export function deriveCard(pilot) {
   const vNeutral = pilot.neutral_speed_kt * KT;
   const CLneutral = (2 * W) / (RHO0 * S * vNeutral * vNeutral);
   const staticMargin = 0.08;
+  const yHalf = 0.23 * b;
 
   const c = {
     name: pilot.name,
@@ -82,7 +86,7 @@ export function deriveCard(pilot) {
     cmBreak: -CLa * staticMargin * feel(0, 12, pilot.nose_drop) * DEG,
     // Each wing half's lift acts this far out. It sets the roll damping:
     // -2 CLa (yHalf / b)^2, about -0.29 here, typical of a fighter.
-    yHalf: 0.23 * b,
+    yHalf,
     // How strongly a stalled wing half drives the roll it is already in: 1 is
     // what the lift curve gives by itself, 0 none, 2 double.
     autorotation: feel(0, 2, pilot.spin_tendency),
@@ -98,15 +102,23 @@ export function deriveCard(pilot) {
     // stability and damping, geometry defaults
     Cm0: staticMargin * CLneutral,
     Cma: -CLa * staticMargin,
-    Cmq: -4,
+    Cmq: -2,       // pitch damping on pitch rate: kept small, because it costs held g
+    Cmad: -8,     // pitch damping on the angle of attack changing: settles the nose, costs no g
     CYb: -0.7,
     Clb: -0.08,
     Cnb: 0.12,
     Cnr: -0.3,
-    // control power at full deflection: placeholders (4)
-    elevator: { cm: 0.1 },
-    aileron: { cl: 0.03, cn: -0.002 },
-    rudder: { cn: 0.02, cy: -0.1, cl: -0.002 },
+    // Limits come from control power, not a limiter (aero.js, elevatorPower
+    // and aileronPower). Full back stick asks for the g limit; full forward
+    // for gDown, a geometry default, since cards carry no negative limit.
+    gDown: 0.35 * pilot.g_limit,
+    // Full aileron gives the card's roll rate at its speed (sea level): the
+    // roll moment that balances the two-half wing's roll damping there.
+    aileron: { cl: CLa * (yHalf / b) ** 2 * (pilot.roll_rate_dps * DEG) * b / (pilot.roll_rate_at_kt * KT), adverseYaw: 0.07 },
+    qRoll: 0.5 * RHO0 * (pilot.roll_rate_at_kt * KT) ** 2,
+    // Full rudder holds about 6 degrees of sideslip. There is no rudder pedal
+    // in the game: the sim's auto-coordination flies it.
+    rudder: { cn: 0.12 * 6 * DEG, cy: -0.1, cl: -0.002 },
     // ground contact: placeholders (5)
     contacts: [],
     crash: { wheelSink: Infinity, skidSpeed: Infinity },
@@ -123,7 +135,31 @@ export function deriveCard(pilot) {
   c.drag = low.mach > 0.85
     ? { subsonic: Math.min(SUBSONIC_CD0, low.cd), at: [low.mach, low.cd, hi.mach, hi.cd] }
     : { subsonic: low.cd, at: [1.05, hi.cd, Math.max(hi.mach, 1.1), hi.cd] };
+
+  // The aileron power above balances roll damping alone. A real roll also
+  // stirs up sideslip, the rudder and the wing's own speed changes, which
+  // cost about a fifth of the rate, so fly the roll and scale the power
+  // until full stick gives the card's rate.
+  for (let i = 0; i < 3; i++) c.aileron.cl *= (pilot.roll_rate_dps * DEG) / rollRate(c, pilot.roll_rate_at_kt * KT);
   return c;
+}
+
+/** The steady roll rate (rad/s) from full right stick in level flight at sea level at speed V: flown, averaged from 1.5 to 3 s in. */
+export function rollRate(c, V) {
+  const trim = trimLevel(c, V, 0);
+  const sim = new Sim(c, {
+    x: [0, 0, 0],
+    v: [V * Math.cos(trim.alpha), 0, V * Math.sin(trim.alpha)],
+    q: qfromEuler(0, trim.alpha, 0),
+    omega: [0, 0, 0],
+  }, { throttle: trim.throttle });
+  const controls = { elevator: trim.elevator, aileron: 1, throttle: trim.throttle };
+  let sum = 0, n = 0;
+  for (let t = 0; t < 3; t += DT) {
+    sim.step(controls);
+    if (t >= 1.5) { sum += sim.state.omega[0]; n++; }
+  }
+  return sum / n;
 }
 
 /** The zero-lift drag coefficient that makes full-afterburner thrust equal drag in level flight at speed V. */
