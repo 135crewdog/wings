@@ -4,7 +4,8 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.10
 
-- Running the engine up against the brakes no longer tips the picture. The nose strut was far too soft: the nose dipped 2° and the horizon jumped. It now dips half a degree. The jet sits about a degree nose-high on its wheels.
+- Running the engine up against the brakes no longer tips the picture. The nose strut was far too soft: the nose dipped 2° and the horizon jumped. It now dips half a degree.
+- The jet stands on the runway, level, as the model is built. Its tyres used to sit 6 inches into the pavement.
 
 ## 0.0.9
 

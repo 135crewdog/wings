@@ -28,6 +28,9 @@ test('at the start the jet sits still on its wheels on the runway numbers, point
   assert.equal(sim.crashed, null, 'no crash');
   assert.ok(moved < 0.3, 'it stays put on the brakes');
   assert.deepEqual(sim.touching.slice(0, 3), [true, true, true], 'all three wheels are on the ground');
+  near(euler.pitch, 0, 0.2 * DEG, 'it sits level, as the model is built');
+  const wheelsBelow = Math.max(...Object.values(F4C.wheels_ft).map((w) => w[2])) * FT;
+  near(-sim.state.x[2] - FIELD.height, wheelsBelow, 0.02, 'its tyres rest on the runway, not in it or above it');
   near(euler.yaw, 0, 0.5 * DEG, 'heading north');
   near(euler.roll, 0, 0.5 * DEG, 'wings level');
   near(sim.state.x[1], 0, 0.1, 'on the centreline');
