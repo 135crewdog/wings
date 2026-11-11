@@ -15,7 +15,7 @@
 // It writes models/f4c.glb and prints the contact points for the card.
 
 import { fileURLToPath } from 'node:url';
-import { readGlb, writeGlb, readAccessor, worldMatrices, verticesUnder, bounds, poseAt, normalize, transform } from './glb.mjs';
+import { readGlb, writeGlb, readAccessor, worldMatrices, verticesUnder, bounds, poseAt, normalize, slerp, transform } from './glb.mjs';
 import { contactPoints } from './measure.mjs';
 
 const LENGTH = 58.2 * 0.3048, SPAN = 38.4 * 0.3048;   // the card's, in metres
@@ -53,6 +53,12 @@ function upAndDown(index, a, b) {
   return aUp ? { up: a, down: b } : { up: b, down: a };
 }
 
+// From where a part rests toward one of his poses, but only `degrees` of the way round.
+function swing(from, toward, degrees) {
+  const dot = Math.abs(from.reduce((sum, x, k) => sum + x * toward[k], 0));
+  return slerp(from, toward, (degrees * Math.PI) / 180 / (2 * Math.acos(Math.min(1, dot))));
+}
+
 const tracks = { gear: [], flaps: [], elevator: [], aileron: [], rudder: [] };
 const rotate = (motion, index, keys) => tracks[motion].push({ node: index, path: 'rotation', keys });
 
@@ -82,7 +88,10 @@ for (const side of ['left', 'right']) {
 for (const side of ['left', 'right']) {
   const half = node(`${side}_elevator`);
   const { up, down } = upAndDown(half, endOf('elecators_out', half, 0.5), endOf('elecators_in', half, 0.5));
-  rotate('elevator', half, [[0, down], [0.5, rest(half)], [1, up]]);
+  // His poses swing it 22.5 degrees each way. The real stabilator goes about
+  // 21 degrees trailing edge up and only 9 down (docs/models.md): keep his
+  // hinge and direction, and stop at the real angles.
+  rotate('elevator', half, [[0, swing(rest(half), down, 9)], [0.5, rest(half)], [1, swing(rest(half), up, 21)]]);
 }
 // Aileron: 0 s is full left stick. The F-4 rolls the way few fighters do: its
 // ailerons only go down, and a spoiler on top of the other wing comes up. So

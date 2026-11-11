@@ -11,6 +11,7 @@ Changed for Wings, by `convert-standin.mjs`:
 - Scaled to the real F-4C: 17.74 m long. Its span was 6% short for its length, so it is stretched across the span to 11.70 m.
 - Its origin moved to an estimated centre of gravity: 0.6 m ahead of the main wheels and 2.0 m above the runway.
 - Its twelve animations replaced by the five motions of `docs/models.md`: gear, flaps, elevator, aileron and rudder. The poses are the author's, except:
+  - the stabilator, which his poses swing 22.5° each way: it now stops at the real jet's 21° trailing edge up and 9° down;
   - the rudder, which he gave no motion: it now swings 25° each way about its leading edge;
   - the ailerons, which his clips move together, up and down: they now move as the real F-4's do, down only, with the spoiler rising on the other wing;
   - the gear legs, which shrink to nothing over the last tenth of the way up, because the wheels are thicker than the wing they fold into.

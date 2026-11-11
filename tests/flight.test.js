@@ -7,7 +7,8 @@ import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT, stepsFor } from '../src/sim/sim.js';
 import { qfromEuler, qrotate, qtoEuler } from '../src/sim/vec.js';
 import { FIELD, PARKED, fieldGround, startState } from '../src/field.js';
-import { fly } from './fly.js';
+import { airborne, fly, KT } from './fly.js';
+import { elevatorTravel } from '../src/sim/aero.js';
 import { readouts } from '../src/readouts.js';
 import { circuit } from './circuit.js';
 import { attitudeToThree, toThree } from '../src/render/frames.js';
@@ -97,4 +98,25 @@ test('readouts: knots and feet, with radar altitude only below 2,000 ft above th
   assert.equal(readouts(150, 3237, 237).radar, 'R 240');
   assert.equal(readouts(150, 3047.4, 47.4).radar, 'R 47', 'below 100 ft, to the foot');
   assert.equal(readouts(150, 3047.4, 47.4).altitude, '3,050', 'over high ground the two differ');
+});
+
+test('the stabilator on screen moves less the faster the jet goes', () => {
+  const card = deriveCard(F4C);
+  const UP = 21, DOWN = 9;   // degrees of travel, docs/models.md
+  const shown = (kt, stick) => {
+    const sim = airborne(card, { ft: 3000, kt, level: true, throttle: 'trim' });
+    const at = stick ?? sim.trim.elevator, travel = elevatorTravel(card, sim.observe({ elevator: at }).air, at);
+    return { stick: at, degrees: travel * (travel >= 0 ? UP : DOWN) };
+  };
+  const side = (x) => (x >= 0 ? 'up' : 'down');
+  for (const kt of [160, 250, 350, 450, 600, 752]) {
+    const level = shown(kt), pull = shown(kt, 1);
+    console.log(`  ${String(kt).padStart(3)} kt: level flight ${Math.abs(level.stick * 100).toFixed(0).padStart(2)}% ${level.stick >= 0 ? 'back   ' : 'forward'} shows ${Math.abs(level.degrees).toFixed(1).padStart(4)} deg ${side(level.degrees).padEnd(4)}; full back stick shows ${pull.degrees.toFixed(1).padStart(4)} deg up`);
+  }
+  assert.equal(elevatorTravel(card, { V: 0, qbar: 0, CLa: card.CLa, alphaStall: card.alphaStall }, 1), 1, 'standing still, full stick is full travel');
+  assert.equal(elevatorTravel(card, { V: 0, qbar: 0, CLa: card.CLa, alphaStall: card.alphaStall }, -1), -1);
+  assert.ok(shown(160, 1).degrees > UP - 0.01 && shown(250, 1).degrees > UP - 0.01, 'below corner speed full back stick still shows full travel');
+  assert.ok(shown(450, 1).degrees > shown(600, 1).degrees && shown(600, 1).degrees > shown(752, 1).degrees, 'above corner it shows less and less');
+  assert.ok(Math.abs(shown(752).degrees) < 2.5, 'level at 752 kt the stabilator is nearly streamlined');
+  assert.ok(shown(160).degrees > 8, 'slow, it is well nose-up, as an F-4 on approach');
 });

@@ -81,6 +81,20 @@ test('each motion moves the right way', () => {
   }
 });
 
+test('the stabilator travels as far as the real one', () => {
+  // docs/models.md, for the F-4C: about 21 degrees trailing edge up, 9 down.
+  const UP = 21, DOWN = 9, WITHIN = 2;
+  const elevator = json.animations.find((a) => a.name === 'elevator');
+  const degrees = (a, b) => (2 * Math.acos(Math.min(1, Math.abs(a.reduce((sum, x, k) => sum + x * b[k], 0)))) * 180) / Math.PI;
+  for (const channel of elevator.channels.filter((c) => c.target.path === 'rotation')) {
+    const at = (t) => poseAt(glb, 'elevator', t)[channel.target.node].rotation;
+    const down = degrees(at(0), at(0.5)), up = degrees(at(0.5), at(1));
+    console.log(`  ${json.nodes[channel.target.node].name}: ${up.toFixed(1)} deg up, ${down.toFixed(1)} deg down`);
+    assert.ok(Math.abs(up - UP) <= WITHIN, `full back stick is ${UP} degrees up, give or take ${WITHIN}`);
+    assert.ok(Math.abs(down - DOWN) <= WITHIN, `full forward stick is ${DOWN} degrees down, give or take ${WITHIN}`);
+  }
+});
+
 test('the model is inside its budget', () => {
   const bytes = statSync(path).size;
   const triangles = json.meshes.flatMap((m) => m.primitives).reduce((sum, p) => sum + json.accessors[p.indices ?? p.attributes.POSITION].count / 3, 0);
