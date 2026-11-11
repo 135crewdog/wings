@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.10
+
+- Running the engine up against the brakes no longer tips the picture. The nose strut was far too soft: the nose dipped 2° and the horizon jumped. It now dips half a degree.
+- The jet stands on the runway, level, as the model is built. Its tyres used to sit 6 inches into the pavement.
+
 ## 0.0.9
 
 - The rudder is steadier. In a roll it moves smoothly and no longer slams from stop to stop, and after a roll the nose settles in one or two swings where it used to wobble for several seconds. A hard roll at low speed still slips the nose: that is the airplane.

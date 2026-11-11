@@ -170,27 +170,38 @@ export function rollRate(c, V) {
  * gear points, are there only with the gear down; the rest is the airframe
  * itself. Each has a spring and
  * damper sized to the share of the weight it carries: for the wheels, the
- * share that balances the airplane on them.
+ * share that balances the airplane on them. The model's wheels are where
+ * they rest under that weight, so each strut's free end hangs below its
+ * wheel by the distance it sags (`sag`, metres): standing on its wheels the
+ * airplane sits exactly as the model is built, and in the air the struts
+ * hang a little longer, as real ones do. The nose wheel is the exception:
+ * it carries little at rest, but braking and power against the brakes load
+ * it far beyond that, so its spring is as stiff as a main wheel's. Sized by
+ * its resting load alone it was so soft that a run-up on the brakes dipped
+ * the nose two degrees.
  */
 function contactPoints(W, m, pilot) {
   const metres = (p) => p.map((x) => x * FT);
-  const strut = (share, sag) => {
-    const k = (share * W) / sag;
+  // A spring that sags `sag` metres under `stiffAs` of the weight, with a damper for the `share` it carries.
+  const strut = (share, sag, stiffAs = share) => {
+    const k = (stiffAs * W) / sag;
     return { k, c: Math.sqrt(k * share * m) };   // about half of critical damping
   };
   // A wheel is two contact points, at the two edges of its tyre, sharing its load.
-  const wheel = (name, key, share, extra) => [-1, 1].map((side) => {
+  const wheel = (name, key, share, extra, stiffAs = share) => [-1, 1].map((side) => {
     const [x, y, z] = pilot.wheels_ft[key];
-    return { name, wheel: true, r: metres([x, y + (side * pilot.tyre_width_ft[key]) / 2, z]), ...strut(share / 2, 0.15), ...extra };
+    const spring = strut(share / 2, 0.15, stiffAs / 2), sag = ((share / 2) * W) / spring.k;
+    const r = metres([x, y + (side * pilot.tyre_width_ft[key]) / 2, z]);
+    return { name, wheel: true, r: [r[0], r[1], r[2] + sag], sag, ...spring, ...extra };
   });
   const skid = (r, i) => ({ name: `airframe ${i + 1}`, wheel: false, r: metres(r), ...strut(1, 0.1) });
   const { nose, left } = pilot.wheels_ft;
   // The mains sit behind the CG and the nose wheel ahead: the nose wheel carries what the lever leaves it.
-  const noseShare = -left[0] / (nose[0] - left[0]);
+  const noseShare = -left[0] / (nose[0] - left[0]), mainShare = (1 - noseShare) / 2;
   return [
-    ...wheel('nose wheel', 'nose', noseShare, { steers: true }),
-    ...wheel('left main', 'left', (1 - noseShare) / 2, { brake: true }),
-    ...wheel('right main', 'right', (1 - noseShare) / 2, { brake: true }),
+    ...wheel('nose wheel', 'nose', noseShare, { steers: true }, Math.max(noseShare, mainShare)),
+    ...wheel('left main', 'left', mainShare, { brake: true }),
+    ...wheel('right main', 'right', mainShare, { brake: true }),
     ...pilot.gear_ft.map((r, i) => ({ ...skid(r, i), name: `gear ${i + 1}`, gearOnly: true })),
     ...pilot.airframe_ft.map(skid),
   ];

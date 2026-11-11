@@ -36,7 +36,7 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
   const card = deriveCard(F4C);
   const ground = fieldGround();
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
-  const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2]));
+  const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2] - p.sag));   // where the wheels rest, not where the struts hang to
   const BUFFET_FULL = 2000;   // Pa of dynamic pressure: below this (about 110 knots) the buffet shake is weaker
   let sim, now, before, carry = 0, flying = false;
 
