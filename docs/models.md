@@ -22,12 +22,13 @@ The app does not know any airplane's hinges or angles. It only knows **five name
 | `gear` | up, doors closed | part way | down and locked |
 | `flaps` | up | part way | fully down |
 | `elevator` | full forward stick: trailing edge down | neutral | full back stick: trailing edge up |
-| `aileron` | full left stick: left aileron up, right down | neutral | full right stick |
+| `aileron` | full left stick: the airplane rolls left | neutral | full right stick: it rolls right |
 | `rudder` | full left: trailing edge left | neutral | full right |
 
 Rules for the motions:
 
 - **Names are exact,** lower case, as in the table.
+- **`aileron` moves whatever rolls the airplane, the way the real one does.** On most airplanes that is two ailerons, one up and one down. The F-4 is different: its ailerons only go down, and a spoiler on top of the other wing comes up. For a left roll the right aileron goes down and the left spoiler rises, while the left aileron stays put; a right roll is the mirror image; at neutral everything is flush.
 - **One motion may move many parts.** `gear` moves all three legs and every door. `flaps` moves every flap panel, leading and trailing edge. `aileron` moves both ailerons, and the spoilers too if the airplane rolls with them, as the F-4 does.
 - **A part belongs to one motion only.** The app runs all five at once, so two motions moving the same part would fight.
 - **Frame rate:** set the scene to 24 frames per second and key frames 0, 12 and 24. Use linear interpolation between keys, so half way in time is half way in travel.
@@ -44,7 +45,7 @@ Model the gear at its length with the airplane's weight on it, not hanging fully
 ## Looks
 
 - **Shape and proportions come first:** the planform, the tail, the intakes, the canopy line. Fine detail nobody sees from a chase camera 30 m away isn't worth its triangles.
-- **Markings:** a real paint scheme and national insignia. Tail codes, serials, nose art and unit badges are invented. The owner settles the scheme and what hangs under the wings in the model chat.
+- **Markings:** a real paint scheme and national insignia. Tail codes, serials and unit badges are invented unless the owner says otherwise. Nose art and kill markings are his call: his F-4C carries Robin Olds's "SCAT XXVII" and MiG-kill stars. The owner settles the scheme and what hangs under the wings in the model chat.
 - **Gear bays and flap gaps** should look right when open: no see-through holes into an empty fuselage.
 - Smooth shading, with sharp edges marked where the real airplane has them.
 
