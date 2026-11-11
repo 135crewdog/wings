@@ -15,13 +15,12 @@
 // It writes models/f4c.glb and prints the contact points for the card.
 
 import { fileURLToPath } from 'node:url';
-import { readGlb, writeGlb, readAccessor, worldMatrices, verticesUnder, bounds, poseAt, normalize, transform } from './glb.mjs';
+import { readGlb, writeGlb, readAccessor, worldMatrices, verticesUnder, bounds, poseAt, normalize, slerp, transform } from './glb.mjs';
 import { contactPoints } from './measure.mjs';
 
 const LENGTH = 58.2 * 0.3048, SPAN = 38.4 * 0.3048;   // the card's, in metres
 const CG_AHEAD_OF_MAINS = 0.6;   // m: the real jet balances a little ahead of its main wheels
 const CG_ABOVE_GROUND = 2.0;     // m, on its wheels
-const RUDDER_THROW = 25;         // degrees each way
 
 const source = process.argv[2];
 if (!source) throw new Error('usage: node models/convert-standin.mjs <source.glb>');
@@ -53,6 +52,17 @@ function upAndDown(index, a, b) {
   return aUp ? { up: a, down: b } : { up: b, down: a };
 }
 
+// How far the real F-4C's surfaces travel, in degrees (docs/models.md). His
+// poses go other distances (stabilator 22.5 each way, flaps 45, ailerons
+// 22.5, spoilers 67.5), so each is taken for its hinge and direction only.
+const TRAVEL = { stabilatorUp: 21, stabilatorDown: 9, flaps: 60, aileronDown: 30, spoilerUp: 45, rudder: 30 };
+
+// From where a part rests toward one of his poses, but only `degrees` of the way round.
+function swing(from, toward, degrees) {
+  const dot = Math.abs(from.reduce((sum, x, k) => sum + x * toward[k], 0));
+  return slerp(from, toward, (degrees * Math.PI) / 180 / (2 * Math.acos(Math.min(1, dot))));
+}
+
 const tracks = { gear: [], flaps: [], elevator: [], aileron: [], rudder: [] };
 const rotate = (motion, index, keys) => tracks[motion].push({ node: index, path: 'rotation', keys });
 
@@ -76,13 +86,13 @@ for (const leg of ['front_wheel_suspension', 'back_left_wheel_assembly', 'back_r
 // Flaps: up is how they rest, down is where "flaps_out" ends.
 for (const side of ['left', 'right']) {
   const flap = node(`${side}_2nd_flap`);
-  rotate('flaps', flap, [[0, rest(flap)], [1, endOf('flaps_out', flap, 0.5)]]);
+  rotate('flaps', flap, [[0, rest(flap)], [1, swing(rest(flap), endOf('flaps_out', flap, 0.5), TRAVEL.flaps)]]);
 }
 // Elevator: both halves together. 0 s is full forward stick (trailing edge down).
 for (const side of ['left', 'right']) {
   const half = node(`${side}_elevator`);
   const { up, down } = upAndDown(half, endOf('elecators_out', half, 0.5), endOf('elecators_in', half, 0.5));
-  rotate('elevator', half, [[0, down], [0.5, rest(half)], [1, up]]);
+  rotate('elevator', half, [[0, swing(rest(half), down, TRAVEL.stabilatorDown)], [0.5, rest(half)], [1, swing(rest(half), up, TRAVEL.stabilatorUp)]]);
 }
 // Aileron: 0 s is full left stick. The F-4 rolls the way few fighters do: its
 // ailerons only go down, and a spoiler on top of the other wing comes up. So
@@ -94,11 +104,11 @@ for (const side of ['left', 'right']) {
   const left = node('left_1st_flap'), right = node('right_1st_flap');
   const l = upAndDown(left, endOf('ailerons_out', left, 0.5), endOf('ailerons_in', left, 0.5));
   const r = upAndDown(right, endOf('ailerons_out', right, 0), endOf('ailerons_in', right, 0));
-  rotate('aileron', left, [[0, rest(left)], [0.5, rest(left)], [1, l.down]]);
-  rotate('aileron', right, [[0, r.down], [0.5, rest(right)], [1, rest(right)]]);
+  rotate('aileron', left, [[0, rest(left)], [0.5, rest(left)], [1, swing(rest(left), l.down, TRAVEL.aileronDown)]]);
+  rotate('aileron', right, [[0, swing(rest(right), r.down, TRAVEL.aileronDown)], [0.5, rest(right)], [1, rest(right)]]);
   const leftSpoiler = node('left_3rd_spoiler'), rightSpoiler = node('right_3rd_spoiler');
-  rotate('aileron', leftSpoiler, [[0, endOf('spoilers_out', leftSpoiler, 0.5)], [0.5, rest(leftSpoiler)], [1, rest(leftSpoiler)]]);
-  rotate('aileron', rightSpoiler, [[0, rest(rightSpoiler)], [0.5, rest(rightSpoiler)], [1, endOf('spoilers_out', rightSpoiler, 0.5)]]);
+  rotate('aileron', leftSpoiler, [[0, swing(rest(leftSpoiler), endOf('spoilers_out', leftSpoiler, 0.5), TRAVEL.spoilerUp)], [0.5, rest(leftSpoiler)], [1, rest(leftSpoiler)]]);
+  rotate('aileron', rightSpoiler, [[0, rest(rightSpoiler)], [0.5, rest(rightSpoiler)], [1, swing(rest(rightSpoiler), endOf('spoilers_out', rightSpoiler, 0.5), TRAVEL.spoilerUp)]]);
 }
 // Rudder: he made the part but gave it no motion. Its hinge is its leading
 // edge, found from the part's own shape; swing it about that line.
@@ -124,7 +134,7 @@ for (const side of ['left', 'right']) {
   };
   const base = json.nodes[rudder].translation ?? [0, 0, 0];
   // Trailing edge left (toward -X) for full left: a positive turn about an upward axis swings the rear toward +X, so left is negative... checked below.
-  const poses = [-RUDDER_THROW, 0, RUDDER_THROW].map(about);
+  const poses = [-TRAVEL.rudder, 0, TRAVEL.rudder].map(about);
   const swingsLeft = transform(composeRotation(poses[0].rotation), [0, 0, 1])[0] < 0;
   const ordered = swingsLeft ? poses : poses.slice().reverse();
   tracks.rudder.push({ node: rudder, path: 'rotation', keys: ordered.map((p, i) => [i / 2, p.rotation]) });

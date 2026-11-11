@@ -80,6 +80,20 @@ export function elevatorPower(c, V, qbar, CLa, alphaStall) {
   return { up: Math.max(power(c.gLimit) - c.Cm0, 0), down: c.Cm0 + power(c.gDown) };
 }
 
+/**
+ * Where the elevator surface is for a stick position (-1..1), as a fraction
+ * of its travel each way. The stick asks for pitch power, and full stick
+ * gives less of it the faster the airplane goes (elevatorPower); a real
+ * surface does that by moving less. So this is the stick, scaled by how much
+ * of its slow-speed power the elevator has left. It is for the picture: the
+ * forces come from elevatorPower itself.
+ */
+export function elevatorTravel(c, air, stick) {
+  const now = elevatorPower(c, air.V, air.qbar, air.CLa, air.alphaStall), slow = elevatorPower(c, 0, 0, c.CLa, c.alphaStall);
+  const left = stick >= 0 ? now.up / slow.up : now.down / slow.down;
+  return stick * Math.min(1, left);
+}
+
 /** The aileron's roll power: full up to the card's roll-rate speed, then fading so the roll rate holds instead of growing. */
 export const aileronPower = (c, qbar) => c.aileron.cl * Math.min(1, Math.sqrt(c.qRoll / Math.max(qbar, 1)));
 

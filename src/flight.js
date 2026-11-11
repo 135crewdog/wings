@@ -9,6 +9,7 @@ import { F4C } from './sim/cards/f4c.js';
 import { Sim, DT, coordinate, normalizeControls, stepsFor } from './sim/sim.js';
 import { FT, KT } from './sim/card.js';
 import { atmosphere } from './sim/atmosphere.js';
+import { elevatorTravel } from './sim/aero.js';
 import { calibratedAirspeed } from './sim/airdata.js';
 import { FIELD, PARKED, fieldGround, startState } from './field.js';
 import { createAircraft } from './render/aircraft.js';
@@ -87,11 +88,13 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     airplane.position.copy(shown.position);
     airplane.quaternion.copy(shown.quaternion);
     // The model's parts: gear and flaps where the simulation has them, the
-    // controls where the pilot's stick and the automatic rudder are.
+    // stabilator where the stick puts it at this speed (it moves less the
+    // faster the airplane goes), the ailerons with the stick, and the rudder
+    // where the automatic feet have it.
     const stick = normalizeControls(flown), seen = sim.observe(flown), air = seen.air;
     airplane.set({
       gear: sim.gear, flaps: sim.flaps,
-      elevator: 0.5 + 0.5 * stick.elevator, aileron: 0.5 + 0.5 * stick.aileron,
+      elevator: 0.5 + 0.5 * elevatorTravel(card, air, stick.elevator), aileron: 0.5 + 0.5 * stick.aileron,
       rudder: 0.5 + 0.5 * coordinate(card, stick, air.beta, air.qbar),
     });
     fit();   // every frame: iOS can report the new size late after a rotation

@@ -81,6 +81,39 @@ test('each motion moves the right way', () => {
   }
 });
 
+test('each surface travels as far as the real one', () => {
+  // docs/models.md, for the F-4C, in degrees: stabilator about 21 trailing edge
+  // up and 9 down; flaps 60; ailerons 30 down only, with the spoiler on the
+  // other wing 45 up; rudder 30 each way.
+  const WITHIN = 2;
+  const degrees = (a, b) => (2 * Math.acos(Math.min(1, Math.abs(a.reduce((sum, x, k) => sum + x * b[k], 0)))) * 180) / Math.PI;
+  const rearHeight = (part, pose) => verticesUnder(glb, part, worldMatrices(json, pose)).reduce((a, p) => (p[2] > a[2] ? p : a))[1];
+  const swings = (name) => json.animations.find((a) => a.name === name).channels.filter((c) => c.target.path === 'rotation').map((channel) => {
+    const part = channel.target.node, at = (t) => poseAt(glb, name, t)[part].rotation;
+    const ends = name === 'flaps' ? [0, 1] : [0, 0.5, 1];
+    // For each end of the motion: how far the part has turned from rest, and whether its trailing edge went up.
+    return { name: json.nodes[part].name, ends: ends.map((t) => ({ t, turn: degrees(at(t), json.nodes[part].rotation ?? [0, 0, 0, 1]), up: rearHeight(part, poseAt(glb, name, t)) > rearHeight(part, {}) })) };
+  });
+  const check = (what, got, want) => {
+    console.log(`  ${what}: ${got.toFixed(1)} deg (the real one: about ${want})`);
+    assert.ok(Math.abs(got - want) <= WITHIN, `${what} is ${want} degrees, give or take ${WITHIN}`);
+  };
+  for (const part of swings('flaps')) check(`${part.name} down`, part.ends[1].turn, 60);
+  for (const part of swings('elevator')) {
+    check(`${part.name} forward stick`, part.ends[0].turn, 9);
+    check(`${part.name} back stick`, part.ends[2].turn, 21);
+  }
+  for (const part of swings('aileron')) {
+    const moved = part.ends.filter((e) => e.turn > 0.01);
+    assert.equal(moved.length, 1, `${part.name} moves for one direction of roll only`);
+    check(`${part.name} ${moved[0].up ? 'up (a spoiler)' : 'down (an aileron)'}`, moved[0].turn, moved[0].up ? 45 : 30);
+  }
+  for (const part of swings('rudder')) {
+    check(`${part.name} left`, part.ends[0].turn, 30);
+    check(`${part.name} right`, part.ends[2].turn, 30);
+  }
+});
+
 test('the model is inside its budget', () => {
   const bytes = statSync(path).size;
   const triangles = json.meshes.flatMap((m) => m.primitives).reduce((sum, p) => sum + json.accessors[p.indices ?? p.attributes.POSITION].count / 3, 0);

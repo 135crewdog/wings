@@ -2,6 +2,12 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.8
+
+- The control surfaces look right. Each travels as far as the real F-4's: stabilator 21° up and 9° down, flaps 60°, ailerons 30° down, spoilers 45° up, rudder 30° each way.
+- The stabilator moves less the faster you go, so at high speed it no longer hangs in the air like a barn door.
+- Nothing changes in how the jet flies.
+
 ## 0.0.7
 
 - Readouts: airspeed in knots and altitude in feet across the top. Below 2,000 feet above the ground, radar altitude shows under the altitude.
