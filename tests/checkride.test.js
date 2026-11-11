@@ -506,6 +506,10 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   const after = (seconds, controls) => fly(onRunway(c), seconds, () => ({ ...down, ...controls }), 1).at(-1);
   const parked = after(20, { brake: true });
   const creep = after(20, {}), mil = after(15, { brake: true, throttle: MIL_THROTTLE }), burner = after(15, { brake: true, throttle: 1 });
+  // Run the engine up to MIL against the brakes: thrust up at the centre of gravity and brakes down at the wheels tip the nose onto its strut.
+  const runUp = onRunway(c);
+  const atRest = fly(runUp, 5, () => ({ ...down, brake: true }), 1).at(-1).pitch;
+  const dip = atRest - Math.min(...fly(runUp, 4, () => ({ ...down, brake: true, throttle: MIL_THROTTLE }), 0.05).map((r) => r.pitch));
   // Taxi at about 15 kt and hold half tilt to the right.
   const taxi = onRunway(c, { kt: 15 });
   const turn = fly(taxi, 8, () => ({ ...down, throttle: 0.1, aileron: 0.5 }), 0.5);
@@ -536,6 +540,7 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   table('On the ground (reported, not graded)', [
     ['parked on the brakes for 20 s', `moves ${round(parked.north, 1)} m`],
     ['brakes off at idle for 20 s', `creeps to ${round(creep.groundKt)} kt`],
+    ['run-up to MIL on the brakes', `the nose dips ${round(dip, 1)} deg`, `it sits ${round(atRest, 1)} deg nose up at rest`],
     ['brakes held at MIL / in afterburner for 15 s', `${round(mil.groundKt)} kt / ${round(burner.groundKt)} kt`, 'the brakes about hold MIL and lose to the afterburner'],
     ['taxi at 15 kt, half tilt right for 8 s', `turns ${round(turn.at(-1).heading)} deg right`, `leaning ${round(Math.max(...turn.map((r) => Math.abs(r.roll))), 1)} deg`],
     ['takeoff, flaps down: nose comes up at', `${round(flapsDown.nose.kias)} kt`],
