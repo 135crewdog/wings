@@ -22,7 +22,9 @@ const STEER_FADE = 15;                       // m/s: by this speed the steering 
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
-const FULL_RUDDER_SLIP = (4 * Math.PI) / 180;   // sideslip that calls for full rudder
+const FULL_RUDDER_SLIP = (12 * Math.PI) / 180;   // sideslip that calls for full rudder
+const SLIP_LEAD = 1;       // s: the feet act on where the sideslip will be this far ahead
+const SLOWEST = 30;        // m/s: below this the sideslip's rate is worked out as if at this speed
 
 /**
  * Controls in pilot sense, clamped to their ranges. Back stick, right stick
@@ -43,12 +45,19 @@ export function normalizeControls(ctl = {}) {
 
 /**
  * Auto-coordination (wings-v1's auto-rudder, always on): the rudder a pilot's
- * feet would hold, leading the ailerons against their adverse yaw and then
- * in proportion to the sideslip left.
+ * feet would hold. They lead the ailerons against their adverse yaw, push
+ * against the sideslip, and damp it: they also push against the rate the
+ * sideslip is building, so the nose is stopped as it swings instead of being
+ * chased back and forth. That rate is known without waiting to see it: the
+ * nose slips when the airplane rolls at an angle of attack, when it yaws,
+ * and when gravity pulls it sideways in a bank. `air` is the air data with
+ * its `gravity` (body axes) filled in.
  */
-export function coordinate(card, ctl, beta, qbar) {
-  const lead = (card.aileron.adverseYaw * aileronPower(card, qbar)) / card.rudder.cn;
-  return clamp(lead * ctl.aileron + beta / FULL_RUDDER_SLIP, -1, 1);
+export function coordinate(card, ctl, air) {
+  const lead = (card.aileron.adverseYaw * aileronPower(card, air.qbar)) / card.rudder.cn;
+  const [p, , r] = air.omega;
+  const slipRate = p * Math.sin(air.alpha) - r * Math.cos(air.alpha) + (air.gravity ? air.gravity[1] : 0) / Math.max(air.V, SLOWEST);
+  return clamp(lead * ctl.aileron + (air.beta + SLIP_LEAD * slipRate) / FULL_RUDDER_SLIP, -1, 1);
 }
 
 /**
@@ -65,7 +74,7 @@ export function totalForces(card, state, ctl, ground = null, sys = AT_REST) {
   air.gravity = g;
   air.gear = sys.gear;
   air.flaps = sys.flaps;
-  const flown = ctl.rudder === undefined ? { ...ctl, rudder: coordinate(card, ctl, air.beta, air.qbar) } : ctl;
+  const flown = ctl.rudder === undefined ? { ...ctl, rudder: coordinate(card, ctl, air) } : ctl;
   const aero = aeroForces(card, air, flown, sys.sep);
   // On the ground, tilt steers the nose wheel: a lot when slow, a little when fast.
   const steer = (ctl.aileron * MAX_STEER) / (1 + (air.V / STEER_FADE) ** 2);

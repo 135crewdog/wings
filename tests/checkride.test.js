@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { card, airborne, onRunway, fly, holdAltitude, gPilot, levelTurn, degreesTurned, readout, table, KT, FT, DEG, DT } from './fly.js';
 import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
 import { deriveCard } from '../src/sim/card.js';
-import { Sim, finite, MAX_RATE } from '../src/sim/sim.js';
+import { Sim, finite, MAX_RATE, coordinate, normalizeControls } from '../src/sim/sim.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
 import { powerStep, powerWanted, throttleFor, thrust, MIL_THROTTLE } from '../src/sim/engine.js';
 import { calibratedAirspeed } from '../src/sim/airdata.js';
@@ -637,4 +637,28 @@ test('with no ground there is no contact force', () => {
   assert.equal(readout(sim).ft, 0);
   fly(sim, 1);
   assert.equal(sim.crashed, null);
+});
+
+test('feel: the automatic feet in a hard roll, and how soon the nose settles', () => {
+  const c = card();
+  // Full tilt right for 2 s, full left for 2 s, then let go, from level flight at 5,000 ft.
+  const rows = [180, 250, 400].map((kt) => {
+    const sim = airborne(c, { ft: 5000, kt, level: true, throttle: 'trim' });
+    let slip = 0, onStop = 0, rolling = 0, reversals = 0, side = 0, settled = 5, roll = 0;
+    fly(sim, 12, (r, s) => {
+      const ctl = { elevator: sim.trim.elevator, aileron: r.t < 1 ? 0 : r.t < 3 ? 1 : r.t < 5 ? -1 : 0, throttle: sim.trim.throttle };
+      const rudder = coordinate(c, normalizeControls(ctl), s.observe(ctl).air);
+      slip = Math.max(slip, Math.abs(r.slip));
+      roll = Math.max(roll, Math.abs(r.rollRate));
+      if (r.t > 1 && r.t < 5) { rolling++; if (Math.abs(rudder) > 0.99) onStop++; }
+      if (r.t > 5) {
+        if (Math.abs(r.slip) > 1 || Math.abs(r.yawRate) > 2) settled = r.t;
+        if (Math.abs(rudder) > 0.1 && Math.sign(rudder) !== side) { reversals++; side = Math.sign(rudder); }
+      }
+      return ctl;
+    });
+    assert.equal(sim.crashed, null);
+    return [`at ${kt} kt`, `rolls to ${round(roll)} deg/s, slips to ${round(slip, 1)} deg, rudder on its stop ${round((100 * onStop) / rolling)}% of the roll; let go: the nose settles in ${round(settled - 5, 1)} s, the rudder swapping sides ${reversals} times`];
+  });
+  table('The automatic feet in a hard roll (reported, not graded)', rows);
 });

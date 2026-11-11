@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.9
+
+- The rudder is steadier. In a roll it moves smoothly and no longer slams from stop to stop, and after a roll the nose settles in one or two swings where it used to wobble for several seconds. A hard roll at low speed still slips the nose: that is the airplane.
+
 ## 0.0.8
 
 - The control surfaces look right. Each travels as far as the real F-4's: stabilator 21° up and 9° down, flaps 60°, ailerons 30° down, spoilers 45° up, rudder 30° each way.

@@ -95,7 +95,7 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     airplane.set({
       gear: sim.gear, flaps: sim.flaps,
       elevator: 0.5 + 0.5 * elevatorTravel(card, air, stick.elevator), aileron: 0.5 + 0.5 * stick.aileron,
-      rudder: 0.5 + 0.5 * coordinate(card, stick, air.beta, air.qbar),
+      rudder: 0.5 + 0.5 * coordinate(card, stick, air),
     });
     fit();   // every frame: iOS can report the new size late after a rotation
     const height = -sim.state.x[2] - wheels;
