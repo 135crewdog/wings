@@ -23,7 +23,7 @@ function colour(n, e) {
   const slope = Math.hypot(dn, de), len = Math.hypot(dn, de, 1), light = 0.68 + 0.5 * Math.max(0, (-dn * SUN[0] - de * SUN[1] + SUN[2]) / len);
   const { sites } = region;
   let c = [112, 150, 82];                                             // grass
-  if (e > 8000 && h < 40) c = ((Math.floor(n / 420) * 7 + Math.floor(e / 560) * 13) % 5 < 2) ? [150, 168, 88] : [104, 148, 78];   // fields
+  if (e > 6500 && h < 60 && slope < 0.12) c = field(n, e);          // fields
   c = mix(c, [128, 118, 88], (h - 150) / 500);                        // moor
   c = mix(c, [120, 116, 112], Math.max((h - 1100) / 700, (slope - 0.45) / 0.3));   // rock
   if (n < -24000 && slope > 0.5) c = [232, 230, 220];                 // chalk cliffs
@@ -31,6 +31,23 @@ function colour(n, e) {
   const a = (sites.base.heading * Math.PI) / 180, rn = n - sites.base.north, re = e - sites.base.east;
   if (Math.abs(rn * Math.cos(a) + re * Math.sin(a)) < 1402 && Math.abs(-rn * Math.sin(a) + re * Math.cos(a)) < 23) c = [70, 72, 76];   // the runway
   return c.map((v) => v * light);
+}
+// Farmland the PocketWings way: irregular plots, each one flat colour with faint crop rows, a dirt line between them,
+// and here and there a plot that is a block of woodland.
+const CROPS = [[96, 150, 70], [122, 168, 78], [150, 172, 84], [176, 178, 96], [140, 124, 76], [84, 136, 66], [164, 150, 88]];
+const rand = (i, j, s) => { let h = (i * 374761393 + j * 668265263 + s * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function field(n, e) {
+  const PLOT = 520, gi = Math.floor(n / PLOT), gj = Math.floor(e / PLOT);
+  let d1 = Infinity, d2 = Infinity, id = [0, 0];
+  for (let i = gi - 1; i <= gi + 1; i++) for (let j = gj - 1; j <= gj + 1; j++) {
+    const d = Math.hypot(n - (i + 0.15 + 0.7 * rand(i, j, 1)) * PLOT, e - (j + 0.15 + 0.7 * rand(i, j, 2)) * PLOT);
+    if (d < d1) { d2 = d1; d1 = d; id = [i, j]; } else if (d < d2) d2 = d;
+  }
+  if (d2 - d1 < 9) return [168, 140, 96];                              // the track between plots
+  const kind = rand(id[0], id[1], 3);
+  if (kind < 0.07) return [52, 92, 48];                                // a wood
+  const rows = rand(id[0], id[1], 4) * Math.PI, stripe = Math.sin((n * Math.cos(rows) + e * Math.sin(rows)) / 4) > 0 ? 1 : 0.93;
+  return CROPS[Math.floor(rand(id[0], id[1], 5) * CROPS.length)].map((v) => v * stripe);
 }
 const save = (name, pixels, w, h) => writeFileSync(`${out}/${name}`, encodePng(Uint8Array.from(pixels, (v) => Math.min(255, v)), w, h));
 
@@ -70,4 +87,5 @@ view('view-base.png', base.north - 600, base.east + 4500, 1500, 280);           
 view('view-highlands.png', 2000, -4000, 3000, 10, 0);                                    // the highlands from the lowlands
 view('view-glen.png', 10300, -8900, 1500, 32, 2);                                     // up the glen toward the viaduct's place
 view('view-castle.png', castle.north - 1500, castle.east - 5200, 2200, 75, 6);           // the bowl, from over the loch's west end
+view('view-fields.png', base.north - 7000, base.east + 3000, 900, 330, 6);                 // low over the fields, the highlands ahead
 view('view-coast.png', cove.north - 2500, cove.east + 5000, 800, 285, 3);                // the south coast, heading west
