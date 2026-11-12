@@ -1,0 +1,41 @@
+// The island's land: its height anywhere, read from the height map in
+// terrain/ (written by terrain/make-island.mjs). The same map serves the
+// flight model and the picture, so what is seen is what is hit. After
+// 135crewdog/rage, src/render/heightmap.js, cut down to one tile with no
+// latitude or longitude. Metres; north and east of the island's middle.
+// No browser code.
+
+/**
+ * The heights of an image's pixels, as whole steps above the map's lowest
+ * point: the red channel is the high byte and the green the low. `channels`
+ * is 3 for RGB bytes and 4 for a canvas's RGBA.
+ */
+export function decodeHeights(bytes, count, channels = 4) {
+  const out = new Uint16Array(count);
+  for (let i = 0; i < count; i++) out[i] = bytes[i * channels] * 256 + bytes[i * channels + 1];
+  return out;
+}
+
+/**
+ * region: terrain/island.json. heights: from decodeHeights. Returns
+ * { heightAt(north, east), waterAt(north, east) }: the land's height, and the
+ * level of the water standing there (the sea is 0), or null on dry land.
+ * Beyond the map's edge it is open sea.
+ */
+export function createIsland(region, heights) {
+  const { size, post, north0, east0, min, step, lochs } = region;
+  const at = (row, col) => min + heights[row * size + col] * step;
+  function heightAt(north, east) {
+    const fr = (north0 - north) / post, fc = (east - east0) / post;   // row 0 is the north edge, column 0 the west
+    if (fr < 0 || fc < 0 || fr > size - 1 || fc > size - 1) return region.seabed;
+    const r = Math.min(size - 2, Math.floor(fr)), c = Math.min(size - 2, Math.floor(fc)), tr = fr - r, tc = fc - c;
+    return (at(r, c) * (1 - tc) + at(r, c + 1) * tc) * (1 - tr) + (at(r + 1, c) * (1 - tc) + at(r + 1, c + 1) * tc) * tr;
+  }
+  // A loch is the water below its level inside its box; everywhere, the sea is the water below zero.
+  function waterAt(north, east) {
+    const h = heightAt(north, east);
+    for (const l of lochs) if (north > l.south && north < l.north && east > l.west && east < l.east && h < l.level) return l.level;
+    return h < 0 ? 0 : null;
+  }
+  return { heightAt, waterAt };
+}
