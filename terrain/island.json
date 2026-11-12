@@ -1,0 +1,45 @@
+{
+  "image": "island.png",
+  "size": 1024,
+  "post": 44,
+  "north0": 22506,
+  "east0": -22506,
+  "min": -40,
+  "step": 0.25,
+  "seabed": -40,
+  "lochs": [
+    {
+      "level": 300,
+      "south": 9950,
+      "north": 12900,
+      "west": -3000,
+      "east": 5000
+    }
+  ],
+  "sites": {
+    "base": {
+      "north": -1500,
+      "east": 11000,
+      "heading": 280,
+      "height": 9.144
+    },
+    "castle": {
+      "north": 12175,
+      "east": 800,
+      "height": 380
+    },
+    "viaduct": {
+      "north": 8750,
+      "east": -4600
+    },
+    "cove": {
+      "north": -17810,
+      "east": -2000,
+      "radius": 350
+    },
+    "door": {
+      "north": -18410,
+      "east": -2850
+    }
+  }
+}

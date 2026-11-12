@@ -4,9 +4,9 @@ What the island is, as the owner designed it in conversation. Milestone 4 is pla
 
 ## The idea
 
-One invented island, about 40 miles across, made of three places a pilot from Britain would know at a glance. It is built to grow: more locales, more kinds of terrain and more points of interest get added over time, and the island gets bigger to hold them.
+One invented island, about 20 miles across, made of three places a pilot from Britain would know at a glance. It is built to grow: more locales, more kinds of terrain and more points of interest get added over time, and the island gets bigger to hold them.
 
-At 500 knots, 10 miles takes 72 seconds. The air base to the highlands or to the south coast is about four minutes.
+At 500 knots, 10 miles takes 72 seconds: coast to coast is under two and a half minutes, and the air base to the highlands or to the south coast is about a minute. The owner first chose 40 miles and halved it on seeing the first pictures. The size is one number in the recipe (`SCALE` in `terrain/make-island.mjs`): it moves where things are, and the mountains, glens and loch keep their real sizes, so a smaller island has fewer mountains, not steeper ones.
 
 ## The map
 
@@ -62,6 +62,14 @@ Painted, to match the jet: clean colours for fields, moor, rock, cliff and sea, 
 
 On the ground when it opens: the landmarks above, trees and woods, lochs and the sea. Villages and roads come later.
 
+## Scale
+
+Everything is real size, 1 to 1: the person who fits the F-4's cockpit can walk through a door in the castle. Three things are bigger than life on purpose:
+
+- **The mountains,** as above.
+- **The viaduct's arches,** so an F-4 can blast through one: each opening at least 115 feet wide and 130 feet tall, three times the jet's 38-foot wingspan. The real ones are about 50 feet wide.
+- **The opening in Durdle Door,** the same size at least, for the same reason.
+
 ## What is solid
 
 With crashes on (the crash override off):
@@ -77,3 +85,7 @@ With the crash override on, nothing ends a flight, as now.
 
 - Names. The island, the base and the castle school have none, and nothing in the app shows one.
 - Which parts are built in Blender, in a model chat, and which the app draws itself. That is for the milestone 4 plan.
+
+## Where it is kept
+
+The land's shape is `terrain/island.png`, a height map, with `terrain/island.json` beside it saying where it lies, where the loch is, and where each landmark stands. Both are written by `terrain/make-island.mjs`; to change the island, change that script and run it. `node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page.
