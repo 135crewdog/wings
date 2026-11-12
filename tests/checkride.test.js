@@ -534,7 +534,7 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
     const stop = log.find((r) => r.groundKt < 1);
     return { sim, stop, feet: stop ? stop.north / FT : null };
   };
-  const firm = landing(600), noBrakes = landing(600, { brake: false }), carrier = landing(1500), dropped = landing(3000), smash = landing(4000);
+  const firm = landing(600), noBrakes = landing(600, { brake: false }), carrier = landing(1500), smash = landing(1900);
   const belly = landing(300, { gear: false }, { gear: false, pitch: 5 });
   const wingtip = landing(300, {}, { roll: 14 }), banked = landing(1500, {}, { roll: 20 });
   table('On the ground (reported, not graded)', [
@@ -549,11 +549,10 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
     ['landing at 140 kt, 600 ft/min, brakes on: stops in', `${round(firm.feet, -2)} ft`, `${round(firm.stop.t)} s`],
     ['  the same with no brakes', noBrakes.stop ? `${round(noBrakes.feet, -2)} ft` : 'still rolling after 90 s'],
     ['arriving at 1,500 ft/min', carrier.sim.crashed ? 'crash' : 'survives'],
-    ['arriving at 3,000 ft/min', dropped.sim.crashed ? 'crash' : 'survives, bouncing'],
-    ['arriving at 4,000 ft/min', smash.sim.crashed ? `crash: ${smash.sim.crashed.point}, ${round(smash.sim.crashed.value * 196.85, -2)} ft/min` : 'survives'],
-    ['arriving at 1,500 ft/min in 20 deg of bank', banked.sim.crashed ? 'crash' : 'survives'],
+    ['arriving at 1,900 ft/min', smash.sim.crashed ? `crash: ${smash.sim.crashed.point}, ${round(smash.sim.crashed.value * 196.85, -2)} ft/min` : 'survives'],
     ['gear-up landing at 300 ft/min', belly.sim.crashed ? 'crash' : `survives, slides ${round(belly.feet, -2)} ft`],
     ['touching down on a wingtip, 14 deg of bank', wingtip.sim.crashed ? 'crash' : 'survives'],
+    ['arriving at 1,500 ft/min with 20 deg of bank', banked.sim.crashed ? 'crash' : 'survives'],
   ]);
   assert.ok(Math.abs(parked.north) < 1 && Math.abs(parked.pitch) < 2 && parked.onGround, 'it sits still on its wheels');
   assert.ok(turn.at(-1).heading > 20, 'tilt steers the nose wheel');
@@ -561,18 +560,17 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   assert.ok(firm.stop && firm.sim.crashed === null, 'a firm landing stops on the runway');
   assert.ok(!noBrakes.stop || noBrakes.feet > 1.5 * firm.feet, 'the brakes do the stopping');
   assert.equal(carrier.sim.crashed, null, 'a hard landing survives');
-  assert.equal(dropped.sim.crashed, null, 'so does being dropped onto the runway from a mush');
-  assert.equal(banked.sim.crashed, null, 'and a hard landing with a wing low');
-  assert.equal(smash.sim.crashed?.reason, 'hard impact', 'only flying into the ground ends the flight');
+  assert.equal(smash.sim.crashed?.reason, 'hard impact', 'only a harder one ends the flight');
   assert.equal(belly.sim.crashed, null, 'a gear-up landing is a scrape, not a crash');
   assert.equal(wingtip.sim.crashed, null, 'so is a wingtip');
+  assert.equal(banked.sim.crashed, null, 'a wing low is not punished harder than a level arrival');
 });
 
 test('wheels that lock down at the moment of touchdown still count the arrival', () => {
   const c = card();
-  // Coming down at 4,000 ft/min, past the wheels' limit, level, the wheels a hand's width above the runway.
+  // Coming down at 12 m/s (2,400 ft/min), level, the wheels a hand's width above the runway.
   const arrive = (gearAtStart) => {
-    const sim = onRunway(c, { kt: 150, sink: 4000 });
+    const sim = onRunway(c, { kt: 150, sink: 2362 });
     sim.gear = gearAtStart;
     sim.touching = sim.touching.slice(gearAtStart >= 1 ? 0 : c.contacts.filter((p) => p.wheel || p.gearOnly).length);
     for (let i = 0; i < 120 && !sim.crashed; i++) sim.step({ gear: true });
@@ -670,4 +668,29 @@ test('feel: the automatic feet in a hard roll, and how soon the nose settles', (
     return [`at ${kt} kt`, `rolls to ${round(roll)} deg/s, slips to ${round(slip, 1)} deg, rudder on its stop ${round((100 * onStop) / rolling)}% of the roll; let go: the nose settles in ${round(settled - 5, 1)} s, the rudder swapping sides ${reversals} times`];
   });
   table('The automatic feet in a hard roll (reported, not graded)', rows);
+});
+
+test('the crash override: with it on, nothing ends the flight, however hard the arrival', () => {
+  const c = card();
+  const rows = [];
+  // Each arrival is flown twice: with crashes counted, and with the override on.
+  for (const [name, start, controls] of [
+    ['dropped onto the runway at 4,000 ft/min', () => onRunway(c, { kt: 150, sink: 4000, pitch: 8, flaps: true }), { gear: true, flaps: true, brake: true }],
+    ['a 30 deg dive into the ground at 400 kt', () => airborne(c, { ft: 1500, kt: 400, pitch: -30, ground: onRunway(c).ground }), { throttle: 0.5 }],
+    ['inverted into the ground at 300 kt', () => airborne(c, { ft: 300, kt: 300, pitch: -5, roll: 180, ground: onRunway(c).ground }), { throttle: 0.5 }],
+  ]) {
+    const counted = start();
+    fly(counted, 30, () => controls, 1);
+    assert.equal(counted.crashed?.reason, 'hard impact', `${name}: a crash when crashes count`);
+    const overridden = start();
+    overridden.crashes = false;
+    const log = fly(overridden, 30, () => controls, 0.05);
+    const touched = log.findIndex((r) => r.onGround);
+    assert.ok(touched >= 0, `${name}: it reaches the ground`);
+    assert.equal(overridden.crashed, null, `${name}: the flight goes on with the override`);
+    assert.ok(finite(overridden.state), `${name}: the state is finite`);
+    const after = log.slice(touched), end = log.at(-1);
+    rows.push([name, `bounces to ${round(Math.max(...after.map((r) => r.ft)), -1)} ft; 30 s on: ${round(end.groundKt)} kt, ${end.onGround ? 'on the ground' : `flying at ${round(end.ft, -1)} ft`}${Math.abs(end.roll) > 90 ? ', on its back' : ''}`]);
+  }
+  table('With the crash override on (reported, not graded)', rows);
 });

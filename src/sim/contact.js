@@ -86,8 +86,10 @@ export function touching(card, state, ground, gearDown = true) {
 
 /**
  * The touchdown check, after a step from `before` to `after`: a point that wasn't touching
- * and now is has touched down. Its sink rate is the one it arrived with, measured in `before`,
- * the last state before contact; within the step the contact's damping has already slowed it.
+ * and now is has touched down. What counts is how fast the airplane as a whole was coming
+ * down, measured in `before`, the last state before contact; within the step the contact's
+ * damping has already slowed it. It is the airplane's sink rate and not the point's own, so a
+ * wing low or a nose slapping down is not punished harder than a level arrival.
  * Only a hard arrival is a crash: scrapes, slides and wingtip touches survive.
  * Returns null, or the crash: { point, reason, value }.
  */
@@ -97,8 +99,8 @@ export function crashCheck(card, before, after, ground, wasTouching, gearDown = 
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     if (wasTouching[i] || pointState(after, p.r, ground).d <= 0) continue;
-    const sink = pointState(before, p.r, ground).dDot;
-    if (sink > (p.wheel ? card.crash.wheelSink : card.crash.bodySink)) return { point: p.name, reason: 'hard impact', value: sink };
+    const sink = pointState(before, [0, 0, 0], ground).dDot;
+    if (sink > card.crash.sink) return { point: p.name, reason: 'hard impact', value: sink };
   }
   return null;
 }

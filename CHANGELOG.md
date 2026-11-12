@@ -4,7 +4,8 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.11
 
-- Landings are much more forgiving. A hard landing bounces where it used to end the flight: it now takes about 3,500 feet a minute onto the wheels to crash, up from 1,600, and a wing low no longer makes it worse.
+- Crash override: a switch on the pause screen. It starts on, and with it on nothing ends a flight: a hard landing bounces, and so does flying into the ground. Turn it off and a hard arrival ends the flight, as before.
+- With crashes counted, a wing-low landing is no longer punished harder than a level one.
 
 ## 0.0.10
 

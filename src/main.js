@@ -57,6 +57,20 @@ const flight = startFlight($('view'), {
   },
 });
 flight.ready.then(() => { $('fly').disabled = false; });
+
+// The crash override: on, nothing ends a flight but the pilot. It is on until
+// the pilot turns it off, and the choice is kept between visits.
+const OVERRIDE_KEY = 'wings.crashOverride';
+const overrideSwitch = $('override');
+const setOverride = (on) => {
+  overrideSwitch.setAttribute('aria-checked', String(on));
+  flight.setCrashes(!on);
+  try { localStorage.setItem(OVERRIDE_KEY, on ? 'on' : 'off'); } catch { /* storage may be blocked; the choice still holds for this visit */ }
+};
+let saved = null;
+try { saved = localStorage.getItem(OVERRIDE_KEY); } catch { /* storage may be blocked */ }
+setOverride(saved !== 'off');
+overrideSwitch.addEventListener('click', () => setOverride(overrideSwitch.getAttribute('aria-checked') !== 'true'));
 parkControls();
 
 const isPortrait = () => window.innerHeight > window.innerWidth;   // read directly: the media query's answer can be stale

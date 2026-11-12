@@ -21,7 +21,7 @@ import { attitudeToThree, toThree } from './render/frames.js';
  * Puts the flight on a canvas, parked on the runway and holding still.
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
  * when a flight ends in a crash; `onReadout(knots, feet, feetAboveGround)` is
- * called every frame with what the instruments read. Returns { ready, fly(), hold(), restart() }:
+ * called every frame with what the instruments read. Returns { ready, fly(), hold(), restart(), setCrashes(on) }:
  * fly() lets time run, hold() stops it (the picture stays), restart() puts
  * the airplane back on the runway.
  */
@@ -38,13 +38,13 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
   const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2] - p.sag));   // where the wheels rest, not where the struts hang to
   const BUFFET_FULL = 2000;   // Pa of dynamic pressure: below this (about 110 knots) the buffet shake is weaker
-  let sim, now, before, carry = 0, flying = false;
+  let sim, now, before, carry = 0, flying = false, crashes = true;
 
   // Where the airplane is, in the picture's axes.
   const pose = () => ({ position: new THREE.Vector3(...toThree(sim.state.x)), quaternion: new THREE.Quaternion(...attitudeToThree(sim.state.q)) });
   const shown = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
   const restart = () => {
-    sim = new Sim(card, startState(card), { ground, gear: true, flaps: true });
+    sim = new Sim(card, startState(card), { ground, gear: true, flaps: true, crashes });
     for (let t = 0; t < 3; t += DT) sim.step(PARKED);   // let it settle onto its wheels
     now = before = pose();
     carry = 0;
@@ -119,6 +119,8 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     fly() { flying = true; carry = 0; },
     hold() { flying = false; },
     restart,
+    /** Whether a hard arrival ends the flight. False is the crash override. Takes effect at once. */
+    setCrashes(on) { crashes = on; sim.crashes = on; },
     get sim() { return sim; },
   };
 }

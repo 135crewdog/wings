@@ -57,7 +57,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
   Claude Code derives every engineering coefficient from these behind the scenes. The owner never sees or sets one.
 - **The stall** follows the lift curve from flight school: straight up to max lift, then a drop. Approaching it, the camera shakes like buffet. How it breaks belongs to the airplane: the card's nose-drop number runs from a nose-high mush with a high sink rate (the F-4) to a clear nose drop. A sloppy stall in a turn can drop a wing and start a spin. Let go and it recovers.
 - **Limits come from the airplane, not a limiter.** Top speed is where thrust meets drag. Elevator power fades with speed, so full tilt gives about the card's g limit at any speed above corner; below corner the wing stalls first. Roll power fades at high speed the same way. No consequence for over-g. Gear and flaps have no limit speeds.
-- **Crashes are forgiving:** only a hard impact ends the flight. Scrapes and wingtip touches survive.
+- **Crashes are forgiving:** only a hard impact ends the flight. Scrapes and wingtip touches survive. A **crash override** switch on the pause screen, on by default, turns crashes off altogether: with it on, nothing ends a flight but the pilot.
 - **Standard atmosphere,** always a standard day. No wind, weather, thermals or turbulence.
 - **Constant weight.** No fuel burn.
 - **Tests are a checkride:** maneuvers flown headless, with results in knots, feet, degrees and g, next to the card's numbers. Card numbers pass within a tolerance set once in the milestone 1 plan: about ±5 knots on stall speeds, ±5% on top speeds, ±10% on g and roll rate. Feel numbers have no pass/fail; the checkride just reports them. No eigenvalue analysis, no military-spec pass/fail gates, no source notes on every number.
@@ -67,7 +67,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 - **Tilt for pitch and roll,** the phone held in landscape like a steering wheel. Tilt is the elevator, PocketWings style: with the phone at neutral, the airplane is trimmed for the card's neutral speed. Faster than that, the nose rises, as with fixed trim in a real airplane, so you hold the phone farther forward the faster you go.
 - **Throttle:** a slider on the left edge.
 - **Three toggle buttons:** gear (up/down), flaps (up/down), brakes (wheel brakes; tap on, tap off).
-- **One small pause button.** The pause screen holds Resume, Restart and Recenter.
+- **One small pause button.** The pause screen holds Resume, Restart, Recenter and the crash override switch.
 - **Auto-coordination on every airplane.** There's no rudder control. On the ground, tilt steers the nosewheel.
 - **Readouts:** airspeed in knots and altitude in feet. Below 2,000 feet above the ground, radar altitude too. Nothing else.
 - **No other on-screen controls.** US units only, with no units setting.
