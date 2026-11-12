@@ -42,7 +42,7 @@ export function trimLevel(c, V, h, { gear = false, flaps = false } = {}) {
   const power = (lo + hi) / 2;
   return {
     alpha,
-    elevator: stick(c, -(c.Cm0 + c.Cma * Math.sin(alpha)), elevatorPower(c, V, 0.5 * atm.rho * V * V, CLa, c.CLmax / CLa)),
+    elevator: stick(c, -(c.Cm0 + c.Cma * Math.sin(alpha)), elevatorPower(c, V, 0.5 * atm.rho * V * V, CLa, c.CLmax / CLa, alpha)),
     throttle: throttleFor(power),
     power,
     possible: CL <= most && thrust(c, 2, mach, density) >= T && thrust(c, 0, mach, density) <= T,
