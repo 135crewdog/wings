@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.13
+
+- A new F-4C: the owner's own, built in Blender, in Southeast Asia camouflage. It replaces the stand-in, and the stand-in's credit is gone from the screen.
+- Its main wheels sit farther behind the centre of gravity, as the real jet's do, so the nose comes up later on takeoff: about 195 knots with the stick full back.
+
 ## 0.0.12
 
 - Easier on the battery. The screen is kept awake only in flight, so a phone put down on the pause or start screen can sleep. And the app stops drawing when nothing is moving.

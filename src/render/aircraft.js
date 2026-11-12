@@ -21,10 +21,6 @@ export function createAircraft() {
   const actions = {};
   let mixer = null;
   airplane.ready = new GLTFLoader().loadAsync(MODEL).then((gltf) => {
-    // The stand-in is painted in big square pixels: keep them crisp.
-    gltf.scene.traverse((part) => {
-      if (part.material?.map) { part.material.map.magFilter = THREE.NearestFilter; part.material.map.needsUpdate = true; }
-    });
     mixer = new THREE.AnimationMixer(gltf.scene);
     for (const clip of gltf.animations) {
       const action = mixer.clipAction(clip);

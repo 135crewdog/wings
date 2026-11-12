@@ -1,7 +1,7 @@
-// A small reader and writer for .glb files (binary glTF 2.0), with the few
+// A small reader for .glb files (binary glTF 2.0), with the few
 // sums the model tools and tests need. No dependencies, no three.js.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 /** Reads a .glb: returns { json, bin } - the glTF document and its binary buffer. */
 export function readGlb(path) {
@@ -12,17 +12,6 @@ export function readGlb(path) {
   const binStart = 20 + jsonLength;
   const bin = binStart < data.length ? data.subarray(binStart + 8, binStart + 8 + data.readUInt32LE(binStart)) : Buffer.alloc(0);
   return { json, bin };
-}
-
-/** Writes { json, bin } as a .glb. */
-export function writeGlb(path, { json, bin }) {
-  const pad = (buffer, fill) => Buffer.concat([buffer, Buffer.alloc((4 - (buffer.length % 4)) % 4, fill)]);
-  const jsonChunk = pad(Buffer.from(JSON.stringify(json), 'utf8'), 0x20), binChunk = pad(bin, 0);
-  const header = Buffer.alloc(12), jsonHead = Buffer.alloc(8), binHead = Buffer.alloc(8);
-  header.write('glTF', 0, 'latin1'); header.writeUInt32LE(2, 4); header.writeUInt32LE(28 + jsonChunk.length + binChunk.length, 8);
-  jsonHead.writeUInt32LE(jsonChunk.length, 0); jsonHead.write('JSON', 4, 'latin1');
-  binHead.writeUInt32LE(binChunk.length, 0); binHead.write('BIN\0', 4, 'latin1');
-  writeFileSync(path, Buffer.concat([header, jsonHead, jsonChunk, binHead, binChunk]));
 }
 
 const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
@@ -110,6 +99,25 @@ export function poseAt(glb, name, t) {
     const a = values[i], b = values[Math.min(i + 1, values.length - 1)];
     const value = channel.target.path === 'rotation' ? slerp(a, b, f) : a.map((x, k) => x + (b[k] - x) * f);
     (pose[channel.target.node] ??= {})[channel.target.path] = value;
+  }
+  return pose;
+}
+
+// Where each of the app's motions sits when nothing is deflected: gear down, flaps up, controls centred.
+const NEUTRAL = { gear: 1, flaps: 0, elevator: 0.5, aileron: 0.5, rudder: 0.5 };
+
+/**
+ * The whole airplane posed: every animation in the file at its position in
+ * `positions` (0..1), or else neutral, or 0 for a motion the app does not
+ * drive. A file's own resting pose is not used: an exporter may leave every
+ * animation at its 0 s end, which is gear up and full left stick.
+ */
+export function poseOf(glb, positions = {}) {
+  const pose = {};
+  for (const animation of glb.json.animations ?? []) {
+    for (const [node, moved] of Object.entries(poseAt(glb, animation.name, positions[animation.name] ?? NEUTRAL[animation.name] ?? 0))) {
+      pose[node] = { ...pose[node], ...moved };
+    }
   }
   return pose;
 }
