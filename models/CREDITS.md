@@ -1,21 +1,9 @@
 # Credits for the 3D models
 
-## `f4c.glb`: the stand-in F-4
+## `f4c.glb`: the F-4C Phantom II
 
-"[FREE F-4 Phantom low poly](https://sketchfab.com/3d-models/free-f-4-phantom-low-poly-4cd9a24404954246a13394f1def64431)" by [Artbor](https://sketchfab.com/Artbor), licensed under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
+The owner's own model, built in Blender with Claude in a Wings project chat, from his reference photos and drawings. Its Blender file is `f4c.blend`, in `Wings/Blender/` in the owner's Google Drive.
 
-It stands in until the owner's own F-4C replaces it. The app credits it on screen, beside the version.
+It is painted as a USAF F-4C in Southeast Asia camouflage, loosely Robin Olds's jet.
 
-Changed for Wings, by `convert-standin.mjs`:
-
-- Scaled to the real F-4C: 17.74 m long. Its span was 6% short for its length, so it is stretched across the span to 11.70 m.
-- Its origin moved to an estimated centre of gravity: 0.6 m ahead of the main wheels and 2.0 m above the runway.
-- Its twelve animations replaced by the five motions of `docs/models.md`: gear, flaps, elevator, aileron and rudder. Each surface keeps the author's hinge and direction, but travels as far as the real F-4C's does:
-  - the stabilator 21° trailing edge up and 9° down (his: 22.5° each way);
-  - the flaps 60° (his: 45°);
-  - the ailerons down only, 30°, with the spoiler rising 45° on the other wing, as the real F-4's do (his clips move both ailerons together, up and down 22.5°, and the spoilers 67.5°);
-  - the rudder, which he gave no motion: it swings 30° each way about its leading edge.
-- The gear legs shrink to nothing over the last tenth of the way up, because the wheels are thicker than the wing they fold into.
-- Its tyres renamed `wheel_nose`, `wheel_left` and `wheel_right`.
-
-Nothing about its shape or its texture is changed.
+It replaced a stand-in in version 0.0.13: "FREE F-4 Phantom low poly" by Artbor (Creative Commons Attribution 4.0), which the app used and credited on screen from 0.0.3 to 0.0.12. Nothing of the stand-in remains in the app.

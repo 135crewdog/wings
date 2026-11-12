@@ -15,7 +15,7 @@ Claude Code writes this page and keeps it current. If a rule here is impractical
 
 Every moving part is its own object, with its origin on its hinge line, so it rotates where the real one does.
 
-The app does not know any airplane's hinges or angles. It only knows **five named motions**. Each is an animation (a Blender action, exported as a glTF animation) of **exactly one second**, and the app sets the time to say where the part is. The time is the position:
+The app does not know any airplane's hinges or angles. It only knows **five named motions**, which every model must have. Each is an animation (a Blender action, exported as a glTF animation) of **exactly one second**, and the app sets the time to say where the part is. The time is the position:
 
 | Name | 0 s | 0.5 s | 1 s |
 |---|---|---|---|
@@ -31,29 +31,30 @@ Rules for the motions:
 - **`aileron` moves whatever rolls the airplane, the way the real one does.** On most airplanes that is two ailerons, one up and one down. The F-4 is different: its ailerons only go down, and a spoiler on top of the other wing comes up. For a left roll the right aileron goes down and the left spoiler rises, while the left aileron stays put; a right roll is the mirror image; at neutral everything is flush.
 - **One motion may move many parts.** `gear` moves all three legs and every door. `flaps` moves every flap panel, leading and trailing edge. `aileron` moves both ailerons, and the spoilers too if the airplane rolls with them, as the F-4 does.
 - **A part belongs to one motion only.** The app runs all five at once, so two motions moving the same part would fight.
-- **Frame rate:** set the scene to 24 frames per second and key frames 0, 12 and 24. Use linear interpolation between keys, so half way in time is half way in travel.
+- **Frame rate:** set the scene to 24 frames per second and key frames 0, 12 and 24. Use linear interpolation between keys, so half way in time is half way in travel. The exporter may write a key for every frame; that is fine.
+- **The file's own resting pose doesn't matter.** The app sets all five motions before it draws anything, and the tools and tests pose the model the same way: gear down, flaps up, controls at 0.5 s.
 - **Deflections are the real airplane's.** Check them against the references; for the F-4C they are about: stabilator 21° trailing edge up to 9° down; ailerons 30° down, with the spoiler on the other wing up 45°; rudder 30° each way; trailing-edge flaps 60°.
 - The gear should take its whole second: doors opening first, legs swinging down after.
-- Nothing else is animated. No spinning wheels, no pilots' heads.
+- **A model may carry other motions,** such as `speedbrake` on the F-4C. The app leaves any it doesn't know at 0 s, so 0 s must be the closed, flush position. No spinning wheels, no pilots' heads.
 
 ## The wheels
 
-Three objects named exactly `wheel_nose`, `wheel_left` and `wheel_right`: the tyres. If a leg has two tyres, as the F-4's nose leg does, join them into one object. The simulation reads where each one touches the ground with the gear down, so that the airplane sits and rolls on the wheels you can see.
+Three objects named exactly `wheel_nose`, `wheel_left` and `wheel_right`: the tyres. If a leg has two tyres, as the F-4's nose leg does, join them into one object. They may be children of their gear legs: they are measured where they end up with the gear down. The simulation reads where each one touches the ground with the gear down, so that the airplane sits and rolls on the wheels you can see.
 
-Model the gear at its length with the airplane's weight on it, not hanging fully extended.
+Model the gear at its length with the airplane's weight on it, not hanging fully extended. The simulation stands the airplane on its tyres exactly as modelled; its springs take up from there.
 
 ## Looks
 
 - **Shape and proportions come first:** the planform, the tail, the intakes, the canopy line. Fine detail nobody sees from a chase camera 30 m away isn't worth its triangles.
 - **Markings:** a real paint scheme and national insignia. Tail codes, serials and unit badges are invented unless the owner says otherwise. Nose art and kill markings are his call: his F-4C carries Robin Olds's "SCAT XXVII" and MiG-kill stars. The owner settles the scheme and what hangs under the wings in the model chat.
 - **Gear bays and flap gaps** should look right when open: no see-through holes into an empty fuselage.
-- Smooth shading, with sharp edges marked where the real airplane has them.
+- Smooth shading with sharp edges marked where the real airplane has them, or flat shading throughout: whichever suits the model.
 
 ## Budget
 
 - The `.glb` is under **2 MB**.
 - Under **50,000 triangles.**
-- **One material and one texture**, up to 1024 × 1024 pixels, packed into the file. Base colour only: no normal, roughness or emission maps.
+- **One material, single-sided, and up to two textures**, each up to 1024 × 1024 pixels, packed into the file: base colour, and optionally roughness with metalness in the standard glTF layout. No normal or emission maps.
 - No cameras, lights, empties left over from modelling, or hidden objects.
 
 ## Exporting
@@ -68,4 +69,6 @@ Claude Code puts the file at `models/f4c.glb`, reads the wheel positions and the
 
 ## The model in the app today
 
-`models/f4c.glb` is a stand-in until the owner's own F-4C replaces it: "FREE F-4 Phantom low poly" by Artbor, Creative Commons Attribution 4.0, converted to these rules by `models/convert-standin.mjs`. Its centre of gravity is an estimate. `models/CREDITS.md` says what was changed.
+`models/f4c.glb` is the owner's own F-4C, built in Blender with Claude in a Wings project chat. It carries a sixth motion, `speedbrake`, which the app doesn't use yet. `models/CREDITS.md` has its history.
+
+`node models/measure.mjs models/f4c.glb` prints a model's wheel and contact positions, to copy into its card.
