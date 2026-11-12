@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.16
+
+- A sun and clouds in the sky. The clouds are fair-weather cumulus, far off and still; you can't fly through them. As in Rage, painted to match the jet.
+
 ## 0.0.15
 
 - Look around: drag a finger across the view and the camera swings around the jet. Let go and it comes back behind. As in Rage.
