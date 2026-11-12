@@ -35,6 +35,18 @@ Laid out like Britain. North is up.
 
 **The castle school.** Inspired by and heavily influenced by Hogwarts: a millennial should know it at a glance. It stands on a crag above a loch, deep in the highlands and ringed by peaks. It is hidden: it can't be seen from the lowlands, and a pilot finds it by flying up a glen or over a ridge.
 
+What makes it read at a glance, from the owner's reference model (a very detailed voxel castle, in `Wings/Reference/` in Drive; a guide to the idea, not something to copy or match in detail):
+
+- A dense cluster of dark stone towers of different heights, each with a tall, steep, pointed roof. The skyline of spires is the whole recognition.
+- One tower clearly the tallest, off-centre.
+- A long great hall with a steep pitched roof and tall windows, against the cluster.
+- A long covered bridge on tall legs, crossing a ravine to the castle.
+- A stone viaduct with arches.
+- A glass-domed greenhouse and a small courtyard.
+- Outlying pieces: a lone tower on its own rock, a boathouse down at the loch, a small hut on the slope below.
+
+Ours is far simpler: plain shapes, dark grey stone and near-black roofs, a few thousand triangles. Get the skyline right and leave the rest out.
+
 **The fields, in the east.** Flat East Anglian farmland: a patchwork of fields.
 
 **The air base.** In the fields. Modelled on RAF Mildenhall: it doesn't have to be perfect, but a pilot should look at it and recognize Mildenhall. One runway, 10/28, 9,200 by 150 feet, with Mildenhall's layout of taxiways, ramp, hangars and tower. It is the only place to land when the island opens, and every flight starts on its runway.
