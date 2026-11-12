@@ -49,7 +49,7 @@ const parkControls = () => {
 let mode = 'start';   // start, flying, paused or crashed
 const flight = startFlight($('view'), {
   controls: () => ({ ...pilot, elevator: tilt.stick.pitch, aileron: tilt.stick.roll }),
-  onCrash() { mode = 'crashed'; show('crashed'); checkForUpdate(); },
+  onCrash() { mode = 'crashed'; letSleep(); show('crashed'); checkForUpdate(); },
   onReadout(knots, feet, aboveGround) {
     for (const [name, text] of Object.entries(readouts(knots, feet, aboveGround))) {
       if ($(name).textContent !== text) $(name).textContent = text;   // touch the page only when a number changes
@@ -74,11 +74,26 @@ overrideSwitch.addEventListener('click', () => setOverride(overrideSwitch.getAtt
 parkControls();
 
 const isPortrait = () => window.innerHeight > window.innerWidth;   // read directly: the media query's answer can be stale
-const keepAwake = () => { navigator.wakeLock?.request('screen').catch(() => {}); };
+// The screen is kept awake only in flight. On the start, pause and crashed
+// screens it is let go, so a phone put down with the app open can sleep.
+let lock = null, awake = false;
+const keepAwake = () => {
+  awake = true;
+  navigator.wakeLock?.request('screen').then((held) => {
+    // The pilot may have paused before iOS answered: then let it straight go.
+    if (awake) { lock?.release().catch(() => {}); lock = held; } else held.release().catch(() => {});
+  }).catch(() => {});
+};
+const letSleep = () => {
+  awake = false;
+  lock?.release().catch(() => {});
+  lock = null;
+};
 const takeOff = () => { mode = 'flying'; show(null); flight.fly(); };
 const pause = () => {
   if (mode !== 'flying') return;
   mode = 'paused';
+  letSleep();
   flight.hold();
   show('pause');
   checkForUpdate();
@@ -89,7 +104,7 @@ $('fly').addEventListener('click', () => {
   const allowed = tilt.request();
   keepAwake();
   allowed.then((yes) => {
-    if (!yes) { show('denied'); return; }
+    if (!yes) { letSleep(); show('denied'); return; }
     tilt.recenter();
     takeOff();
   });
@@ -115,7 +130,7 @@ for (const id of ['restart', 'crash-restart']) {
 // Leaving the app, turning the phone to portrait, or flipping it to the other
 // landscape pauses the flight. It resumes only from the pause screen.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) pause(); else { keepAwake(); checkForUpdate(); }
+  if (document.hidden) pause(); else checkForUpdate();   // iOS drops the wake lock when the app is hidden; Resume asks again
 });
 window.addEventListener('resize', () => { if (isPortrait()) pause(); });
 window.addEventListener('orientationchange', pause);
