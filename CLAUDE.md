@@ -86,7 +86,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 
 One big invented island, sized for a jet: minutes to cross at 500 knots, with at least one runway long enough for an F-4. It gets designed in its own conversation before its milestone.
 
-Until the island exists, the world is a plain test field (`src/field.js`): flat, at sea level, one runway 10,000 by 150 feet running north-south, where every flight starts on the numbers with gear and flaps down and the brakes on.
+The island is designed in `docs/island.md` and its land is in the app: every flight starts on the numbers of runway 28 at the air base, with gear and flaps down and the brakes on. The land's shape is a height map in `terrain/`, written by a script and read by both the flight model and the picture. The old flat test field (`FIELD` in `src/field.js`) is kept only for the headless tests, until milestone 4 closes.
 
 ## Building it
 

@@ -23,10 +23,10 @@ function colour(n, e) {
   const slope = Math.hypot(dn, de), len = Math.hypot(dn, de, 1), light = 0.68 + 0.5 * Math.max(0, (-dn * SUN[0] - de * SUN[1] + SUN[2]) / len);
   const { sites } = region;
   let c = [112, 150, 82];                                             // grass
-  if (e > 3200 && h < 60 && slope < 0.12) c = field(n, e);          // fields
+  if (e > region.paint.fieldsEast && h < 60 && slope < 0.12) c = field(n, e);          // fields
   c = mix(c, [128, 118, 88], (h - 150) / 500);                        // moor
   c = mix(c, [120, 116, 112], Math.max((h - 1100) / 700, (slope - 0.45) / 0.3));   // rock
-  if (n < -12000 && slope > 0.5) c = [232, 230, 220];                 // chalk cliffs
+  if (n < region.paint.chalkSouth && slope > 0.5) c = [232, 230, 220];                 // chalk cliffs
   if (h < 3) c = mix([214, 200, 160], c, h / 3);                      // sand
   const a = (sites.base.heading * Math.PI) / 180, rn = n - sites.base.north, re = e - sites.base.east;
   if (Math.abs(rn * Math.cos(a) + re * Math.sin(a)) < 1402 && Math.abs(-rn * Math.sin(a) + re * Math.cos(a)) < 23) c = [70, 72, 76];   // the runway

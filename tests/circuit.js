@@ -1,9 +1,10 @@
-// A pilot for one circuit of the test field, flown through the same controls
-// the app gives the player: stick, throttle, and the gear, flap and brake
-// toggles. Take off north, turn right onto downwind, come round to the right onto
-// final, land and stop.
+// A pilot for one circuit of a field, flown through the same controls the app
+// gives the player: stick, throttle, and the gear, flap and brake toggles.
+// Take off, turn right onto downwind, come round to the right onto final,
+// land and stop. The pilot thinks in the runway's own terms: "north" is along
+// the takeoff heading from the runway's middle, "east" is to its right.
 
-import { FIELD } from '../src/field.js';
+import { FIELD as TEST_FIELD } from '../src/field.js';
 import { FT } from '../src/sim/card.js';
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -11,7 +12,8 @@ const DEG = Math.PI / 180;
 const turn = (to, from) => ((to - from + 540) % 360) - 180;   // degrees to turn, the short way
 
 /** Returns controls(readout) for fly(); `.phase` says where in the circuit it is, `.events` what happened when. */
-export function circuit({ pattern = 1500, downwind = 300, final = 160 } = {}) {
+export function circuit({ pattern = 1500, downwind = 300, final = 160, field = TEST_FIELD } = {}) {
+  const FIELD = field, way = field.heading * DEG;
   const south = -FIELD.runway.length / 2;   // the landing threshold, metres north of the middle
   let phase = 'roll', trim = 0, power = 0.4, last = null, alpha = 3;
   const events = {};
@@ -38,7 +40,13 @@ export function circuit({ pattern = 1500, downwind = 300, final = 160 } = {}) {
   const bankTo = (r, deg) => clamp(0.03 * (deg - r.roll) - 0.012 * r.rollRate, -1, 1);
   const headTo = (r, deg, most = 45) => bankTo(r, clamp(turn(deg, r.heading) * 1.5, -most, most));
 
-  const fly = (r) => {
+  // A readout in the runway's terms, heights and all.
+  const onRunway = (r) => {
+    const n = r.north - field.north, e = r.east - field.east;
+    return { ...r, north: n * Math.cos(way) + e * Math.sin(way), east: -n * Math.sin(way) + e * Math.cos(way), heading: turn(r.heading, field.heading) };
+  };
+  const fly = (seen) => {
+    const r = onRunway(seen);
     const dt = last === null ? 0 : r.t - last;
     last = r.t;
     const agl = r.ft - FIELD.height / FT;
