@@ -14,6 +14,7 @@ import { calibratedAirspeed } from './sim/airdata.js';
 import { FIELD, PARKED, fieldGround, startState } from './field.js';
 import { createAircraft } from './render/aircraft.js';
 import { createChaseCamera } from './render/camera.js';
+import { attachLook, createLook } from './input/look.js';
 import { createWorld } from './render/world.js';
 import { attitudeToThree, toThree } from './render/frames.js';
 
@@ -32,6 +33,7 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
   const airplane = createAircraft();
   scene.add(airplane);
   const chase = createChaseCamera();
+  const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
 
   const card = deriveCard(F4C);
   const ground = fieldGround();
@@ -49,8 +51,10 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     now = before = pose();
     carry = 0;
     chase.reset();
+    look.reset();
   };
   restart();
+  attachLook(canvas, look, () => flying);
 
   const fit = () => {
     const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -104,7 +108,8 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     const height = -sim.state.x[2] - wheels;
     onReadout(calibratedAirspeed(air.V, atmosphere(-sim.state.x[2])) / KT, height / FT, (height - ground.heightAt(sim.state.x[0], sim.state.x[1])) / FT);
     const buffet = (seen.coef?.buffet ?? 0) * Math.min(1, air.qbar / BUFFET_FULL);
-    chase.update(shown.position, shown.quaternion, elapsed, FIELD.height, flying ? buffet : 0);
+    look.update(elapsed);
+    chase.update(shown.position, shown.quaternion, elapsed, FIELD.height, flying ? buffet : 0, look);
     world.follow(chase.camera);
     renderer.render(scene, chase.camera);
     settle = flying ? SETTLE : settle - 1;
@@ -130,8 +135,8 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
   run();
   return {
     ready: airplane.ready,
-    fly() { flying = true; carry = 0; wake(); },
-    hold() { flying = false; wake(); },
+    fly() { flying = true; carry = 0; look.reset(); wake(); },
+    hold() { flying = false; look.release(); wake(); },
     restart() { restart(); wake(); },
     /** Whether a hard arrival ends the flight. False is the crash override. Takes effect at once. */
     setCrashes(on) { crashes = on; sim.crashes = on; },

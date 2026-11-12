@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.15
+
+- Look around: drag a finger across the view and the camera swings around the jet. Let go and it comes back behind. As in Rage.
+
 ## 0.0.14
 
 - The F-4C rotates when it should. With the stick full back the nose wheel lifts at 150 knots, where it was past 190, and the jet lifts off at about 174. Flaps up, it lifts off at 211 where it was 267.

@@ -69,7 +69,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 - **Three toggle buttons:** gear (up/down), flaps (up/down), brakes (wheel brakes; tap on, tap off).
 - **One small pause button.** The pause screen holds Resume, Restart, Recenter and the crash override switch.
 - **Auto-coordination on every airplane.** There's no rudder control: automatic feet hold the rudder against sideslip and damp the nose's swing. On the ground, tilt steers the nosewheel.
-- **A chase camera,** behind and above the airplane, turning with it a beat late, so the airplane stays upright on screen and the horizon tilts. No look-around.
+- **A chase camera,** behind and above the airplane, turning with it a beat late, so the airplane stays upright on screen and the horizon tilts. A finger dragged across the view swings the camera around the airplane, as in Rage; let go and it comes back.
 - **Readouts:** airspeed in knots and altitude in feet. Below 2,000 feet above the ground, radar altitude too. Nothing else.
 - **No other on-screen controls.** US units only, with no units setting.
 - **The start screen** has the game's name and a Fly button. The version, with any model credit beside it, shows on the start and pause screens only.
