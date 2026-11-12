@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodePng } from '../terrain/png.mjs';
 import { build, region as freshRegion } from '../terrain/make-island.mjs';
-import { createIsland, decodeHeights } from '../src/sim/island.js';
+import { DRAWN_CELLS_PER_POST, createIsland, decodeHeights } from '../src/sim/island.js';
 
 const FT = 0.3048, NM = 1852, DEG = Math.PI / 180;
 const region = JSON.parse(readFileSync(new URL('../terrain/island.json', import.meta.url)));
@@ -177,4 +177,25 @@ test('island: over the hills the radar altitude and the altitude part company', 
   }
   console.log(`  At 9,840 ft from the lowlands north across the range: the ground is between ${Math.round(least / FT)} and ${Math.round(most / FT)} ft below`);
   assert.ok(most > 2800 && least < 1500 && least > 0);
+});
+
+test('island: the ground drawn near the jet is the ground the flight model feels', () => {
+  // The finest drawn squares, as src/render/terrain.js lays them: corners on whole cells from the island's
+  // middle, each square two triangles split corner to corner. Compare the drawn height with the flight
+  // model's everywhere along the south coast's cliffs, where the land is at its sharpest, and in the highlands.
+  const cell = region.post / DRAWN_CELLS_PER_POST;
+  assert.ok(Number.isInteger(region.north0 / cell) && Number.isInteger(region.east0 / cell), 'the posts lie on the lines of the drawn squares');
+  const drawn = (north, east) => {
+    const x = east / cell, z = -north / cell, i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
+    const at = (di, dj) => island.heightAt(-(j + dj) * cell, (i + di) * cell);
+    // The square's triangles are (a, c, b) and (b, c, d): a at (i, j), b at (i+1, j), c at (i, j+1), d at (i+1, j+1).
+    return fx + fz < 1 ? at(0, 0) + fx * (at(1, 0) - at(0, 0)) + fz * (at(0, 1) - at(0, 0)) : at(1, 1) + (1 - fx) * (at(0, 1) - at(1, 1)) + (1 - fz) * (at(1, 0) - at(1, 1));
+  };
+  let worst = 0;
+  const look = (n0, n1, e0, e1) => { for (let n = n0; n < n1; n += 7.3) for (let e = e0; e < e1; e += 7.3) worst = Math.max(worst, Math.abs(drawn(n, e) - island.heightAt(n, e))); };
+  look(-18600, -17400, -6000, 2000);                                   // the cliffs, the cove and the Door's headland
+  look(castle.north - 1500, castle.north + 1500, castle.east - 1500, castle.east + 1500);
+  look(base.north - 600, base.north + 600, base.east - 2000, base.east + 2000);
+  console.log(`  Drawn ground against the flight model's, near the jet: at most ${(worst / FT).toFixed(1)} ft apart`);
+  assert.ok(worst < 1, `${worst} m apart`);
 });

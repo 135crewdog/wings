@@ -13,10 +13,10 @@
 // Metres; x east, y up, z south.
 
 import * as THREE from 'three';
+import { DRAWN_CELLS_PER_POST } from '../sim/island.js';
 
-const LEVELS = 7;      // 0.96, 1.9, 3.8, 7.7, 15, 31 and 61 km across
+const LEVELS = 8;      // with 5.5 m cells at the finest: 0.5, 1.1, 2.1, 4.2, 8.4, 17, 34 and 68 km across
 const N = 96;          // cells along each side of every level
-const SPACING = 10;    // m: the finest level's cell
 
 // Reading the height map, as src/sim/island.js does: 16-bit posts in red and
 // green, straight lines between them, open sea beyond the map's edge. And the
@@ -178,6 +178,9 @@ export function createTerrain(scene, land, sun, fog) {
   map.colorSpace = THREE.NoColorSpace;
   map.needsUpdate = true;
   const loch = region.lochs[0], base = region.sites.base;
+  // The finest cells are a whole fraction of a post, and every level snaps to whole cells from the island's
+  // middle, where the posts' lines also fall: so the fine levels' edges lie along the land's creases.
+  const SPACING = region.post / DRAWN_CELLS_PER_POST;
   const shared = {
     heightMap: { value: map },
     grid: { value: new THREE.Vector4(region.east0, -region.north0, region.post, region.size) },
