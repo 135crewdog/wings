@@ -17,6 +17,7 @@ export const F4C = {
   top_speed_low_kt: 780,         // sea level, full afterburner
   top_speed_high_mach: 2.2,      // at top_speed_high_ft, full afterburner
   top_speed_high_ft: 40000,
+  rotate_kt: 150,                // takeoff, flaps down, full afterburner, stick full back: the nose wheel lifts
   g_limit: 8.5,
   roll_rate_dps: 180,            // at roll_rate_at_kt
   roll_rate_at_kt: 400,

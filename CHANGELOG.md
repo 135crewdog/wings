@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.14
+
+- The F-4C rotates when it should. With the stick full back the nose wheel lifts at 150 knots, where it was past 190, and the jet lifts off at about 174. Flaps up, it lifts off at 211 where it was 267.
+- The stick is a little lighter at low speed: less back tilt holds level flight in the pattern.
+
 ## 0.0.13
 
 - A new F-4C: the owner's own, built in Blender, in Southeast Asia camouflage. It replaces the stand-in, and the stand-in's credit is gone from the screen.

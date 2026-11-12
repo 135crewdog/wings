@@ -516,15 +516,20 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   // Takeoff: flaps down, full afterburner, stick full back from 80 kt, then hold the nose 10 degrees up.
   const takeoff = (flaps) => {
     const sim = onRunway(c, { flaps });
-    const log = fly(sim, 40, (r) => ({
-      ...down, flaps, throttle: 1,
-      elevator: r.onGround ? (r.kias > 80 ? 1 : 0) : Math.max(-1, Math.min(1, 0.08 * (10 - r.pitch) - 0.03 * r.pitchRate)),
-    }), 0.1);
+    const noseTyres = c.contacts.filter((p) => p.wheel).map((p) => p.name === 'nose wheel');
+    let wheelOff = null;   // the speed at which the nose tyre leaves the runway
+    const log = fly(sim, 40, (r, s) => {
+      if (wheelOff === null && r.kias > 80 && !s.touching.some((touching, i) => touching && noseTyres[i])) wheelOff = r.kias;
+      return {
+        ...down, flaps, throttle: 1,
+        elevator: r.onGround ? (r.kias > 80 ? 1 : 0) : Math.max(-1, Math.min(1, 0.08 * (10 - r.pitch) - 0.03 * r.pitchRate)),
+      };
+    }, 0.1);
     const nose = log.find((r) => r.pitch > 3);
     const off = log.find((r, i) => r.t > 1 && !r.onGround && log.slice(i, i + 10).every((x) => !x.onGround));
     assert.equal(sim.crashed, null);
     assert.ok(off, 'it lifts off');
-    return { nose, off, end: log.at(-1) };
+    return { nose, off, wheelOff, end: log.at(-1) };
   };
   const flapsDown = takeoff(true), flapsUp = takeoff(false);
   // Landing: touch down at 140 kt, nose 8 degrees up, then idle and brakes.
@@ -543,7 +548,8 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
     ['run-up to MIL on the brakes', `the nose dips ${round(dip, 1)} deg`, `it sits ${round(atRest, 1)} deg nose up at rest`],
     ['brakes held at MIL / in afterburner for 15 s', `${round(mil.groundKt)} kt / ${round(burner.groundKt)} kt`, 'the brakes about hold MIL and lose to the afterburner'],
     ['taxi at 15 kt, half tilt right for 8 s', `turns ${round(turn.at(-1).heading)} deg right`, `leaning ${round(Math.max(...turn.map((r) => Math.abs(r.roll))), 1)} deg`],
-    ['takeoff, flaps down: nose comes up at', `${round(flapsDown.nose.kias)} kt`],
+    ['takeoff, flaps down: the nose wheel lifts at', `${round(flapsDown.wheelOff)} kt`, `${c.pilot.rotate_kt} kt +-5 (GRADED)`],
+    ['  the nose is 3 degrees up at', `${round(flapsDown.nose.kias)} kt`],
     ['  lifts off at', `${round(flapsDown.off.kias)} kt`, `after ${round(flapsDown.off.north / FT, -2)} ft and ${round(flapsDown.off.t)} s`],
     ['takeoff, flaps up: lifts off at', `${round(flapsUp.off.kias)} kt`, `after ${round(flapsUp.off.north / FT, -2)} ft`],
     ['landing at 140 kt, 600 ft/min, brakes on: stops in', `${round(firm.feet, -2)} ft`, `${round(firm.stop.t)} s`],
@@ -556,6 +562,7 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   ]);
   assert.ok(Math.abs(parked.north) < 1 && Math.abs(parked.pitch) < 2 && parked.onGround, 'it sits still on its wheels');
   assert.ok(turn.at(-1).heading > 20, 'tilt steers the nose wheel');
+  assert.ok(Math.abs(flapsDown.wheelOff - c.pilot.rotate_kt) <= 5, `the nose wheel lifts at ${flapsDown.wheelOff.toFixed(0)} kt, within 5 kt of the card's ${c.pilot.rotate_kt}`);
   assert.ok(flapsDown.off.kias < flapsUp.off.kias, 'flaps shorten the takeoff');
   assert.ok(firm.stop && firm.sim.crashed === null, 'a firm landing stops on the runway');
   assert.ok(!noBrakes.stop || noBrakes.feet > 1.5 * firm.feet, 'the brakes do the stopping');
