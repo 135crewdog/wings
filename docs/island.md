@@ -44,7 +44,7 @@ What makes it read at a glance, from the owner's reference model (a very detaile
 - A glass-domed greenhouse and a small courtyard.
 - Outlying pieces: a lone tower on its own rock, a boathouse down at the loch, a small hut on the slope below.
 
-The reference also has a stone viaduct with a steam train on it. That is saved for later, in the Ideas doc.
+**The viaduct.** A long, curved stone railway viaduct on tall arches, across a glen near the castle: the giant bridge from the films. It stands on its own, and it is solid, so the arches are something to fly through. The steam train on it is saved for later, in the Ideas doc.
 
 Ours is far simpler: plain shapes, dark grey stone and near-black roofs, a few thousand triangles. Get the skyline right and leave the rest out.
 
