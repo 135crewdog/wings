@@ -62,6 +62,14 @@ Painted, to match the jet: clean colours for fields, moor, rock, cliff and sea, 
 
 On the ground when it opens: the landmarks above, trees and woods, lochs and the sea. Villages and roads come later.
 
+## Scale
+
+Everything is real size, 1 to 1: the person who fits the F-4's cockpit can walk through a door in the castle. Three things are bigger than life on purpose:
+
+- **The mountains,** as above.
+- **The viaduct's arches,** so an F-4 can blast through one: each opening at least 115 feet wide and 130 feet tall, three times the jet's 38-foot wingspan. The real ones are about 50 feet wide.
+- **The opening in Durdle Door,** the same size at least, for the same reason.
+
 ## What is solid
 
 With crashes on (the crash override off):
