@@ -35,7 +35,7 @@ Laid out like Britain. North is up.
 
 **The castle school.** Inspired by and heavily influenced by Hogwarts: a millennial should know it at a glance. It stands on a crag above a loch, deep in the highlands and ringed by peaks. It is hidden: it can't be seen from the lowlands, and a pilot finds it by flying up a glen or over a ridge.
 
-What makes it read at a glance, from the owner's reference model (a very detailed voxel castle, in `Wings/Reference/` in Drive; a guide to the idea, not something to copy or match in detail):
+What makes it read at a glance, from the owner's reference model (a very detailed voxel castle he shared from his Drive; a guide to the idea, not something to copy or match in detail):
 
 - A dense cluster of dark stone towers of different heights, each with a tall, steep, pointed roof. The skyline of spires is the whole recognition.
 - One tower clearly the tallest, off-centre.
