@@ -63,10 +63,13 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     chase.camera.updateProjectionMatrix();
   };
 
-  // Draw only while the app is on screen. One loop at most: a frame still
-  // waiting when the app is hidden is cancelled, so coming back never starts
-  // a second loop beside it.
-  let last = null, waiting = null;
+  // Draw only while the app is on screen, and only while something is
+  // moving: in flight, every frame; otherwise a few frames after anything
+  // changes, then rest, so a paused game costs the battery nothing. One loop
+  // at most: a frame still waiting when the app is hidden is cancelled, so
+  // coming back never starts a second loop beside it.
+  const SETTLE = 30;   // frames drawn after a change: the camera eases in, and iOS can report a new size late
+  let last = null, waiting = null, settle = SETTLE;
   const draw = (time) => {
     const elapsed = last === null ? 0 : Math.min((time - last) / 1000, 0.25);
     last = time;
@@ -104,21 +107,32 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     chase.update(shown.position, shown.quaternion, elapsed, FIELD.height, flying ? buffet : 0);
     world.follow(chase.camera);
     renderer.render(scene, chase.camera);
-    waiting = requestAnimationFrame(draw);
+    settle = flying ? SETTLE : settle - 1;
+    waiting = settle > 0 ? requestAnimationFrame(draw) : null;
+    if (waiting === null) last = null;   // resting: the next frame starts the clock afresh
+  };
+  // Something changed: draw again for a moment, even at rest.
+  const wake = () => {
+    settle = SETTLE;
+    if (waiting === null && !document.hidden) waiting = requestAnimationFrame(draw);
   };
   const run = () => {
     if (waiting !== null) cancelAnimationFrame(waiting);
     waiting = null;
     last = null;
-    if (!document.hidden) waiting = requestAnimationFrame(draw);
+    wake();
   };
   document.addEventListener('visibilitychange', run);
+  // A new size, a turned phone, or the model arriving all change the picture.
+  new ResizeObserver(wake).observe(canvas);
+  for (const type of ['resize', 'orientationchange']) window.addEventListener(type, wake);
+  airplane.ready.then(wake);
   run();
   return {
     ready: airplane.ready,
-    fly() { flying = true; carry = 0; },
-    hold() { flying = false; },
-    restart,
+    fly() { flying = true; carry = 0; wake(); },
+    hold() { flying = false; wake(); },
+    restart() { restart(); wake(); },
     /** Whether a hard arrival ends the flight. False is the crash override. Takes effect at once. */
     setCrashes(on) { crashes = on; sim.crashes = on; },
     get sim() { return sim; },

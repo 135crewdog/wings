@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.12
+
+- Easier on the battery. The screen is kept awake only in flight, so a phone put down on the pause or start screen can sleep. And the app stops drawing when nothing is moving.
+
 ## 0.0.11
 
 - Crash override: a switch on the pause screen. It starts on, and with it on nothing ends a flight: a hard landing bounces, and so does flying into the ground. Turn it off and a hard arrival ends the flight, as before.

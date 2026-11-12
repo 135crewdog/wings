@@ -98,7 +98,8 @@ Until the island exists, the world is a plain test field (`src/field.js`): flat,
 - **iPhone platform rules** (proven in Rage):
   - Motion permission is requested synchronously inside the Fly tap, over HTTPS.
   - iOS ignores orientation lock, so show a rotate screen in portrait.
-  - Request a screen wake lock in the Fly tap, and again when the app becomes visible.
+  - Request a screen wake lock in the Fly tap and on Resume and Restart, and hold it only in flight: let it go on the pause, crashed and start screens, so a phone put down with the app open can sleep.
+  - Draw only while something is moving: every frame in flight, and otherwise a few frames after a change, then rest.
   - The app is full screen, `display: standalone` with `viewport-fit=cover`. Controls and text stay inside the safe area.
   - No scrolling, zooming or selecting.
   - Pause automatically when the app is hidden; resume only from the pause screen.
