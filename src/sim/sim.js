@@ -112,11 +112,11 @@ const travel = (position, down, seconds, dt) => clamp(position + (down ? dt : -d
 export class Sim {
   /**
    * card: from deriveCard. state: { x, v, q, omega } (see body.js).
-   * options: { ground, throttle, gear, flaps }. Without a ground there is
+   * options: { ground, throttle, gear, flaps, crashes }. Without a ground there is
    * nothing to land on (headless flight). The engine starts spooled to
    * `throttle`; `gear` and `flaps` say whether each starts down.
    */
-  constructor(card, state, { ground = null, throttle = 0, gear = false, flaps = false } = {}) {
+  constructor(card, state, { ground = null, throttle = 0, gear = false, flaps = false, crashes = true } = {}) {
     this.card = card;
     this.state = state;
     this.ground = ground;
@@ -125,6 +125,7 @@ export class Sim {
     this.power = powerWanted(throttle);   // the engine: 0 idle, 1 MIL, 2 full afterburner
     this.gear = gear ? 1 : 0;             // 0 up, 1 down and locked
     this.flaps = flaps ? 1 : 0;           // 0 up, 1 down
+    this.crashes = crashes;   // false is the crash override: no arrival, however hard, ends the flight
     this.crashed = null;   // set once: by the touchdown check, or by the safety net
     this.touching = touching(card, state, ground, this.gear >= 1);
   }
@@ -147,7 +148,7 @@ export class Sim {
       if (wheels) {
         let i = 0;
         const was = this.card.contacts.map((p) => (onGear(p) ? false : airframe[i++]));
-        this.crashed = crashCheck(this.card, before, before, this.ground, was, true);
+        if (this.crashes) this.crashed = crashCheck(this.card, before, before, this.ground, was, true);
         if (this.crashed) return this.state;
       }
       this.touching = touching(this.card, before, this.ground, wheels);
@@ -167,7 +168,7 @@ export class Sim {
     const air = airData(this.card, after.v, after.omega, atmosphere(-after.x[2]));
     this.sep = separationStep(this.card, air, this.sep, DT);
     this.power = powerStep(this.power, powerWanted(ctl.throttle), DT);
-    if (this.ground) this.crashed = crashCheck(this.card, before, after, this.ground, this.touching, wheels);
+    if (this.ground && this.crashes) this.crashed = crashCheck(this.card, before, after, this.ground, this.touching, wheels);
     this.touching = touching(this.card, after, this.ground, wheels);
     return this.state;
   }

@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.11
+
+- Crash override: a switch on the pause screen. It starts on, and with it on nothing ends a flight: a hard landing bounces, and so does flying into the ground. Turn it off and a hard arrival ends the flight, as before.
+- With crashes counted, a wing-low landing is no longer punished harder than a level one.
+
 ## 0.0.10
 
 - Running the engine up against the brakes no longer tips the picture. The nose strut was far too soft: the nose dipped 2° and the horizon jumped. It now dips half a degree.

@@ -84,6 +84,16 @@ button:active { opacity: 0.6; }
 .btn { width: 100%; padding: 11px 16px; border-radius: 12px; font-size: 17px; font-weight: 600; background: rgba(255, 255, 255, 0.16); }
 .btn.primary, .btn.update { background: #007aff; }
 .btn:disabled { opacity: 0.4; }
+/* a setting: its name on the left, an on/off switch on the right, as in iOS Settings */
+.row { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 6px 16px; font-size: 17px; text-align: left; }
+.switch { position: relative; width: 51px; height: 31px; border-radius: 16px; background: rgba(120, 120, 128, 0.5); transition: background 0.2s; }
+.switch::after {
+  content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 14px;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transition: transform 0.2s;
+}
+.switch[aria-checked="true"] { background: #34c759; }
+.switch[aria-checked="true"]::after { transform: translateX(20px); }
+.switch:active { opacity: 1; }
 
 /* the rotate screen: iOS ignores orientation lock, so portrait gets this */
 #rotate {

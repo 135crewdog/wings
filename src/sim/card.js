@@ -122,8 +122,9 @@ export function deriveCard(pilot) {
     gearDrag: feel(0.01, 0.04, pilot.gear_drag),
     // Ground contact: where the airplane can touch, as measured from its 3D model.
     contacts: contactPoints(W, m, pilot),
-    // Only a hard arrival ends a flight (m/s of sink at the point that touches).
-    crash: { wheelSink: 8, bodySink: 6 },
+    // Only a hard arrival ends a flight: the airplane coming down faster than
+    // this (m/s; about 1,600 ft/min) when something first touches.
+    crash: { sink: 8 },
   };
 
   // Top speed is where thrust meets drag, so each top speed on the card says
