@@ -68,9 +68,11 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 - **Throttle:** a slider on the left edge.
 - **Three toggle buttons:** gear (up/down), flaps (up/down), brakes (wheel brakes; tap on, tap off).
 - **One small pause button.** The pause screen holds Resume, Restart, Recenter and the crash override switch.
-- **Auto-coordination on every airplane.** There's no rudder control. On the ground, tilt steers the nosewheel.
+- **Auto-coordination on every airplane.** There's no rudder control: automatic feet hold the rudder against sideslip and damp the nose's swing. On the ground, tilt steers the nosewheel.
+- **A chase camera,** behind and above the airplane, turning with it a beat late, so the airplane stays upright on screen and the horizon tilts. No look-around.
 - **Readouts:** airspeed in knots and altitude in feet. Below 2,000 feet above the ground, radar altitude too. Nothing else.
 - **No other on-screen controls.** US units only, with no units setting.
+- **The start screen** has the game's name and a Fly button. The version, with any model credit beside it, shows on the start and pause screens only.
 
 ## Looks
 
@@ -83,6 +85,8 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 ## The world
 
 One big invented island, sized for a jet: minutes to cross at 500 knots, with at least one runway long enough for an F-4. It gets designed in its own conversation before its milestone.
+
+Until the island exists, the world is a plain test field (`src/field.js`): flat, at sea level, one runway 10,000 by 150 feet running north-south, where every flight starts on the numbers with gear and flaps down and the brakes on.
 
 ## Building it
 
@@ -112,11 +116,16 @@ One big invented island, sized for a jet: minutes to cross at 500 knots, with at
 | 3 | **First flight.** The F-4C over a plain test field with a runway, on the phone | The owner takes off, flies and lands the F-4C on his iPhone |
 | 4 | **The island** | Designed first, in its own conversation |
 
+Milestones 0 to 3 are done; the app is at version 0.0.11. Milestone 4 is next.
+
 Every milestone starts deliberately in Plan Mode. Claude Code plans each one when the one before it is done; nobody writes a prompt for it. The island is the one exception: it's designed in a chat with the owner first and written to `docs/island.md`, then planned the same way. Any part of the world built in Blender is built in a model chat, like the airplanes. Anything beyond milestone 4 lives in the Ideas doc until the owner picks it.
 
 Notes for planning:
 - **Milestone 1** is large and all headless, so plan it as pull requests in this order: the core copied in, with the safety net and the checkride harness; the lift curve and stall; the engine and Mach; the limits; the ground systems (gear, flaps, brakes, steering, trim). In `docs/sim-core-review.md`, findings 8, 10 and 23–25 are optional. Besides the card's numbers, the checkride reports the g from full back tilt at 250, 350 and 450 knots, and the tilt needed for level flight at 250, 450 and 600 knots, so the feel shows before it reaches the phone.
-- **Milestone 2** starts with `docs/models.md`. Until milestone 3 there is no flying, so the app shows the jet hanging in the sky: drag to look around it, with its gear, flaps and controls moving by themselves in a slow cycle.
-  - The sim's wheels must be where the model's wheels are. The card carries the wheel and airframe contact positions, read from the model file, and a test fails if the two disagree, so a model can't be swapped without the sim following. The stand-in's centre of gravity is an estimate; the owner's F-4C brings the real one.
+- **Milestone 2:** the sim's wheels must be where the model's wheels are. The card carries the wheel and airframe contact positions, read from the model file, and a test fails if the two disagree, so a model can't be swapped without the sim following. The model's wheels are where they rest under the airplane's weight. A test also checks each control surface's travel against `docs/models.md`. The stand-in's centre of gravity is an estimate; the owner's F-4C brings the real one.
 - **The owner's F-4C:** reference images go in `Wings/Reference/` in Drive, the Blender file and the exported `.glb` in `Wings/Blender/`, and the finished `.glb` in this repo as `models/f4c.glb`.
-- **Milestone 3:** check the takeoff rotation on the phone. With the stand-in's wheels the nose comes up at 177 knots with the stick full back and the jet lifts off at 182. If that is still late, give the elevator more power at low speed; don't move the wheels again.
+- **Carried forward from milestone 3,** none of it blocking:
+  - Takeoff rotation is on the late side: with the stick full back the nose comes up at 177 knots and the jet lifts off at 182. The owner flew it and didn't object. If it comes to bother him, give the elevator more power at low speed; don't move the wheels.
+  - The flight model rolls every airplane as if it had ordinary ailerons. The F-4's spoilers are only in the picture. Claude Code owes the owner a recommendation on this once his own F-4C is in the app (Ideas doc).
+  - With the crash override on, the jet can come to rest on its back; the way out is Pause, then Restart. The island decides what hitting a mountain or a building does.
+  - The Pages deploy once failed at GitHub's publish step for no fault of the repo; a fresh run of the workflow fixed it where re-runs didn't. If it recurs, update the action versions in `.github/workflows/pages.yml`.
