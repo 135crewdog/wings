@@ -67,7 +67,7 @@ On the ground when it opens: the landmarks above, trees and woods, lochs and the
 With crashes on (the crash override off):
 
 - **Land** behaves as the runway does today: a hard hit ends the flight, a scrape survives.
-- **Buildings and landmarks** are solid: the castle, the hangars and tower, the arch at Durdle Door. Flying through the arch is a real dare.
+- **Buildings and landmarks** are solid: the castle, the viaduct, the hangars and tower, the arch at Durdle Door. Flying through the arch is a real dare.
 - **Woods** are solid at treetop height, as one block. Lone trees and hedgerow trees are scenery.
 - **Water** ends the flight at any touch, however gentle: the sea and the lochs. To be revisited if an amphibious airplane joins the hangar.
 
