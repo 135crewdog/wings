@@ -11,9 +11,9 @@
     {
       "level": 300,
       "south": 20500,
-      "north": 25500,
-      "west": -5500,
-      "east": 9500
+      "north": 25200,
+      "west": -5400,
+      "east": 9400
     }
   ],
   "sites": {

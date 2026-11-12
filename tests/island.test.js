@@ -63,6 +63,13 @@ test('island: the loch is level, and the castle stands on dry rock above it', ()
     if (level !== null) { wet++; assert.equal(level, loch.level); }
   }
   assert.ok(wet > 300, `the loch covers ${wet} hectares`);
+  // Its shores hold it in: all round the edge of its box the ground is above the water.
+  for (let t = 0; t <= 1; t += 0.002) {
+    const n = loch.south + t * (loch.north - loch.south), e = loch.west + t * (loch.east - loch.west);
+    for (const [pn, pe] of [[n, loch.west], [n, loch.east], [loch.south, e], [loch.north, e]]) {
+      assert.ok(island.heightAt(pn, pe) >= loch.level, `the loch spills at ${pn}, ${pe}: ground ${island.heightAt(pn, pe)} m`);
+    }
+  }
   assert.equal(island.waterAt(castle.north, castle.east), null);
   assert.ok(Math.abs(island.heightAt(castle.north, castle.east) - castle.height) < 2);
   assert.ok(castle.height > loch.level + 50);

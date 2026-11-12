@@ -95,7 +95,8 @@ export function shape(n, e) {
   h += high * 950 * Math.exp(-(((ld - 3300) / 1500) ** 2)) * (0.5 + ridged(wn / 3200, we / 3200, 4, 25));
   if (h > 1750) h = 1750 + 600 * Math.tanh((h - 1750) / 600);   // the tops stay under 7,700 feet
   const [gd, ga] = toPath(GLEN, n, e);
-  const floor = LOCH.level - 185 * ga + 10 * fbm(n / 900, e / 900, 2, 30);
+  // The glen leaves the loch over a lip of ground above the water, then runs downhill.
+  const floor = LOCH.level + 15 - 200 * Math.max(0, ga - 0.14) / 0.86 + 10 * fbm(n / 900, e / 900, 2, 30) * smooth(0.14, 0.24, ga);
   if (h > floor) h = floor + (h - floor) * smooth(200, 1500, gd);
   if (h > LOCH.level - 20) h = LOCH.level - 20 + (h - LOCH.level + 20) * smooth(LOCH.width, LOCH.width + 1300, ld);
   // The castle's crag: a flat-topped rock above the water.
@@ -126,9 +127,13 @@ let doorNorth = -36000;
 for (let n = -30000; n > -40000; n -= 20) if (inland(n, DOOR.east) < 0) { doorNorth = n + 20; break; }
 export const DOOR_AT = { north: doorNorth, east: DOOR.east };
 
+// The loch's box: its path, and room for its shores.
+const around = (i) => LOCH.path.map((p) => p[i]), ROOM = LOCH.width + 1300;   // as far as the loch shapes the ground
+const lochBox = { south: Math.min(...around(0)) - ROOM, north: Math.max(...around(0)) + ROOM, west: Math.min(...around(1)) - ROOM, east: Math.max(...around(1)) + ROOM };
+
 export const region = () => ({
   image: 'island.png', size: SIZE, post: POST, north0: NORTH0, east0: EAST0, min: MIN, step: STEP, seabed: MIN,
-  lochs: [{ level: LOCH.level, south: 20500, north: 25500, west: -5500, east: 9500 }],
+  lochs: [{ level: LOCH.level, ...lochBox }],
   // Where things stand: metres north and east, and height above sea level.
   sites: { base: BASE, castle: CASTLE, viaduct: VIADUCT, cove: COVE_AT, door: DOOR_AT },
 });
