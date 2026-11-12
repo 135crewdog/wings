@@ -4,9 +4,9 @@ What the island is, as the owner designed it in conversation. Milestone 4 is pla
 
 ## The idea
 
-One invented island, about 40 miles across, made of three places a pilot from Britain would know at a glance. It is built to grow: more locales, more kinds of terrain and more points of interest get added over time, and the island gets bigger to hold them.
+One invented island, about 20 miles across, made of three places a pilot from Britain would know at a glance. It is built to grow: more locales, more kinds of terrain and more points of interest get added over time, and the island gets bigger to hold them.
 
-At 500 knots, 10 miles takes 72 seconds. The air base to the highlands or to the south coast is about four minutes.
+At 500 knots, 10 miles takes 72 seconds: coast to coast is under two and a half minutes, and the air base to the highlands or to the south coast is about a minute. The owner first chose 40 miles and halved it on seeing the first pictures; the size is one number in the recipe (`SCALE` in `terrain/make-island.mjs`).
 
 ## The map
 
