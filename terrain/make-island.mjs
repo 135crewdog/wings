@@ -11,8 +11,9 @@ import { encodePng } from './png.mjs';
 
 export const SIZE = 1024, POST = 44;                 // posts each way, and metres between them
 // The recipe below is drawn for an island 40 miles across. SCALE shrinks the whole plan to the size wanted:
-// 0.5 is 20 miles. Heights stay as they are, and so do the things with a size of their own (the base, the cove,
-// the castle's rock), which are written in real metres times `real`.
+// 0.5 is 20 miles. It moves where things are, not how big they are: the mountains, the glen, the loch, the base,
+// the cove and the castle's rock keep their real sizes (real metres, or real metres times `real` in the plan's),
+// so a smaller island has fewer mountains, not steeper ones.
 export const SCALE = 0.5, real = 1 / SCALE;
 export const NORTH0 = (SIZE - 1) * POST / 2, EAST0 = -NORTH0;   // the north-west corner
 export const MIN = -40, STEP = 0.25;                 // heights are stored in steps of 0.25 m above -40 m
@@ -21,14 +22,23 @@ const FT = 0.3048;
 // ---- the places (docs/island.md) ----
 const PLAN_BASE = { north: -3000, east: 22000 };
 export const BASE = { north: PLAN_BASE.north * SCALE, east: PLAN_BASE.east * SCALE, heading: 280, height: 30 * FT };   // the runway's middle; flights take off on 28
-const LOCH = { level: 300, width: 450 * real, path: [[22500, -3500], [23300, 500], [22400, 4500], [22900, 7500]] };
-const PLAN_CASTLE = { north: 24000, east: 1300 + 150 * real };
+const LOCH = { level: 300, width: 550 * real, path: [[22500, -3500], [23300, 500], [22400, 4500], [22900, 7500]] };
+const PLAN_CASTLE = { north: 23050 + 650 * real, east: 1600 };
 export const CASTLE = { north: PLAN_CASTLE.north * SCALE, east: PLAN_CASTLE.east * SCALE, height: LOCH.level + 80 };   // a crag on the loch's north shore
 // The glen that leads out of the castle's bowl, winding so the castle can't be seen up it.
 const GLEN = [[22500, -3500], [21200, -7500], [17500, -9200], [14200, -6500], [10500, -8800], [6000, -8000]];
 export const VIADUCT = { north: 17500 * SCALE, east: -9200 * SCALE };   // it spans the glen here
 const COVE = { east: -4000, radius: 350 * real };
-const DOOR = { east: -5700 };                            // a mile west of the cove, as the real ones lie
+const DOOR = { east: -5700 };
+// The mountains: metres north and east (real), the top's height, and how far the mountain reaches.
+const PEAKS = [
+  [15000, -1500, 2320, 4600], [14600, 3300, 2180, 4300], [11900, 7300, 2040, 4400], [8000, 4700, 2260, 4500],   // round the loch: north, north-east, east, south-east
+  [7400, 300, 2120, 4000], [8900, -2300, 1960, 2700], [9500, -7600, 2210, 4500], [12900, -5700, 2080, 4200],    // south, south-west (the glen runs round it), west, north-west
+  [9000, -11800, 1900, 3900], [8400, 11000, 1860, 3900],                                                        // one alone at each end
+  // lower tops between and beyond them, so the whole reads as a range
+  [16300, 1000, 1500, 2600], [13600, 6000, 1450, 2500], [10000, 6800, 1400, 2400], [6200, 2600, 1350, 2600], [6300, -5600, 1300, 2500],
+  [11800, -9300, 1500, 2800], [14600, -4000, 1550, 2600], [6600, 8200, 1250, 2500], [6800, -9600, 1200, 2500], [11200, 10600, 1300, 2500],
+];                            // a mile west of the cove, as the real ones lie
 
 // ---- noise: the same every run ----
 const hash = (i, j, s) => { let h = (i * 374761393 + j * 668265263 + s * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -73,6 +83,11 @@ function inland(n, e) {
   return d;
 }
 
+// The loch's box: its path, and room for its shores.
+const around = (i) => LOCH.path.map((p) => p[i]), ROOM = LOCH.width + 700 * real;
+const lochPlan = { south: Math.min(...around(0)) - ROOM, north: Math.max(...around(0)) + ROOM, west: Math.min(...around(1)) - ROOM, east: Math.max(...around(1)) + ROOM };
+const lochBox = Object.fromEntries(Object.entries(lochPlan).map(([side, at]) => [side, at * SCALE]));
+
 /** The land's height at a point (real metres north and east), before it is stored. */
 export function shape(n, e) {
   n /= SCALE; e /= SCALE;   // from here on, the plan's own metres
@@ -88,31 +103,31 @@ export function shape(n, e) {
   h += (1 - fields) * smooth(500, 5000, d) * (230 + 270 * fbm(n / 7000, e / 7000, 4, 12)) * (0.25 + 0.75 * noise(n / 16000, e / 16000, 13)) * (1 - 0.6 * south);
   // The south: chalk downs that end at the sea in cliffs.
   h += south * Math.exp(-Math.max(d, 0) / 6000) * (105 + 35 * fbm(n / 3000, e / 3000, 3, 14)) * smooth(0, 90, d);
-  // Highlands: ridges and glens, bigger than life.
-  const wn = n + 2600 * fbm(n / 6000, e / 6000, 3, 20), we = e + 2600 * fbm(n / 6000, e / 6000, 3, 21);
-  const rock = ridged(wn / 8500, we / 8500, 6, 22);
-  h += high * (90 + 2100 * Math.pow(rock, 1.7) * (0.75 + 0.5 * noise(n / 20000, e / 20000, 23)));
-  // A wall of peaks south of the castle's bowl, so it can't be seen from the lowlands.
-  const wall = Math.exp(-(((n - 18800 - 900 * Math.sin(e / 3500)) / 1700) ** 2)) * smooth(-14000, -9000, e) * smooth(15000, 10000, e);
-  h += wall * high * 1100 * (0.45 + ridged(wn / 3800, we / 3800, 4, 24));
-
-  // The glen out of the bowl, then the loch: each cuts down to its floor, with steep sides.
-  // A ring of peaks round the loch, so the castle stands in a bowl.
+  // Highlands: a handful of big mountains, each placed by hand (real metres), with ridges and corries cut into
+  // them and glens between. A ring of them stands round the loch, so the castle is in a bowl.
+  const rn = n * SCALE, re = e * SCALE;
+  const wn = rn + 1100 * fbm(rn / 3600, re / 3600, 3, 20), we = re + 1100 * fbm(rn / 3600, re / 3600, 3, 21);
+  let massif = 0;
+  for (const [pn, pe, top, reach] of PEAKS) {
+    const t = Math.hypot(wn - pn, we - pe) / (reach * (0.8 + 0.4 * noise(wn / 2200, we / 2200, 26)));
+    if (t < 1) massif += ((top - 330) * Math.pow(1 - t, 1.6) * (0.72 + 0.56 * ridged(wn / 2600, we / 2600, 4, 22))) ** 3;
+  }
+  h += high * (230 + 110 * fbm(rn / 1800, re / 1800, 3, 27) + Math.cbrt(massif));
   const [ld] = toPath(LOCH.path, n, e);
-  h += high * 950 * Math.exp(-(((ld - 3300) / 1500) ** 2)) * (0.5 + ridged(wn / 3200, we / 3200, 4, 25));
-  if (h > 1750) h = 1750 + 600 * Math.tanh((h - 1750) / 600);   // the tops stay under 7,700 feet
   const [gd, ga] = toPath(GLEN, n, e);
   // The glen leaves the loch over a lip of ground above the water, then runs downhill.
   const floor = LOCH.level + 15 - 200 * Math.max(0, ga - 0.14) / 0.86 + 10 * fbm(n / 900, e / 900, 2, 30) * smooth(0.14, 0.24, ga);
-  if (h > floor) h = floor + (h - floor) * smooth(150 * real, 1500, gd);
-  if (h > LOCH.level - 20) h = LOCH.level - 20 + (h - LOCH.level + 20) * smooth(LOCH.width, LOCH.width + 1300, ld);
+  if (h > floor) h = floor + (h - floor) * smooth(120, 1000, gd * SCALE);
+  if (h > LOCH.level - 20) h = LOCH.level - 20 + (h - LOCH.level + 20) * smooth(LOCH.width, LOCH.width + 1400 * real, ld);
+  // Round the loch the ground stands above the water, so its shores hold it in wherever the glen or a low col comes near.
+  if (ld > LOCH.width + 500 * real && n > lochPlan.south && n < lochPlan.north && e > lochPlan.west && e < lochPlan.east) h = Math.max(h, LOCH.level + 4);
   // The castle's crag: a flat-topped rock above the water.
   const crag = Math.hypot(n - PLAN_CASTLE.north, e - PLAN_CASTLE.east);
   h = Math.max(h, CASTLE.height - Math.max(0, crag - 150 * real) * 0.9 * SCALE);
 
   // The base: dead flat, easing into the fields round it.
-  const a = (BASE.heading * Math.PI) / 180, rn = n - PLAN_BASE.north, re = e - PLAN_BASE.east;
-  const along = Math.abs(rn * Math.cos(a) + re * Math.sin(a)), across = Math.abs(-rn * Math.sin(a) + re * Math.cos(a));
+  const a = (BASE.heading * Math.PI) / 180, bn = n - PLAN_BASE.north, be = e - PLAN_BASE.east;
+  const along = Math.abs(bn * Math.cos(a) + be * Math.sin(a)), across = Math.abs(-bn * Math.sin(a) + be * Math.cos(a));
   const flat = 1 - smooth(0, 1200 * real, Math.max(along - 2200 * real, across - 900 * real));
   h += flat * (BASE.height - h);
 
@@ -133,10 +148,6 @@ export const COVE_AT = { north: coveNorth * SCALE, east: COVE.east * SCALE, radi
 let doorNorth = -36000;
 for (let n = -30000; n > -40000; n -= 20) if (inland(n, DOOR.east) < 0) { doorNorth = n + 20; break; }
 export const DOOR_AT = { north: doorNorth * SCALE, east: DOOR.east * SCALE };
-
-// The loch's box: its path, and room for its shores.
-const around = (i) => LOCH.path.map((p) => p[i]), ROOM = LOCH.width + 1300;   // as far as the loch shapes the ground
-const lochBox = { south: (Math.min(...around(0)) - ROOM) * SCALE, north: (Math.max(...around(0)) + ROOM) * SCALE, west: (Math.min(...around(1)) - ROOM) * SCALE, east: (Math.max(...around(1)) + ROOM) * SCALE };
 
 export const region = () => ({
   image: 'island.png', size: SIZE, post: POST, north0: NORTH0, east0: EAST0, min: MIN, step: STEP, seabed: MIN,

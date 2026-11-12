@@ -10,10 +10,10 @@
   "lochs": [
     {
       "level": 300,
-      "south": 10100,
-      "north": 12750,
-      "west": -2850,
-      "east": 4850
+      "south": 9950,
+      "north": 12900,
+      "west": -3000,
+      "east": 5000
     }
   ],
   "sites": {
@@ -24,7 +24,7 @@
       "height": 9.144
     },
     "castle": {
-      "north": 12000,
+      "north": 12175,
       "east": 800,
       "height": 380
     },
