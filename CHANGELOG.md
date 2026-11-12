@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.11
+
+- Landings are much more forgiving. A hard landing bounces where it used to end the flight: it now takes about 3,500 feet a minute onto the wheels to crash, up from 1,600, and a wing low no longer makes it worse.
+
 ## 0.0.10
 
 - Running the engine up against the brakes no longer tips the picture. The nose strut was far too soft: the nose dipped 2° and the horizon jumped. It now dips half a degree.
