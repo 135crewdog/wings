@@ -70,21 +70,21 @@ export function zeroLiftDrag(c, mach) {
  * speed the wing stalls first.
  *
  * Back stick has extra bite while the wing is at a low angle of attack
- * (`alpha`), below corner speed: up to ROTATE times more with the wing at
- * zero, fading to nothing as the wing nears its stall angle, and fading out
- * as speed nears corner. It is what levers the nose off the runway at a
- * sensible speed, where the wing sits near zero angle and the tail has the
- * airplane's weight to lift about the main wheels. Because it is gone by the
- * stall angle, a hard turn or a stall with the stick held back is no deeper
- * for it. Leave `alpha` out for the power without it.
+ * (`alpha`), below corner speed: up to `c.rotateBite` times more with the
+ * wing at zero, fading to nothing as the wing nears its stall angle, and
+ * fading out as speed nears corner. It is what levers the nose off the
+ * runway, where the wing sits near zero angle and the tail has the
+ * airplane's weight to lift about the main wheels; the card's rotation speed
+ * says how much there is (card.js). Because it is gone by the stall angle, a
+ * hard turn or a stall with the stick held back is no deeper for it. Leave
+ * `alpha` out for the power without it.
  */
-const ROTATE = 2;   // set so the F-4C's nose comes up at about 150 knots with the stick full back
 
 export function elevatorPower(c, V, qbar, CLa, alphaStall, alpha = alphaStall) {
   const perG = c.W / (Math.max(qbar, 1) * c.S * CLa);   // angle of attack per g
   const most = 1.2 * alphaStall;
   const slow = clamp((c.gLimit * perG) / alphaStall - 1, 0, 1);   // 0 at corner speed and above, 1 well below it
-  const bite = 1 + ROTATE * slow * Math.max(0, 1 - Math.abs(alpha) / alphaStall);
+  const bite = 1 + (c.rotateBite ?? 0) * slow * Math.max(0, 1 - Math.abs(alpha) / alphaStall);
   const power = (g) => {
     const alpha = Math.min(g * perG, most), held = alpha / perG;   // the g actually held
     const rate = (G0 * Math.max(held - 1 / Math.max(held, 1), 0)) / Math.max(V, 1);   // pitch rate of a level turn at that g

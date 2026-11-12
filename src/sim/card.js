@@ -7,7 +7,8 @@
 // through `feel(low, high, x)`: 0 gives `low`, 1 gives `high`.
 
 import { G0, atmosphere } from './atmosphere.js';
-import { liftSlope, liftDragFactor } from './aero.js';
+import { liftSlope, liftDragFactor, elevatorPower } from './aero.js';
+import { SURFACES, flatGround } from './ground.js';
 import { thrust } from './engine.js';
 import { Sim, DT } from './sim.js';
 import { trimLevel } from './trim.js';
@@ -139,12 +140,54 @@ export function deriveCard(pilot) {
     ? { subsonic: Math.min(SUBSONIC_CD0, low.cd), at: [low.mach, low.cd, hi.mach, hi.cd] }
     : { subsonic: low.cd, at: [1.05, hi.cd, Math.max(hi.mach, 1.1), hi.cd] };
 
+  // The card's rotation speed says how much bite back stick needs at a low
+  // angle of attack (aero.js, elevatorPower). On the takeoff roll, flaps
+  // down, the nose wheel lifts when the tail's push about the centre of
+  // gravity matches what the main wheels, behind it, push back with: what is
+  // left of the weight after the wing's lift, at the wheels' distance behind,
+  // plus their rolling drag at their depth below.
+  if (pilot.rotate_kt) {
+    const V = pilot.rotate_kt * KT, qS = 0.5 * RHO0 * V * V * S;
+    const [behind, , below] = pilot.wheels_ft.left.map((x) => Math.abs(x) * FT);
+    const onWheels = Math.max(W - qS * c.flapLift, 0);
+    const needed = (onWheels * (behind + SURFACES.runway.mu_roll * below)) / (qS * c.cbar) - c.Cm0;
+    c.rotateBite = Math.max(needed / elevatorPower(c, V, qS / S, CLa, c.alphaStall).up - 1, 0);
+    // That balance is the instant the nose wheel stops carrying weight; the
+    // tyre leaves the runway a moment later. So fly the takeoff, and scale
+    // the bite until the tyre leaves at the card's speed. What the tail must
+    // lift falls off as the square of the speed.
+    for (let i = 0; i < 3; i++) c.rotateBite = Math.max((1 + c.rotateBite) * (noseLiftSpeed(c) / V) ** 2 - 1, 0);
+  }
+
   // The aileron power above balances roll damping alone. A real roll also
   // stirs up sideslip, the rudder and the wing's own speed changes, which
   // cost about a fifth of the rate, so fly the roll and scale the power
   // until full stick gives the card's rate.
   for (let i = 0; i < 3; i++) c.aileron.cl *= (pilot.roll_rate_dps * DEG) / rollRate(c, pilot.roll_rate_at_kt * KT);
   return c;
+}
+
+/**
+ * The speed (m/s) at which the nose tyre leaves the runway on takeoff: flaps
+ * down, full afterburner, stick full back, at sea level. Flown, from a
+ * rolling start at 60% of the card's rotation speed.
+ */
+export function noseLiftSpeed(c) {
+  const V = 0.6 * c.pilot.rotate_kt * KT;
+  const wheels = c.contacts.filter((p) => p.wheel);
+  const nose = wheels.map((p) => p.name === 'nose wheel');
+  const sim = new Sim(c, {
+    x: [0, 0, -Math.max(...wheels.map((p) => p.r[2] - p.sag))],   // standing on its tyres
+    v: [V, 0, 0],
+    q: [1, 0, 0, 0],
+    omega: [0, 0, 0],
+  }, { ground: flatGround(0), throttle: 1, gear: true, flaps: true });
+  const controls = { elevator: 1, throttle: 1, gear: true, flaps: true };
+  for (let t = 0; t < 30; t += DT) {
+    sim.step(controls);
+    if (!sim.touching.some((touching, i) => touching && nose[i])) break;
+  }
+  return Math.hypot(...sim.state.v);
 }
 
 /** The steady roll rate (rad/s) from full right stick in level flight at sea level at speed V: flown, averaged from 1.5 to 3 s in. */
