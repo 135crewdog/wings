@@ -1,5 +1,6 @@
 // Trees for scenery: single trees standing along the tracks between the
-// fields, drawn round the camera and nowhere else. They are not solid; the
+// fields, drawn round the camera and nowhere else, growing out of the ground
+// as the camera comes near. They are not solid; the
 // woods are (they are part of the ground, src/render/terrain.js). Where a
 // tree stands is worked out from the place itself, so the same trees are
 // there every time you come back. Metres; x east, y up, z south.
@@ -7,9 +8,12 @@
 import * as THREE from 'three';
 import { TREE_GRID as GRID, rand, treeIn } from '../fields.js';
 
-const REACH = 1400;     // m: trees are drawn this far from the camera
-const REDO = 250;       // m: the camera moves this far before the trees are worked out afresh
-const MOST = 2500;      // trees drawn at once, at most
+const REACH = 2400;     // m: trees are worked out this far from the camera
+const REDO = 300;       // m: the camera moves this far before the trees are worked out afresh
+const MOST = 4000;      // trees drawn at once, at most
+// A tree is its full size out to GROWN, and shrinks to nothing by GONE: it grows out of the ground as the
+// camera comes, where it used to pop into being. GONE is inside what is always worked out (REACH less REDO).
+const GROWN = 1300, GONE = 2000;
 
 // One tree: a trunk and a crown of two cones, about 1 m tall before it is scaled.
 function treeGeometry() {
@@ -39,7 +43,12 @@ function treeGeometry() {
  * `region` terrain/island.json. Returns { follow(camera) }: call it each frame.
  */
 export function createTrees(scene, island, region) {
-  const mesh = new THREE.InstancedMesh(treeGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), MOST);
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      transformed *= 1.0 - smoothstep(${GROWN.toFixed(1)}, ${GONE.toFixed(1)}, distance(instanceMatrix[3].xz, cameraPosition.xz));`);
+  };
+  const mesh = new THREE.InstancedMesh(treeGeometry(), material, MOST);
   mesh.count = 0;
   mesh.frustumCulled = false;   // they are always round the camera
   scene.add(mesh);
