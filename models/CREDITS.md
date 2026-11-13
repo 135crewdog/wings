@@ -1,5 +1,9 @@
 # Credits for the 3D models
 
+## `castle.glb`: the castle school
+
+The owner's own model, built in Blender with Claude in a Wings project chat: a castle school inspired by Hogwarts, far simpler than the film castle. Its Blender file is `castle.blend`, in `Wings/Blender/` in the owner's Google Drive. In the app from version 0.0.23.
+
 ## `viaduct.glb`: the viaduct
 
 The owner's own model, built in Blender with Claude in a Wings project chat, after the Glenfinnan Viaduct in Scotland, with its arches opened up for a jet. Its Blender file is `viaduct.blend`, in `Wings/Blender/` in the owner's Google Drive. In the app from version 0.0.22, in its first revision: twice as tall as first built, with longer ends that run into the hillsides.

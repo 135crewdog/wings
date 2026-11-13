@@ -432,7 +432,7 @@
     "castle": {
       "north": 9450,
       "east": 2300,
-      "height": 328
+      "height": 400
     },
     "viaduct": {
       "north": 9300,

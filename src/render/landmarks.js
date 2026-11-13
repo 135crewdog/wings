@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const MODELS = { viaduct: './models/viaduct.glb' };
+const MODELS = { viaduct: './models/viaduct.glb', castle: './models/castle.glb' };
 
 /**
  * Adds every landmark to the scene as its model arrives. `landmarks` is

@@ -27,7 +27,7 @@ const FT = 0.3048;
 // ---- the places (docs/island.md, and the owner's sketch in it) ----
 export const BASE = { north: -1500, east: 11000, heading: 280, height: 30 * FT };   // the runway's middle; flights take off on 28
 const LOCH = { level: 300, half: 620, path: [[10300, -2200], [10750, 300], [10350, 2900], [10650, 5400]] };
-export const CASTLE = { north: 9450, east: 2300, height: LOCH.level + 28 };          // a shelf on the loch's south shore
+export const CASTLE = { north: 9450, east: 2300, height: LOCH.level + 100 };         // the flat top of a crag on the loch's south shore
 const GROUNDS = { north: 7500, east: 3500, across: 3300, deep: 1750 };               // the bowl south of the castle: its middle and half-sizes
 // The river's course from the loch to the sea, bend by bend. The canyon is cut along it.
 const BENDS = [[10250, -2900], [9300, -3700], [7500, -3300], [5400, -4500], [3200, -3500], [1000, -4500], [-1300, -3400], [-3600, -4500],
@@ -51,6 +51,7 @@ const CONES = [[-6300, 4900, 330, 800], [-10400, -1500, 280, 700], [-11800, 4000
 export const STRIP = { north: -4700, east: -11400 };
 const COVE = { north: 3900, radius: 900, mouth: 230, inland: 1300 };   // its middle lies this far in from the east coast
 const DOOR_NORTH = 1900;
+const HIDING_RIDGE = [[3300, -1500], [5800, -100]];   // a ridge in the wall south-west of the castle's grounds
 // The mountains: metres north and east, the top's height, and how far the mountain reaches.
 const PEAKS = [
   [15200, 600, 2330, 4500], [14400, -4400, 2240, 4300], [14300, 5600, 2160, 4300], [11700, 9700, 2060, 4300], [7600, 10300, 1900, 3900],   // the arc north and east of the loch
@@ -291,6 +292,11 @@ function natural(n, e) {
     if (t < 1) massif += ((top - 330) * Math.pow(1 - t, 1.6) * (0.72 + 0.56 * ridged(wn / 2600, we / 2600, 4, 22))) ** 3;
   }
   h = Math.max(h, low + high * (230 + 110 * fbm(n / 1800, e / 1800, 3, 27) + Math.cbrt(massif)));   // they stand on the low land, not on the plateau
+  // The castle's tallest spire stands 220 m above its shelf, and from a few places on the plateau its tips showed over a
+  // low stretch of the wall south-west of the grounds. A ridge closes it.
+  const [ridgeA, ridgeB] = HIDING_RIDGE, rn = ridgeB[0] - ridgeA[0], re = ridgeB[1] - ridgeA[1];
+  const rt = clamp(((n - ridgeA[0]) * rn + (e - ridgeA[1]) * re) / (rn * rn + re * re), 0, 1);
+  h = Math.max(h, 1080 - 0.8 * Math.hypot(n - ridgeA[0] - rt * rn, e - ridgeA[1] - rt * re));
 
   // The grounds: a wide bowl south of the loch, walled in by the mountains round it.
   const bowl = Math.hypot((n - GROUNDS.north) / GROUNDS.deep, (e - GROUNDS.east) / GROUNDS.across);
@@ -312,7 +318,7 @@ function natural(n, e) {
   if (ld > LOCH.half + 250 && n > lochBox.south - POST && n < lochBox.north + POST && e > lochBox.west - POST && e < lochBox.east + POST) h = Math.max(h, LOCH.level + 4);
   // The castle's shelf on the south shore.
   const shelfR = Math.hypot(n - CASTLE.north, e - CASTLE.east);
-  if (shelfR < 420) h = h + (CASTLE.height - h) * smooth(420, 240, shelfR);
+  if (shelfR < 400) h = h + (CASTLE.height - h) * smooth(400, 245, shelfR);   // flat under the castle, then the crag's sides
 
   // The base: dead flat, easing into the fields round it.
   const a = (BASE.heading * Math.PI) / 180, bn = n - BASE.north, be = e - BASE.east;
@@ -372,7 +378,7 @@ export const region = () => ({
 });
 
 // The landmarks that have a model, each standing on its site. `turn` is degrees clockwise from the way it was built.
-const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 } };
+const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 }, castle: { model: 'castle.glb', turn: 0 } };
 const mm = (v) => Math.round(v * 1000) / 1000;
 
 /**

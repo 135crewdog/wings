@@ -24,7 +24,7 @@ const ground = islandGround(island, createSolids(Object.values(landmarks).flatMa
 
 // What the prompt for each model asked for: its overall size in metres (east-west, up from the origin, north-south),
 // its triangle budget, and how many openings there are to fly through.
-const ASKED = { viaduct: { size: [640, 121, 51], triangles: 8000, openings: 11 } };
+const ASKED = { viaduct: { size: [640, 121, 51], triangles: 8000, openings: 11 }, castle: { size: [356, 220, 296], triangles: 15000, openings: 0 } };
 
 test('landmarks: terrain/landmarks.json is what the script writes today', () => {
   assert.deepEqual(landmarks, JSON.parse(JSON.stringify(freshLandmarks())), 'landmarks.json is stale: run node terrain/make-island.mjs');
@@ -83,7 +83,24 @@ for (const [name, at] of Object.entries(landmarks)) {
     return sim;
   };
 
-  test(`landmarks: every opening of the ${name} can be flown, both ways, and its stone cannot`, () => {
+  // The solids that stand on the ground, and how high the highest solid reaches above the origin.
+  const upright = (s) => s.axes.findIndex((a) => Math.abs(a[2]) > 0.9);
+  const standing = at.solids.filter((s) => s.centre[2] - s.half[upright(s)] < at.up + 1);
+  const roof = Math.max(...at.solids.map((s) => s.centre[2] + s.half[upright(s)])) - at.up;
+  const say = (sim) => (sim.crashed ? `ends the flight (${sim.crashed.solid ?? sim.crashed.reason})` : 'clear');
+
+  test(`landmarks: the ${name} is solid`, () => {
+    // At the part nearest its middle, from the south, 100 ft above its ground; then over the top; then with the crash override on.
+    const off = (s) => Math.hypot(s.centre[0] - at.north, s.centre[1] - at.east);
+    const tall = standing.reduce((a, b) => (off(b) < off(a) ? b : a)), aim = { north: tall.centre[0], east: tall.centre[1] };
+    const into = pass(aim, 0, 30), over = pass(aim, 0, roof + 30), spared = pass(aim, 0, 30, false);
+    console.log(`  The ${name} at 350 kt: into ${tall.name}, ${say(into)}. ${Math.round((roof + 30) / FT)} ft up, over the top: ${say(over)}. Into it with the crash override on: ${say(spared)}`);
+    assert.equal(into.crashed?.reason, 'landmark');
+    assert.equal(over.crashed, null);
+    assert.equal(spared.crashed, null, 'with the override on, the jet flies through');
+  });
+
+  if (asked.openings) test(`landmarks: every opening of the ${name} can be flown, both ways, and its stone cannot`, () => {
     assert.equal(openings.length, asked.openings, 'openings');
     const widths = [];
     for (const [i, o] of openings.entries()) {
@@ -104,7 +121,6 @@ for (const [name, at] of Object.entries(landmarks)) {
     const side = (m) => ({ north: o.north + (m / o.gap) * (o.b.centre[0] - o.a.centre[0]), east: o.east + (m / o.gap) * (o.b.centre[1] - o.a.centre[1]) });
     const above = Math.max(...decks.map((d) => d.centre[2] + d.half[1])) - at.up + 20;
     const head = pass(leg, o.heading, 30), tip = pass(side(o.clear / 2 - 4), o.heading, 30), deck = pass(o, o.heading, decks[0].centre[2] - at.up), over = pass(o, o.heading, above), spared = pass(leg, o.heading, 30, false);
-    const say = (sim) => (sim.crashed ? `ends the flight (${sim.crashed.solid ?? sim.crashed.reason})` : 'clear');
     console.log(`  Into a pier: ${say(head)}. A wingtip on a pier: ${say(tip)}. Into the deck: ${say(deck)}. Over the top: ${say(over)}. Into a pier with the crash override on: ${say(spared)}`);
     assert.equal(head.crashed?.solid, o.b.name);
     assert.equal(tip.crashed?.solid, o.b.name, 'a wingtip counts');
@@ -119,9 +135,9 @@ for (const [name, at] of Object.entries(landmarks)) {
       const under = island.heightAt(o.north, o.east) - at.up;
       assert.ok(under < 3, `the ground stands ${under.toFixed(1)} m up in opening ${i + 1}`);
     }
-    // No leg hangs in the air: the ground under each is within the 5 m it carries on below its origin.
-    const hang = legs.map((l) => at.up - island.heightAt(l.centre[0], l.centre[1]));
-    console.log(`  Under the legs the ground is ${Math.min(...hang).toFixed(1)} m above to ${Math.max(...hang).toFixed(1)} m below the origin's level`);
-    assert.ok(Math.max(...hang) < 4.5, 'a leg would hang in the air');
+    // Nothing hangs in the air: the ground under each standing part is within the 5 m it carries on below its origin.
+    const hang = standing.map((l) => at.up - island.heightAt(l.centre[0], l.centre[1]));
+    console.log(`  Under the ${name}'s ${standing.length} standing parts the ground is ${Math.min(...hang).toFixed(1)} m above to ${Math.max(...hang).toFixed(1)} m below the origin's level`);
+    assert.ok(Math.max(...hang) < 4.5, 'a part would hang in the air');
   });
 }
