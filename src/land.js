@@ -3,9 +3,9 @@
 // heights for the flight model, and the image itself goes to the picture.
 // The loading is after 135crewdog/rage, src/main.js (loadTerrain).
 
-import { decodeHeights } from './sim/island.js';
+import { decodeCanopy, decodeHeights } from './sim/island.js';
 
-/** Resolves to { region, heights, image }. */
+/** Resolves to { region, heights, canopy, image }. */
 export async function loadLand() {
   const region = await (await fetch('./terrain/island.json')).json();
   const image = new Image();
@@ -15,6 +15,6 @@ export async function loadLand() {
   canvas.width = image.width; canvas.height = image.height;
   const pen = canvas.getContext('2d', { willReadFrequently: true });
   pen.drawImage(image, 0, 0);
-  const heights = decodeHeights(pen.getImageData(0, 0, image.width, image.height).data, image.width * image.height);
-  return { region, heights, image };
+  const pixels = pen.getImageData(0, 0, image.width, image.height).data, count = image.width * image.height;
+  return { region, heights: decodeHeights(pixels, count), canopy: decodeCanopy(pixels, count), image };
 }

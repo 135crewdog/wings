@@ -21,7 +21,7 @@ import { attitudeToThree, toThree } from './render/frames.js';
 
 /**
  * Puts the flight on a canvas, parked on the runway and holding still.
- * `land` is the island ({ region, heights, image } from src/land.js).
+ * `land` is the island ({ region, heights, canopy, image } from src/land.js).
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
  * when a flight ends in a crash; `onReadout(knots, feet, feetAboveGround)` is
  * called every frame with what the instruments read. Returns { ready, fly(), hold(), restart(), setCrashes(on) }:
@@ -31,8 +31,8 @@ import { attitudeToThree, toThree } from './render/frames.js';
 export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   const scene = new THREE.Scene();
-  const island = createIsland(land.region, land.heights), field = baseField(land.region, island);
-  const world = createWorld(scene, renderer, field, land);
+  const island = createIsland(land.region, land.heights, land.canopy), field = baseField(land.region, island);
+  const world = createWorld(scene, renderer, field, land, island);
   const airplane = createAircraft();
   scene.add(airplane);
   const chase = createChaseCamera();

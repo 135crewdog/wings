@@ -86,6 +86,12 @@ With the crash override on, nothing ends a flight, as now.
 - Names. The island, the base and the castle school have none, and nothing in the app shows one.
 - Which parts are built in Blender, in a model chat, and which the app draws itself. That is for the milestone 4 plan.
 
+## Woods and trees
+
+- **Woods** are part of the map: `terrain/island.png` carries the treetops' height over each post (its blue channel), so the flight model and the picture both treat a wood as ground that stands 40 feet taller. In the farmland a wood is one whole plot; elsewhere woods grow in patches on low, gentle ground. None on the airfield or off the runway's ends, and none in the glens.
+- **Scenery trees** stand beside the tracks between the fields, drawn only near the camera. Where they stand is worked out from the place itself (`src/fields.js`), so they are the same every visit.
+- The farmland's plots are worked out twice, in `src/fields.js` and in the paint in `src/render/terrain.js`, by the same arithmetic, so the woods and trees stand in the plots that are painted.
+
 ## Where it is kept
 
 The land's shape is `terrain/island.png`, a height map, with `terrain/island.json` beside it saying where it lies, where the loch is, and where each landmark stands. Both are written by `terrain/make-island.mjs`; to change the island, change that script and run it. `node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page.

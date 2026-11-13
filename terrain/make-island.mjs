@@ -8,6 +8,7 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { encodePng } from './png.mjs';
+import { onAirfield, plotAt } from '../src/fields.js';
 
 export const SIZE = 1024, POST = 44;                 // posts each way, and metres between them
 // The recipe below is drawn for an island 40 miles across. SCALE shrinks the whole plan to the size wanted:
@@ -17,6 +18,7 @@ export const SIZE = 1024, POST = 44;                 // posts each way, and metr
 export const SCALE = 0.5, real = 1 / SCALE;
 export const NORTH0 = (SIZE - 1) * POST / 2, EAST0 = -NORTH0;   // the north-west corner
 export const MIN = -40, STEP = 0.25;                 // heights are stored in steps of 0.25 m above -40 m
+export const TREETOPS = 12, CANOPY_STEP = 0.25;      // a wood stands 12 m (40 ft) tall; stored in steps of 0.25 m
 const FT = 0.3048;
 
 // ---- the places (docs/island.md) ----
@@ -150,13 +152,38 @@ for (let n = -30000; n > -40000; n -= 20) if (inland(n, DOOR.east) < 0) { doorNo
 export const DOOR_AT = { north: doorNorth * SCALE, east: DOOR.east * SCALE };
 
 export const region = () => ({
-  image: 'island.png', size: SIZE, post: POST, north0: NORTH0, east0: EAST0, min: MIN, step: STEP, seabed: MIN,
+  image: 'island.png', size: SIZE, post: POST, north0: NORTH0, east0: EAST0, min: MIN, step: STEP, seabed: MIN, canopyStep: CANOPY_STEP,
   lochs: [{ level: LOCH.level, ...lochBox }],
   // Where things stand: metres north and east, and height above sea level.
   sites: { base: BASE, castle: CASTLE, viaduct: VIADUCT, cove: COVE_AT, door: DOOR_AT },
   // For the paint: farmland lies east of this line, and the chalk cliffs south of this one.
-  paint: { fieldsEast: 6500 * SCALE, chalkSouth: -24000 * SCALE },
+  paint: PAINT,
 });
+
+const PAINT = { fieldsEast: 6500 * SCALE, chalkSouth: -24000 * SCALE };
+
+/**
+ * Whether a post stands in a wood. In the farmland a wood is one of the plots (src/fields.js marks them), kept
+ * back from the plot's edge; elsewhere woods grow in patches on the lower, gentler ground. None on the airfield.
+ * `h` is the land's height there and `slope` its steepness.
+ */
+export function wooded(n, e, h, slope) {
+  if (h < 4 || onAirfield(BASE, n, e, 400)) return false;
+  if (e > PAINT.fieldsEast && h < 60 && slope < 0.12) { const plot = plotAt(n, e); return plot.wood && plot.side > 30; }
+  // Thinning out toward the highlands, and none in the glens: they are for flying.
+  return h < 420 && slope < 0.3 && noise(n / 700, e / 700, 60) * (0.6 + 0.8 * noise(n / 4000, e / 4000, 61)) > 0.8 + smooth(3000 * SCALE, 7000 * SCALE, n);
+}
+
+/** Every post's canopy, in stored steps: the treetops' height over the land, or 0. */
+export function canopy(steps) {
+  const at = (r, c) => MIN + steps[clamp(r, 0, SIZE - 1) * SIZE + clamp(c, 0, SIZE - 1)] * STEP;
+  const out = new Uint8Array(SIZE * SIZE);
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    const slope = Math.hypot(at(r - 1, c) - at(r + 1, c), at(r, c + 1) - at(r, c - 1)) / (2 * POST);
+    if (wooded(NORTH0 - r * POST, EAST0 + c * POST, at(r, c), slope)) out[r * SIZE + c] = TREETOPS / CANOPY_STEP;
+  }
+  return out;
+}
 
 /** Every post's height, row by row from the north-west corner, in stored steps. */
 export function build() {
@@ -168,12 +195,13 @@ export function build() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const steps = build(), rgb = new Uint8Array(SIZE * SIZE * 3);
-  for (let i = 0; i < steps.length; i++) { rgb[i * 3] = steps[i] >> 8; rgb[i * 3 + 1] = steps[i] & 255; }
+  // One image: the land's height in red and green, the treetops over it in blue.
+  const steps = build(), trees = canopy(steps), rgb = new Uint8Array(SIZE * SIZE * 3);
+  for (let i = 0; i < steps.length; i++) { rgb[i * 3] = steps[i] >> 8; rgb[i * 3 + 1] = steps[i] & 255; rgb[i * 3 + 2] = trees[i]; }
   const here = (name) => fileURLToPath(new URL(name, import.meta.url));
   const png = encodePng(rgb, SIZE, SIZE);
   writeFileSync(here('island.png'), png);
   writeFileSync(here('island.json'), JSON.stringify(region(), null, 2) + '\n');
   let top = 0; for (const s of steps) top = Math.max(top, s);
-  console.log(`island.png ${(png.length / 1e6).toFixed(2)} MB; highest point ${Math.round((MIN + top * STEP) / FT)} ft`);
+  console.log(`island.png ${(png.length / 1e6).toFixed(2)} MB; highest point ${Math.round((MIN + top * STEP) / FT)} ft; ${(trees.filter(Boolean).length * POST * POST / 1e6).toFixed(0)} sq km of woods`);
 }
