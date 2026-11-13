@@ -9,6 +9,8 @@
 // mu_side, mu_brake, mu_skid } } }. The forces treat the ground under each point as level; the touchdown
 // check knows its slope, so flying into a hillside is the hard arrival it is. A surface with `ends: true`
 // (water, lava) ends the flight at any touch.
+// The ground may also carry `solidAt(north, east, up)` → the name of a landmark's solid shape there, or
+// null: the piers, towers and walls that stand on the land. Touching one ends the flight.
 
 import { add, cross, qrotate, qrotateInv } from './vec.js';
 
@@ -106,7 +108,8 @@ export function closingSpeed(state, at, ground) {
  * the contact's damping has already slowed it. It is the airplane's own speed into the ground and
  * not the point's, so a wing low or a nose slapping down is not punished harder than a level arrival.
  * Only a hard arrival is a crash: scrapes, slides and wingtip touches survive. Water is the
- * exception: any point in it ends the flight, however gently it got there.
+ * exception: any point in it ends the flight, however gently it got there. So is a landmark:
+ * any point inside one of its solid shapes ends the flight.
  * Returns null, or the crash: { point, reason, value }.
  */
 export function crashCheck(card, before, after, ground, wasTouching, gearDown = true) {
@@ -115,6 +118,8 @@ export function crashCheck(card, before, after, ground, wasTouching, gearDown = 
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     const ps = pointState(after, p.r, ground);
+    const solid = ground.solidAt ? ground.solidAt(ps.rw[0], ps.rw[1], -ps.rw[2]) : null;
+    if (solid) return { point: p.name, reason: 'landmark', value: 0, solid };
     if (ps.d <= 0) continue;
     const under = ground.surfaceAt(ps.rw[0], ps.rw[1]);
     if (ground.surfaces[under].ends) return { point: p.name, reason: under, value: 0 };
