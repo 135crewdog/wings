@@ -89,14 +89,20 @@ test('island: the loch is level and held in by its shores; the castle\'s shelf i
   assert.ok(castle.height > loch.level + 15 && southmost > castle.north && southmost - castle.north < 500, 'on the south shore');
 });
 
-// Whether the top of the castle (its tallest spire, 220 m above its shelf) can be seen from a point.
+// The castle's spire tips, from its model's solid shapes (terrain/landmarks.json): where each stands, and how high
+// its point is. A spire's box stops two-thirds of the way up its roof, so the tip is half as high again.
+const tips = JSON.parse(readFileSync(new URL('../terrain/landmarks.json', import.meta.url))).castle.solids.filter((s) => s.name.startsWith('solid_spire'))
+  .map((s) => { const half = s.half[s.axes.findIndex((a) => Math.abs(a[2]) > 0.9)]; return { north: s.centre[0], east: s.centre[1], top: s.centre[2] + 2 * half }; });
+// Whether any spire tip of the castle can be seen from a point.
 function seesCastle(n, e, up) {
-  const top = castle.height + 220, dist = Math.hypot(castle.north - n, castle.east - e);
-  for (let d = 100; d < dist - 300; d += 40) {
-    const t = d / dist;
-    if (island.heightAt(n + (castle.north - n) * t, e + (castle.east - e) * t) > up + (top - up) * t) return false;
-  }
-  return true;
+  return tips.some((tip) => {
+    const dist = Math.hypot(tip.north - n, tip.east - e);
+    for (let d = 100; d < dist - 300; d += 40) {
+      const t = d / dist;
+      if (island.heightAt(n + (tip.north - n) * t, e + (tip.east - e) * t) > up + (tip.top - up) * t) return false;
+    }
+    return true;
+  });
 }
 
 test('island: the castle is hidden from the base and from 1,000 feet over the fields, the desert and the south', () => {
@@ -109,6 +115,9 @@ test('island: the castle is hidden from the base and from 1,000 feet over the fi
     if (seesCastle(n, e, here + 1000 * FT)) seen++;
   }
   console.log(`  The castle: seen from ${seen} of ${looked} places 1,000 ft over the country outside the mountains`);
+  const highest = Math.max(...tips.map((t) => t.top));
+  console.log(`  ${tips.length} spire tips, the highest ${Math.round((highest - castle.height) / FT)} ft above the castle's ground`);
+  assert.ok(Math.abs(highest - castle.height - 220) < 3, 'the highest tip is where the model has it');
   assert.equal(seen, 0);
 });
 
