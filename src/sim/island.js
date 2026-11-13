@@ -56,7 +56,7 @@ export function createIsland(region, heights) {
 export function islandGround(island) {
   return {
     heightAt: (north, east) => Math.max(island.heightAt(north, east), island.waterAt(north, east) ?? -Infinity),
-    surfaceAt: () => 'runway',
+    surfaceAt: (north, east) => (island.waterAt(north, east) === null ? 'runway' : 'water'),
     surfaces: SURFACES,
   };
 }

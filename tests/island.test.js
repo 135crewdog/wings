@@ -199,3 +199,56 @@ test('island: the ground drawn near the jet is the ground the flight model feels
   console.log(`  Drawn ground against the flight model's, near the jet: at most ${(worst / FT).toFixed(1)} ft apart`);
   assert.ok(worst < 1, `${worst} m apart`);
 });
+
+// ---- hitting things (docs/island.md, "What is solid") ----
+import { airborne } from './fly.js';
+import { qfromEuler } from '../src/sim/vec.js';
+
+// The jet over the island at a place, `feet` above the sea, flying level on `heading` at `kt`, coming down at `fpm`.
+function over(card, { north, east, feet, heading, kt, fpm = 0, pitch = 0, gear = false, crashes = true }) {
+  const sim = airborne(card, { ft: feet, kt, pitch, gear, flaps: gear, ground });
+  const V = kt * KT, a = heading * DEG;
+  sim.state.x = [north, east, -feet * FT];
+  sim.state.q = qfromEuler(0, pitch * DEG, a);
+  sim.state.v = [V * Math.cos(pitch * DEG), 0, V * Math.sin(pitch * DEG) + ((fpm * FT) / 60) * Math.cos(pitch * DEG)];
+  sim.crashes = crashes;
+  return sim;
+}
+const KT = 0.514444;
+
+test('island: with crashes on, flying into a mountain ends the flight; a scrape, a slope landing and the override do not', () => {
+  const card = deriveCard(F4C);
+  // Level at 400 knots toward the mountain north of the loch, below its top.
+  const into = { north: 9000, east: -1500, feet: 4500, heading: 0, kt: 400 };
+  const hit = over(card, into);
+  fly(hit, 60);
+  console.log(`  Into the mountainside at 400 kt: ${hit.crashed ? `${hit.crashed.reason}, closing at ${Math.round(hit.crashed.value / KT)} kt, ${(hit.t).toFixed(0)} s in` : 'no crash'}`);
+  assert.equal(hit.crashed?.reason, 'hard impact');
+  assert.ok(hit.crashed.value > 50, 'it meets the slope at most of its speed, though it was not sinking at all');
+  // The same flight with the crash override on: nothing ends it.
+  const spared = over(card, { ...into, crashes: false });
+  fly(spared, 60);
+  assert.equal(spared.crashed, null, 'with the override on, nothing ends the flight');
+  // A landing on a gently rising field, off the runway: 140 knots, 300 ft/min, gear down.
+  const meadow = { north: base.north - 2500, east: base.east - 1500 };
+  const up = ground.heightAt(meadow.north, meadow.east);
+  const land = over(card, { ...meadow, feet: up / FT + 14, heading: 280, kt: 140, fpm: 300, pitch: 8, gear: true });
+  fly(land, 20, () => ({ gear: true, flaps: true, brake: true, elevator: 0.2 }));
+  console.log(`  A landing in a field at 300 ft/min: ${land.crashed ? land.crashed.reason : 'survives'}`);
+  assert.equal(land.crashed, null, 'a gentle arrival on land survives');
+});
+
+test('island: with crashes on, any touch of the sea or the loch ends the flight, however gentle', () => {
+  const card = deriveCard(F4C);
+  const loch = region.lochs[0];
+  for (const [name, at] of [['the sea', { north: -22000, east: 0, feet: 12 }], ['the loch', { north: castle.north - 500, east: castle.east, feet: loch.level / FT + 12 }]]) {
+    const wet = over(card, { ...at, heading: 90, kt: 150, fpm: 100, pitch: 8 });
+    fly(wet, 30);
+    console.log(`  Onto ${name} at 100 ft/min: ${wet.crashed ? wet.crashed.reason : 'no crash'}`);
+    assert.equal(wet.crashed?.reason, 'water', name);
+    const dry = over(card, { ...at, heading: 90, kt: 150, fpm: 100, pitch: 8, crashes: false });
+    fly(dry, 30);
+    assert.equal(dry.crashed, null, `${name}, with the override on`);
+    assert.ok(-dry.state.x[2] > (name === 'the sea' ? 0 : loch.level) - 1, 'and the water holds the jet up');
+  }
+});

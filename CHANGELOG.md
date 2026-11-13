@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.18
+
+- With crashes on (the crash override off): flying into a mountainside ends the flight, and so does any touch of the sea or the loch, however gentle. A landing in a field still survives.
+- With the crash override on, nothing changes: nothing ends a flight but the pilot, and water holds the jet up.
+
 ## 0.0.17
 
 - The island. The flat test field is gone: flights start on runway 28 of the air base, in the farmland in the island's east, with the highlands to the north, the sea all round and the south coast's cliffs.
