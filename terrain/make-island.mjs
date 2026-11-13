@@ -191,8 +191,8 @@ export function shape(n, e) {
   // and the ridge would have stood on it like a wall. So the headland rises to a hill the ridge runs out of, ending
   // in a cliff, with deep water from there on: through the opening and round the outer leg.
   const dx = e - DOOR.east, dn = n - DOOR.north;
-  if (Math.abs(dn) < 400 && dx > -560 && dx < 300) {
-    h = Math.max(h, 84 * smooth(330, 90, Math.hypot(dx + 190, dn)) - 6);
+  if (Math.abs(dn) < 460 && dx > -660 && dx < 300) {
+    h = Math.max(h, 84 * smooth(440, 50, Math.hypot(dx + 190, dn)) - 6);   // gentle sides: grass, not the chalk that steep ground near the cove is painted
     if (dx > -DOOR_CLIFF + 1) h = Math.min(h, -10);
   }
   if (h <= 0) return h;
