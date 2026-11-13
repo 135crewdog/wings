@@ -10,6 +10,11 @@
  * point to the other touches, or null }. Each point is [north, east, up]. A path, not a
  * place: in one step a fast jet moves farther than a thin wall is thick.
  */
+/** The Strip's hotels (sites.strip of terrain/island.json) as solid boxes: each stands upright, square to the map. */
+export function hotelSolids(strip) {
+  return strip.hotels.map((h, i) => ({ name: `hotel_${i + 1}`, centre: [h.north, h.east, strip.height + h.height / 2], half: [h.along / 2, h.across / 2, h.height / 2], axes: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }));
+}
+
 export function createSolids(boxes) {
   // A ball round each box says "nowhere near" cheaply, for nearly every path asked about.
   const balls = boxes.map((b) => Math.hypot(...b.half));

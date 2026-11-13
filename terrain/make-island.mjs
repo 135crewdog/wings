@@ -49,6 +49,21 @@ const REDWOODS = [[-11350, -100], [-12200, 3000], [-10900, 6100], [-8300, 6500],
 export const REDWOOD_TOPS = 90;                       // m: about 300 ft
 const CONES = [[-6300, 4900, 330, 800], [-10400, -1500, 280, 700], [-11800, 4000, 240, 650]];   // north, east, height, reach
 export const STRIP = { north: -4700, east: -11400 };
+// The Strip: one road running north and south for a mile and a half, on a level pad cut into the desert.
+const STRIP_LONG = 2800, STRIP_ROAD = 32;                   // m: the road's length and width
+const STRIP_PAD = { north: STRIP_LONG / 2 + 250, east: 620 };   // the pad's half-sizes
+// Where each landmark of the Strip will stand, as on the real one, north to south: metres north and east of the
+// Strip's middle, and its lot's size east-west and north-south. Hotels fill the frontage between the lots.
+const STRIP_LOTS = {
+  needle: { north: 1250, east: -170, across: 140, along: 140 },
+  wheel: { north: 720, east: 210, across: 210, along: 70 },
+  balloon: { north: 330, east: 95, across: 50, along: 50 },
+  eiffel: { north: 150, east: 150, across: 130, along: 130 },
+  arc: { north: -60, east: 110, across: 60, along: 50 },
+  lake: { north: 150, east: -250, across: 300, along: 380 },
+  camelot: { north: -620, east: -230, across: 260, along: 240 },
+  pyramid: { north: -1150, east: -240, across: 220, along: 220 },
+};
 const COVE = { north: 3900, radius: 900, mouth: 230, inland: 1300 };   // its middle lies this far in from the east coast
 const DOOR_NORTH = 1900;
 const HIDING_RIDGE = [[3300, -1500], [5800, -100]];   // a ridge in the wall south-west of the castle's grounds
@@ -195,6 +210,9 @@ export function shape(n, e) {
     h = Math.max(h, 84 * smooth(440, 50, Math.hypot(dx + 190, dn)) - 6);   // gentle sides: grass, not the chalk that steep ground near the cove is painted
     if (dx > -DOOR_CLIFF + 1) h = Math.min(h, -10);
   }
+  // The Strip's pad: level under the road, the hotels and the landmarks, easing back into the desert round it.
+  const padOut = Math.hypot(Math.max(Math.abs(n - STRIP.north) - STRIP_PAD.north, 0), Math.max(Math.abs(e - STRIP.east) - STRIP_PAD.east, 0));
+  if (padOut < 500) h = stripLevel() + (h - stripLevel()) * smooth(0, 500, padOut);
   if (h <= 0) return h;
   // The viaduct's east end. The west end runs into the canyon's wall; in the east the ground is only half as high as
   // the deck, which would stop in mid-air. So a hill stands there for it to run into: the river's flat floor as far
@@ -250,6 +268,32 @@ function channels() {
 }
 
 /** The land as it would lie with no lava channels cut in it. */
+let pad = null;
+/** The height of the Strip's pad: the desert's own height at its middle. */
+function stripLevel() { return (pad ??= Math.round(natural(STRIP.north, STRIP.east))); }
+
+/**
+ * The Strip's plain hotels: slabs along both sides of the road, wherever no landmark's lot is. Each is
+ * { north, east, across, along, height, tint }: its middle on the island, its size east-west and north-south,
+ * how tall it is, and which of the hotels' colours it wears. Worked out from the place itself, so they are the same
+ * every time.
+ */
+function stripHotels() {
+  let seed = 20261113;
+  const dice = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const clash = (a, b) => Math.abs(a.north - b.north) < (a.along + b.along) / 2 + 25 && Math.abs(a.east - b.east) < (a.across + b.across) / 2 + 25;
+  const hotels = [];
+  for (const side of [-1, 1]) {
+    for (let north = STRIP_LONG / 2 - 90; north > -STRIP_LONG / 2 + 60;) {
+      const along = 80 + Math.round(dice() * 70), across = 45 + Math.round(dice() * 40), back = 55 + Math.round(dice() * 35);
+      const hotel = { north: north - along / 2, east: side * (back + across / 2), across, along, height: 55 + Math.round(dice() * 110), tint: Math.floor(dice() * 5) };
+      north -= along + 35 + Math.round(dice() * 50);
+      if (!Object.values(STRIP_LOTS).some((lot) => clash(hotel, lot))) hotels.push(hotel);
+    }
+  }
+  return hotels.map((h) => ({ ...h, north: STRIP.north + h.north, east: STRIP.east + h.east }));
+}
+
 let bed = null;
 /** The river's level under the middle of the viaduct. */
 function viaductBed() { return (bed ??= Math.round(natural(VIADUCT.north, VIADUCT.east) / STEP) * STEP); }
@@ -385,7 +429,7 @@ export const region = () => ({
   // Running lava: each flow's course from the crater to the sea, and how far it reaches either side.
   flows: FLOW_COURSES, flowHalf: FLOW_HALF,
   // Where things stand: metres north and east, and height above sea level.
-  sites: { base: BASE, castle: CASTLE, viaduct: { ...VIADUCT, height: viaductBed() }, volcano: { north: VOLCANO.north, east: VOLCANO.east, rim: VOLCANO.rim }, strip: STRIP, cove: { north: COVE.north, east: COVE.east, radius: COVE.radius }, door: DOOR },
+  sites: { base: BASE, castle: CASTLE, viaduct: { ...VIADUCT, height: viaductBed() }, volcano: { north: VOLCANO.north, east: VOLCANO.east, rim: VOLCANO.rim }, strip: { ...STRIP, height: stripLevel(), length: STRIP_LONG, road: STRIP_ROAD, lots: Object.fromEntries(Object.entries(STRIP_LOTS).map(([name, lot]) => [name, { ...lot, north: STRIP.north + lot.north, east: STRIP.east + lot.east }])), hotels: stripHotels() }, cove: { north: COVE.north, east: COVE.east, radius: COVE.radius }, door: DOOR },
 });
 
 // The landmarks that have a model, each standing on its site. `turn` is degrees clockwise from the way it was built.

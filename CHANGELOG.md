@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.26
+
+- The Strip begins: a mile and a half of road running north and south across the desert west of the canyon, with nineteen plain hotels along it, 180 to 505 feet tall. Empty lots are left for the famous places, which arrive one at a time.
+- With crashes on, the hotels are solid. With the crash override on, the jet passes through them.
+
 ## 0.0.25
 
 - Durdle Door: the owner's own, a limestone arch 330 feet high standing in the sea off a headland on the east coast, just south of the cove. The hole through it is 230 feet wide and 200 tall: fly through it along the coast, north or south.

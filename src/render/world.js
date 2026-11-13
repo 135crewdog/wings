@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { createTerrain } from './terrain.js';
 import { createTrees } from './trees.js';
 import { createLandmarks } from './landmarks.js';
+import { createStrip } from './strip.js';
 
 const HORIZON = 0xcfe6f7, ZENITH = 0x1f5fb8;   // the app's sky colours, as in style.css
 const SUN = new THREE.Vector3(-3, 6, 4).normalize();   // the way to the sun: high in the south-west (x east, y up, z south)
@@ -112,6 +113,7 @@ export function createWorld(scene, renderer, field, land, island) {
   const terrain = createTerrain(scene, land, SUN, scene.fog);
   const trees = createTrees(scene, island, land.region);
   const ready = createLandmarks(scene, land.landmarks);
+  createStrip(scene, renderer, land.region.sites.strip);
 
   // The runway lies in the land's own plane, so it is drawn nudged toward
   // the eye: otherwise the two shimmer.

@@ -547,3 +547,51 @@ test('island: a landmark is solid where its boxes are and open where they are no
   console.log(`  A wall 0.5 m thick at 400 kt: ${say(thin.crashed)}`);
   assert.equal(thin.crashed?.solid, 'solid_wall', 'a thin wall is not skipped between steps');
 });
+
+// ---- the Strip (docs/island.md) ----
+import { hotelSolids } from '../src/sim/solids.js';
+import { holdAltitude } from './fly.js';
+
+test('island: the Strip is a level pad with a road, hotels along it, and a lot kept clear for each landmark', () => {
+  const lots = Object.values(strip.lots), hotels = strip.hotels;
+  // Level: under the road, every hotel and every lot.
+  let off = 0;
+  for (let n = strip.north - strip.length / 2; n <= strip.north + strip.length / 2; n += 50) for (let e = strip.east - 450; e <= strip.east + 450; e += 50) off = Math.max(off, Math.abs(island.heightAt(n, e) - strip.height));
+  console.log(`  The Strip: ${(strip.length / NM).toFixed(1)} miles of road at ${Math.round(strip.height / FT)} ft, level to within ${(off / FT).toFixed(1)} ft; ${hotels.length} hotels, ${Math.round(Math.min(...hotels.map((h) => h.height)) / FT)} to ${Math.round(Math.max(...hotels.map((h) => h.height)) / FT)} ft tall; ${lots.length} lots for landmarks`);
+  assert.ok(off < 0.5, `the pad is ${off} m out of level`);
+  assert.ok(Math.abs(strip.length / NM - 1.5) < 0.1, 'about a mile and a half');
+  assert.equal(lots.length, 8);
+  const apart = (a, b) => Math.abs(a.north - b.north) >= (a.along + b.along) / 2 || Math.abs(a.east - b.east) >= (a.across + b.across) / 2;
+  const things = [...hotels, ...lots];
+  for (let i = 0; i < things.length; i++) {
+    const a = things[i];
+    assert.ok(Math.abs(a.east - strip.east) - a.across / 2 > strip.road / 2 + 10, 'nothing stands on the road or its verge');
+    assert.ok(Math.abs(a.north - strip.north) + a.along / 2 < strip.length / 2 + 250 && Math.abs(a.east - strip.east) + a.across / 2 < 450, 'everything stands on the pad');
+    for (let j = i + 1; j < things.length; j++) assert.ok(apart(a, things[j]), 'two things stand on the same ground');
+  }
+  assert.ok(hotels.length >= 15, 'hotels fill the frontage');
+});
+
+test('island: the Strip can be buzzed down the road below the rooftops; a hotel ends the flight', () => {
+  const card = deriveCard(F4C), on = islandGround(island, createSolids(hotelSolids(strip)));
+  const tall = strip.hotels.reduce((a, b) => (b.height > a.height ? b : a));
+  // Down the middle of the road from the south at 400 knots, 100 ft up, holding height; then the same pass moved
+  // over to the tallest hotel.
+  // It starts over the pad's south end: beyond the pad the desert rises, north and south.
+  const start = strip.north - strip.length / 2 - 200, ft = (strip.height + 2) / FT + 100, from = { north: start };
+  const pass = (east, crashes = true) => {
+    const sim = airborne(card, { ft, kt: 400, level: true, throttle: 'trim', ground: on }), alpha = sim.trim.alpha;
+    sim.state.x = [start, east, -ft * FT];
+    sim.state.q = qfromEuler(0, alpha, 0);
+    sim.crashes = crashes;
+    const hold = holdAltitude(ft, sim.trim.elevator);
+    fly(sim, 15, (r) => ({ ...hold(r), throttle: sim.trim.throttle }));
+    return sim;
+  };
+  const road = pass(strip.east), into = pass(tall.east), spared = pass(tall.east, false);
+  console.log(`  Down the Strip at 400 kt, 100 ft up: ${road.crashed ? road.crashed.reason : `clear, ${Math.round((road.state.x[0] - from.north) / NM * 10) / 10} miles on`}. Into the tallest hotel (${Math.round(tall.height / FT)} ft): ${into.crashed ? `${into.crashed.reason} (${into.crashed.solid})` : 'clear'}`);
+  assert.equal(road.crashed, null, 'the road is clear');
+  assert.ok(road.state.x[0] > strip.north + strip.length / 2, 'it flies the whole Strip');
+  assert.equal(into.crashed?.reason, 'landmark');
+  assert.equal(spared.crashed, null, 'with the override on, the jet flies through');
+});

@@ -133,6 +133,8 @@ The island's map is four files in `terrain/`, all written by `terrain/make-islan
 - `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
 - `landmarks.json`: each landmark that has a model: where it stands, and its solid shapes, read from the model in `models/`.
 
+The Strip is begun: the desert there is levelled into a pad, the road is laid north to south, and the app stands plain slab hotels along both sides (`src/render/strip.js`), wherever no landmark's lot is. The lots, north to south as on the real one: the needle tower at the north end; the wheel, the balloon, the Eiffel Tower and the Arc de Triomphe on the east side; the lake with fountains opposite them on the west; then the Camelot casino and the pyramid on the west side to the south. Everything on the Strip is real size, as the Strip's length is. Each lot is bare ground until its model arrives.
+
 The Door is in: the owner's model, standing in the sea off its headland, its opening 70 m wide and 60 m tall. The headland was raised into a hill 80 m high for the Door's ridge of rock to run out of, with a cliff at its tip and deep water through the opening.
 
 The castle is in: the owner's model, on the flat top of a crag 100 m above the loch (the owner asked for a taller crag on seeing it on a low shelf), its tallest spire 220 m above the ground. A ridge was added to the wall south-west of the grounds, where that spire showed over the mountains from the plateau.
