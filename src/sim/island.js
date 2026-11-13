@@ -123,7 +123,7 @@ const WOOD = 1;   // m: treetops this far above the land are a wood underfoot
  */
 export function islandGround(island, solids = null) {
   return {
-    ...(solids ? { solidAt: solids.at } : {}),
+    ...(solids ? { solidBetween: solids.between } : {}),
     heightAt: (north, east) => Math.max(island.heightAt(north, east) + island.canopyAt(north, east), island.waterAt(north, east) ?? -Infinity, island.lavaAt(north, east) ?? -Infinity),
     surfaceAt: (north, east) => (island.lavaAt(north, east) !== null ? 'lava' : island.waterAt(north, east) !== null ? 'water' : island.canopyAt(north, east) > WOOD ? 'woods' : 'runway'),
     surfaces: SURFACES,

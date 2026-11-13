@@ -531,4 +531,10 @@ test('island: a landmark is solid where its boxes are and open where they are no
   assert.equal(wing?.reason, 'landmark', 'a wingtip counts');
   assert.equal(overTop, null);
   assert.equal(spared, null, 'with the override on, the jet flies through');
+  // A wall half a metre thick, a kilometre on: at 400 knots the jet moves 1.7 m between one look and the next.
+  const wall = createSolids([{ name: 'solid_wall', centre: [at.north + along[0] * 1000, at.east + along[1] * 1000, up + 30], half: [0.25, 40, 30], axes }]);
+  const thin = over(card, { north: at.north, east: at.east, feet: (up + 2) / FT + 70, heading: 30, kt: 400, on: islandGround(island, wall) });
+  fly(thin, 8);
+  console.log(`  A wall 0.5 m thick at 400 kt: ${say(thin.crashed)}`);
+  assert.equal(thin.crashed?.solid, 'solid_wall', 'a thin wall is not skipped between steps');
 });
