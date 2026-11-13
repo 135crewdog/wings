@@ -6,7 +6,9 @@ What changed in each version a player can see, newest first.
 
 - A new island, to the owner's own map. Mountains in an arc across the north round the loch; a canyon with a river from the loch to the south-west coast; a desert plateau with mesas in the west, under a mountain wall; a volcano in the south with a crater and a glowing lava lake; the fields and the air base in the east; a round cove a mile across on the east coast.
 - New paint for the new country: red and tan rock in bands, black lava, wide sand on the desert's shore, white chalk round the cove.
-- With crashes on, the river and the lava end a flight at any touch, like the sea and the loch.
+- Lava runs out of the crater and down the volcano in two glowing streams to the sea, its crust riding downhill.
+- Water you can judge your height over: patches of swell and small flecks on the sea, the loch and the river, the sun's glitter toward the sun, and the sky's colour in it at a low angle.
+- With crashes on, the river and the lava (the lake and the streams) end a flight at any touch, like the sea and the loch.
 - Still to come: forests that look like trees, the redwoods, and every landmark (castle, viaduct, the Strip, the Door).
 
 ## 0.0.19

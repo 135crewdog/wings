@@ -155,6 +155,19 @@ test('island: the desert, its crest, the volcano and its lava lake, the cove and
   assert.equal(island.lavaAt(volcano.north, volcano.east), lake.level, 'lava in the crater');
   assert.equal(island.waterAt(volcano.north, volcano.east), null);
   assert.ok(island.countryAt(volcano.north + 2000, volcano.east).lava > 0.9, 'lava country round it');
+  // Running lava: each flow leaves the crater and reaches the sea, on black ground all the way.
+  for (const course of region.flows) {
+    let last = Infinity;
+    for (let i = 1; i < course.length; i++) for (let t = 0; t < 1; t += 0.1) {
+      const n = course[i - 1][0] + (course[i][0] - course[i - 1][0]) * t, e = course[i - 1][1] + (course[i][1] - course[i - 1][1]) * t, h = island.heightAt(n, e);
+      if (h <= 0) { last = 0; break; }
+      assert.ok(island.lavaAt(n, e) !== null, `no lava on the flow at ${Math.round(n)}, ${Math.round(e)}`);
+      assert.ok(island.countryAt(n, e).lava > 0.5, `the flow leaves the lava country at ${Math.round(n)}, ${Math.round(e)}`);
+      last = h;
+    }
+    assert.equal(last, 0, 'the flow reaches the sea');
+  }
+  assert.equal(island.lavaAt(volcano.north - 3000, volcano.east + 3200), null, 'no lava off the flows');
   // The cove: water a mile across, cliffs round it, its mouth open to the sea in the east.
   let across = 0;
   for (let e = cove.east - 1500; e < cove.east + 1500; e += 20) if (island.waterAt(cove.north + 300, e) === 0) across += 20;
@@ -313,11 +326,13 @@ test('island: with crashes on, flying into a mountain ends the flight; a scrape,
 test('island: with crashes on, any touch of the sea, the loch, the river or the lava ends the flight, however gentle', () => {
   const card = deriveCard(F4C);
   const river = region.river[30], bed = island.heightAt(river[0], river[1]);
+  const stream = region.flows[0][7];   // well down the western flow, on the low ground
   const places = [
     ['the sea', { north: -22000, east: 0, feet: 12 }, 'water', 0],
     ['the loch', { north: castle.north + 800, east: castle.east - 1500, feet: loch.level / FT + 12 }, 'water', loch.level],
     ['the river', { north: river[0], east: river[1], feet: bed / FT + 12, heading: 200 }, 'water', bed - 40],
-    ['the lava', { north: volcano.north, east: volcano.east - 250, feet: lake.level / FT + 12 }, 'lava', lake.level],
+    ['the lava lake', { north: volcano.north, east: volcano.east - 250, feet: lake.level / FT + 12 }, 'lava', lake.level],
+    ['a lava flow', { north: stream[0], east: stream[1], feet: island.heightAt(stream[0], stream[1]) / FT + 12, heading: 190, pitch: 4 }, 'lava', 0],
   ];
   for (const [name, at, reason, floor] of places) {
     const down = over(card, { heading: 90, kt: 150, fpm: 100, pitch: 8, ...at });

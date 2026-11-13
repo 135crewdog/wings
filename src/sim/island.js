@@ -54,7 +54,8 @@ export function decodeCountry(bytes, count, channels = 4) {
  *   canopyAt   how far the treetops stand above the land (0 on open ground)
  *   waterAt    the level of the water standing there (the sea is 0, the
  *              river lies on its bed), or null where there is none
- *   lavaAt     the level of the lava standing there, or null
+ *   lavaAt     the level of the lava there (the lake in the crater, or a
+ *              flow running down on the ground), or null
  *   countryAt  { desert, lava, farm }, each 0..1: what kind of country it is
  * Beyond the map's edge it is open sea.
  */
@@ -84,7 +85,20 @@ export function createIsland(region, heights, canopy = null, country = null) {
     if (h < 0) return 0;                       // the sea
     return inRiver(north, east) ? h : null;    // the river lies on its bed
   }
-  const lavaAt = (north, east) => pool('lava', north, east, heightAt(north, east));
+  // Running lava lies on the ground along each flow's course, from the crater to the sea.
+  const nearCourse = (course, north, east, within) => {
+    for (let i = 0; i < course.length - 1; i++) {
+      const [an, ae] = course[i], [bn, be] = course[i + 1], dn = bn - an, de = be - ae;
+      const t = clamp(((north - an) * dn + (east - ae) * de) / (dn * dn + de * de), 0, 1);
+      if (Math.hypot(north - an - t * dn, east - ae - t * de) < within) return true;
+    }
+    return false;
+  };
+  function lavaAt(north, east) {
+    const h = heightAt(north, east), level = pool('lava', north, east, h);
+    if (level !== null) return level;
+    return h > 0 && (region.flows ?? []).some((course) => nearCourse(course, north, east, region.flowHalf)) ? h : null;
+  }
   // country.png covers the same square as the height map, in fewer pixels.
   const side = country ? Math.sqrt(country.length / 3) : 0, span = (size - 1) * post;
   function countryAt(north, east) {

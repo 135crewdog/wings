@@ -34,7 +34,7 @@ export const VIADUCT = { north: 9300, east: -3700 };  // across the canyon's hea
 const PLATEAU = 960;                                  // the desert's height along the canyon
 const VOLCANO = { north: -8600, east: 1900, rim: 1220, reach: 3500, crater: 520, lake: 330, deep: 250 };
 // Where the lava has run from it to the sea: two tongues.
-const FLOWS = [[[-8600, 1900], [-11000, 300], [-13500, -900], [-17500, -1700]], [[-8600, 1900], [-11500, 3300], [-14000, 3000], [-17800, 4200]]];
+const FLOWS = [[[-8600, 1900], [-11000, 300], [-13500, -900], [-19200, -1900]], [[-8600, 1900], [-11500, 3300], [-14000, 3000], [-19300, 4500]]];
 const CONES = [[-6300, 4900, 330, 800], [-10400, -1500, 280, 700], [-11800, 4000, 240, 650]];   // north, east, height, reach
 export const STRIP = { north: -4700, east: -11400 };
 const COVE = { north: 3900, radius: 900, mouth: 230, inland: 1300 };   // its middle lies this far in from the east coast
@@ -101,6 +101,9 @@ function rounded(points, legs = 10) {
   return out;
 }
 const COURSE = rounded(BENDS);
+// Where the lava runs: each flow's course from the crater to the sea, its corners rounded.
+export const FLOW_COURSES = FLOWS.map((flow) => rounded(flow, 3).map(([n, e]) => [Math.round(n), Math.round(e)]));
+const FLOW_HALF = 45;   // m: running lava reaches this far either side of its course
 // The river as the app needs it: fewer legs, each a few hundred metres.
 export const RIVER_COURSE = rounded(BENDS, 4).map(([n, e]) => [Math.round(n), Math.round(e)]);
 
@@ -138,7 +141,7 @@ export function country(n0, e0) {
   const south = smooth(crest ? 300 : 1800, crest ? -300 : -1200, north);   // 1 south of the mountains
   const west = side > 0 ? 1 : 1 - smooth(2600, 4600, dC + 500 * fbm(n0 / 1500, e0 / 1500, 2, 73));   // the river runs south, so its right is the west
   let lava = smooth(VOLCANO.reach * 1.05, VOLCANO.reach * 0.85, Math.hypot(n - VOLCANO.north, e - VOLCANO.east));
-  for (const flow of FLOWS) lava = Math.max(lava, smooth(950, 600, toPath(flow, n, e)[0] + 250 * fbm(n0 / 900, e0 / 900, 2, 76)));
+  for (const flow of FLOW_COURSES) lava = Math.max(lava, smooth(950, 600, toPath(flow, n0, e0)[0] + 250 * fbm(n0 / 900, e0 / 900, 2, 76)));
   for (const [cn, ce, , reach] of CONES) lava = Math.max(lava, smooth(reach * 1.3, reach * 0.9, Math.hypot(n - cn, e - ce)));
   const desert = south * west * (1 - lava) * (side > 0 ? 1 : smooth(-15500, -12500, n));   // east of the river the desert gives way to forest country in the south
   const farm = smooth(3500, 6000, e) * smooth(-13500, -11500, n) * south * (1 - lava) * (1 - desert) * smooth(0, 500, d);
@@ -266,6 +269,8 @@ export const region = () => ({
   lochs: [{ level: LOCH.level, kind: 'water', ...lochBox }, { level: lavaLevel, kind: 'lava', ...lavaBox }],
   // The river's course from the loch to the sea. The map itself marks which posts are in it.
   river: RIVER_COURSE,
+  // Running lava: each flow's course from the crater to the sea, and how far it reaches either side.
+  flows: FLOW_COURSES, flowHalf: FLOW_HALF,
   // Where things stand: metres north and east, and height above sea level.
   sites: { base: BASE, castle: CASTLE, viaduct: VIADUCT, volcano: { north: VOLCANO.north, east: VOLCANO.east, rim: VOLCANO.rim }, strip: STRIP, cove: { north: COVE.north, east: COVE.east, radius: COVE.radius }, door: DOOR },
 });

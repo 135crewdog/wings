@@ -68,6 +68,9 @@ const vertexShader = `${LAND_GLSL}
 
 const fragmentShader = `${LAND_GLSL}
   uniform vec3 sun, haze; uniform float hazeNear, hazeFar;
+  uniform float clock;            // seconds, for what moves: the water and the lava
+  uniform vec2 flows[FLOW_POINTS];   // each lava flow's course (x, z), one after the other, FLOW_LEGS legs each
+  uniform float flowHalf;
   uniform sampler2D countryMap;   // desert in red, lava in green, farmland in blue
   uniform vec3 cove;      // the cove's middle (x, z), and how far its chalk reaches
   uniform vec4 airfield;  // the runway's middle (x, z) and the way it runs (x, z)
@@ -120,6 +123,34 @@ const fragmentShader = `${LAND_GLSL}
     float track = 4.5 + far * 0.0012;                                                              // the track keeps a little width far off
     return mix(vec3(0.659, 0.549, 0.376), c, smoothstep(track, track + 0.5 + far * 0.0012, side));
   }
+  // Water: the base colour with the things that tell a pilot how high he is. Patches of swell and small flecks,
+  // each a fixed size on the water, so they grow as he comes down; the sun's glitter toward the sun; and the
+  // sky's own colour in the water at a low angle. All of it drifts.
+  vec3 wet(vec3 base, float far) {
+    vec2 drift = clock * vec2(1.6, 0.7);
+    float swell = bend((wp.xz + 5.0 * drift) / 85.0, 41.0), chop = bend((wp.xz - drift) / 11.0, 42.0);
+    float mid = 1.0 - smoothstep(2500.0, 10000.0, far), near = 1.0 - smoothstep(500.0, 2600.0, far);
+    vec3 c = base * (1.0 + mid * (step(0.1, swell) * 0.13 - 0.05));
+    c = mix(c, base * 1.45 + 0.04, near * 0.55 * step(0.5, chop));
+    vec3 v = normalize(-rp);
+    float flash = pow(max(normalize(v + sun).y, 0.0), 90.0) * step(0.15, bend((wp.xz + 3.0 * drift) / 6.0, 43.0));
+    c += vec3(1.0, 0.96, 0.82) * flash;
+    return mix(c, haze, 0.4 * pow(1.0 - max(v.y, 0.0), 5.0));
+  }
+  // Running lava: how far the point is from the nearest flow's middle, and how far down that flow it is.
+  vec2 toFlow(vec2 xz) {
+    float best = 1.0e9, along = 0.0;
+    for (int k = 0; k < FLOW_COUNT; k++) {
+      float run = 0.0;
+      for (int i = 0; i < FLOW_LEGS; i++) {
+        vec2 a = flows[k * (FLOW_LEGS + 1) + i], b = flows[k * (FLOW_LEGS + 1) + i + 1], ab = b - a;
+        float t = clamp(dot(xz - a, ab) / dot(ab, ab), 0.0, 1.0), d = distance(xz, a + t * ab), leg = length(ab);
+        if (d < best) { best = d; along = run + t * leg; }
+        run += leg;
+      }
+    }
+    return vec2(best, along);
+  }
   void main() {
     float far = length(rp);
     vec3 here = ground(wp.xz);
@@ -133,9 +164,9 @@ const fragmentShader = `${LAND_GLSL}
       glow = 0.75;
     } else if (level > h) {
       // Water: the sea paler in the shallows, the loch dark.
-      c = level > 0.0 ? vec3(0.204, 0.361, 0.502) : mix(vec3(0.275, 0.510, 0.667), vec3(0.157, 0.353, 0.549), clamp(-h / 25.0, 0.0, 1.0));
+      c = wet(level > 0.0 ? vec3(0.204, 0.361, 0.502) : mix(vec3(0.275, 0.510, 0.667), vec3(0.157, 0.353, 0.549), clamp(-h / 25.0, 0.0, 1.0)), far);
     } else if (here.z > 0.5) {
-      c = vec3(0.235, 0.431, 0.549);   // the river
+      c = wet(vec3(0.235, 0.431, 0.549), far);   // the river
     } else {
       // Flat shading: each triangle of the height map's own grid is lit as one face, whatever the distance.
       vec2 p = clamp((wp.xz - grid.xy) / grid.z, vec2(0.0), vec2(grid.w - 1.001));
@@ -164,6 +195,18 @@ const fragmentShader = `${LAND_GLSL}
       if (h < 3.0 + 9.0 * kind.r) c = mix(vec3(0.910, 0.847, 0.675), c, clamp((h - 1.5 - 5.0 * kind.r) / 3.0, 0.0, 1.0));
       if (here.y > 1.0) c = vec3(0.173, 0.329, 0.173);                                       // a wood: its top and its sides
       c *= 0.68 + 0.5 * max(dot(n, sun), 0.0);
+      // Running lava, down each flow from the crater to the sea: a bright stream between dark banks, its crust
+      // breaking into plates that ride downhill.
+      if (kind.g > 0.2) {
+        vec2 flow = toFlow(wp.xz);
+        if (flow.x < flowHalf * 1.7) {
+          float plates = smoothstep(0.38, 0.5, 0.5 + 0.32 * bend(vec2(flow.y - 9.0 * clock, flow.x * 2.0) / 38.0, 33.0) + 0.18 * bend(vec2(flow.y - 9.0 * clock, flow.x) / 9.0, 34.0));
+          vec3 stream = mix(vec3(1.0, 0.6, 0.12), vec3(0.5, 0.12, 0.04), plates);
+          float inStream = 1.0 - smoothstep(flowHalf * 0.75, flowHalf, flow.x);
+          c = mix(vec3(0.09, 0.08, 0.08), stream, inStream);      // dark banks, then the stream
+          glow = 0.7 * inStream;
+        }
+      }
     }
     gl_FragColor = vec4(mix(c, haze, smoothstep(hazeNear, hazeFar, far) * (1.0 - glow)), 1.0);
   }`;
@@ -220,6 +263,9 @@ export function createTerrain(scene, land, sun, fog) {
   const map = texture(land.image, THREE.NearestFilter);   // the posts are read one by one and joined in the shader
   const box = (l) => new THREE.Vector4(l.west, -l.north, l.east, -l.south);
   const loch = region.lochs.find((l) => l.kind === 'water'), lava = region.lochs.find((l) => l.kind === 'lava');
+  const legs = region.flows[0].length - 1, flowPoints = region.flows.flat().map(([north, east]) => new THREE.Vector2(east, -north));
+  const defines = { FLOW_COUNT: region.flows.length, FLOW_LEGS: legs, FLOW_POINTS: flowPoints.length };
+  const clock = { value: 0 };
   const { base, cove } = region.sites;
   // The finest cells are a whole fraction of a post, and every level snaps to whole cells from the island's
   // middle, where the posts' lines also fall: so the fine levels' edges lie along the land's creases.
@@ -232,13 +278,14 @@ export function createTerrain(scene, land, sun, fog) {
     countryMap: { value: texture(land.countryImage, THREE.LinearFilter) },
     cove: { value: new THREE.Vector3(cove.east, -cove.north, 5000) },
     airfield: { value: new THREE.Vector4(base.east, -base.north, Math.sin((base.heading * Math.PI) / 180), -Math.cos((base.heading * Math.PI) / 180)) },
+    flows: { value: flowPoints }, flowHalf: { value: region.flowHalf }, clock,
     sun: { value: sun.clone().normalize() },
     haze: { value: fog.color.clone().convertLinearToSRGB() }, hazeNear: { value: fog.near }, hazeFar: { value: fog.far },   // the paint above is in screen colours
   };
   const levels = [];
   for (let l = 0; l < LEVELS; l++) {
     const { geometry, variants } = levelGeometry(l > 0);
-    const material = new THREE.ShaderMaterial({ uniforms: { ...shared, rel: { value: new THREE.Vector2() }, spacing: { value: SPACING * 2 ** l } }, vertexShader, fragmentShader });
+    const material = new THREE.ShaderMaterial({ defines, uniforms: { ...shared, rel: { value: new THREE.Vector2() }, spacing: { value: SPACING * 2 ** l } }, vertexShader, fragmentShader });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;   // the levels always surround the camera
     scene.add(mesh);
@@ -248,6 +295,7 @@ export function createTerrain(scene, land, sun, fog) {
     // Put every level under the camera. Each snaps to twice its spacing, so
     // the finer level inside it lands on its grid, one cell over or not.
     follow(camera) {
+      clock.value = (performance.now() / 1000) % 3600;   // kept small, so the drift stays smooth
       let finer = null;
       for (const level of levels) {
         const step = 2 * level.spacing;
