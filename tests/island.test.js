@@ -4,20 +4,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodePng } from '../terrain/png.mjs';
-import { build, region as freshRegion } from '../terrain/make-island.mjs';
-import { DRAWN_CELLS_PER_POST, createIsland, decodeHeights } from '../src/sim/island.js';
+import { build, canopy as plantWoods, region as freshRegion } from '../terrain/make-island.mjs';
+import { DRAWN_CELLS_PER_POST, createIsland, decodeCanopy, decodeHeights } from '../src/sim/island.js';
 
 const FT = 0.3048, NM = 1852, DEG = Math.PI / 180;
 const region = JSON.parse(readFileSync(new URL('../terrain/island.json', import.meta.url)));
 const png = decodePng(readFileSync(new URL(`../terrain/${region.image}`, import.meta.url)));
 const heights = decodeHeights(png.rgb, png.width * png.height, 3);
-const island = createIsland(region, heights);
+const woods = decodeCanopy(png.rgb, png.width * png.height, 3);
+const island = createIsland(region, heights, woods);
 const { base, castle, viaduct, cove, door } = region.sites;
 
 test('island: the files are what the script writes today', () => {
   assert.equal(png.width, region.size);
   assert.deepEqual(region, JSON.parse(JSON.stringify(freshRegion())), 'island.json is stale: run node terrain/make-island.mjs');
   assert.deepEqual(heights, build(), 'island.png is stale: run node terrain/make-island.mjs');
+  assert.deepEqual(woods, plantWoods(heights), 'island.png\'s woods are stale: run node terrain/make-island.mjs');
 });
 
 test('island: about 20 miles across, with open sea all round', () => {
@@ -126,6 +128,7 @@ import { fly } from './fly.js';
 import { circuit } from './circuit.js';
 
 const ground = islandGround(island), field = baseField(region, island);
+const wood = nearestWood();
 
 test('island: the flight model stands on the sea and the loch as it does on land', () => {
   assert.equal(ground.heightAt(-30000, 0), 0, 'the sea, far out');
@@ -185,19 +188,29 @@ test('island: the ground drawn near the jet is the ground the flight model feels
   // model's everywhere along the south coast's cliffs, where the land is at its sharpest, and in the highlands.
   const cell = region.post / DRAWN_CELLS_PER_POST;
   assert.ok(Number.isInteger(region.north0 / cell) && Number.isInteger(region.east0 / cell), 'the posts lie on the lines of the drawn squares');
+  // `felt` is the surface in question: the dry one (land and treetops), or the whole ground with its water.
+  const dry = (n, e) => island.heightAt(n, e) + island.canopyAt(n, e);
+  let felt = dry;
   const drawn = (north, east) => {
     const x = east / cell, z = -north / cell, i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
-    const at = (di, dj) => island.heightAt(-(j + dj) * cell, (i + di) * cell);
+    const at = (di, dj) => felt(-(j + dj) * cell, (i + di) * cell);
     // The square's triangles are (a, c, b) and (b, c, d): a at (i, j), b at (i+1, j), c at (i, j+1), d at (i+1, j+1).
     return fx + fz < 1 ? at(0, 0) + fx * (at(1, 0) - at(0, 0)) + fz * (at(0, 1) - at(0, 0)) : at(1, 1) + (1 - fx) * (at(0, 1) - at(1, 1)) + (1 - fz) * (at(1, 0) - at(1, 1));
   };
   let worst = 0;
-  const look = (n0, n1, e0, e1) => { for (let n = n0; n < n1; n += 7.3) for (let e = e0; e < e1; e += 7.3) worst = Math.max(worst, Math.abs(drawn(n, e) - island.heightAt(n, e))); };
+  const look = (n0, n1, e0, e1) => { for (let n = n0; n < n1; n += 7.3) for (let e = e0; e < e1; e += 7.3) worst = Math.max(worst, Math.abs(drawn(n, e) - felt(n, e))); };
   look(-18600, -17400, -6000, 2000);                                   // the cliffs, the cove and the Door's headland
   look(castle.north - 1500, castle.north + 1500, castle.east - 1500, castle.east + 1500);
   look(base.north - 600, base.north + 600, base.east - 2000, base.east + 2000);
+  look(wood.north - 400, wood.north + 400, wood.east - 400, wood.east + 400);          // a wood: its top and its sides
   console.log(`  Drawn ground against the flight model's, near the jet: at most ${(worst / FT).toFixed(1)} ft apart`);
   assert.ok(worst < 1, `${worst} m apart`);
+  // The waterline is the one crease that follows no line of the map: where a cliff stands in the sea, the drawn
+  // shore and the felt one part by a few feet inside the one square the waterline crosses.
+  felt = ground.heightAt; worst = 0;
+  look(-18600, -17400, -6000, 2000);
+  console.log(`  At the waterline under the cliffs: at most ${(worst / FT).toFixed(1)} ft apart`);
+  assert.ok(worst < 3, `${worst} m apart at the waterline`);
 });
 
 // ---- hitting things (docs/island.md, "What is solid") ----
@@ -251,4 +264,75 @@ test('island: with crashes on, any touch of the sea or the loch ends the flight,
     assert.equal(dry.crashed, null, `${name}, with the override on`);
     assert.ok(-dry.state.x[2] > (name === 'the sea' ? 0 : loch.level) - 1, 'and the water holds the jet up');
   }
+});
+
+// ---- woods and trees ----
+import { onAirfield, treeIn } from '../src/fields.js';
+
+// A wood in the farmland: the nearest one to the base, west of it.
+function nearestWood() {
+  let best = null;
+  for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
+    if (!woods[r * region.size + c]) continue;
+    const north = region.north0 - r * region.post, east = region.east0 + c * region.post, far = Math.hypot(north - base.north, east - (base.east - 4000));
+    if (east > region.paint.fieldsEast && (!best || far < best.far)) best = { north, east, far };
+  }
+  return best;
+}
+
+test('island: woods stand 40 feet tall, cover a modest part of the land, and keep off the airfield and the glens', () => {
+  const tall = island.canopyAt(wood.north, wood.east);
+  let posts = 0, onField = 0, inGlens = 0, landPosts = 0;
+  for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
+    const north = region.north0 - r * region.post, east = region.east0 + c * region.post;
+    if (region.min + heights[r * region.size + c] * region.step > 0) landPosts++;
+    if (!woods[r * region.size + c]) continue;
+    posts++;
+    if (onAirfield(base, north, east, 300)) onField++;
+    if (north > 4500 && (east < region.paint.fieldsEast || region.min + heights[r * region.size + c] * region.step > 60)) inGlens++;   // farmland runs north along the east coast; its woods are not in the glens
+  }
+  console.log(`  Woods: ${(tall / FT).toFixed(0)} ft tall, ${((100 * posts) / landPosts).toFixed(1)}% of the land`);
+  assert.ok(Math.abs(tall / FT - 40) < 1);
+  assert.ok(posts / landPosts > 0.02 && posts / landPosts < 0.1);
+  assert.equal(onField, 0, 'none on the airfield or off the runway\'s ends');
+  assert.equal(inGlens, 0, 'none in the highlands: the glens are for flying');
+});
+
+test('island: a wood is solid at its treetops, and the radar altimeter reads to them', () => {
+  const card = deriveCard(F4C);
+  const floor = island.heightAt(wood.north, wood.east);
+  assert.ok(Math.abs(ground.heightAt(wood.north, wood.east) - floor - 12) < 0.5, 'the ground the flight model feels is the treetops');
+  // Trimmed and level at 250 knots, heading north at the wood from 500 m south of its southern edge, over open field.
+  let edge = wood.north;
+  while (island.canopyAt(edge, wood.east) > 0) edge -= region.post;
+  for (let n = edge - 500; n <= edge; n += 20) assert.equal(island.canopyAt(n, wood.east), 0, 'the run-in is open ground');
+  const pass = (feetUp) => {
+    const sim = airborne(card, { ft: floor / FT + feetUp, kt: 250, level: true, throttle: 'trim', ground });
+    sim.state.x = [edge - 500, wood.east, sim.state.x[2]];
+    fly(sim, 6, () => ({ elevator: sim.trim.elevator, throttle: sim.trim.throttle }));
+    return sim;
+  };
+  const into = pass(25), clear = pass(120);
+  console.log(`  Into a wood at 250 kt, 25 ft up: ${into.crashed ? `${into.crashed.reason} at the ${into.crashed.point}, closing at ${Math.round(into.crashed.value / KT)} kt` : 'no crash'}; 120 ft up: ${clear.crashed ? 'crash' : 'clear'}`);
+  assert.equal(into.crashed?.reason, 'hard impact');
+  assert.equal(clear.crashed, null, 'over the top is clear');
+});
+
+test('island: scenery trees stand beside the tracks, never on the airfield, the water or a wood, and not too many at once', () => {
+  let most = 0, total = 0;
+  for (const [north, east] of [[base.north, base.east], [base.north - 4000, base.east - 3000], [wood.north, wood.east], [-9000, 9000]]) {
+    let count = 0;
+    for (let i = Math.round((north - 1400) / 22); i <= (north + 1400) / 22; i++) for (let j = Math.round((east - 1400) / 22); j <= (east + 1400) / 22; j++) {
+      const tree = treeIn(i, j, island, region);
+      if (!tree) continue;
+      count++;
+      assert.equal(onAirfield(base, tree.north, tree.east, 100), false, 'a tree on the airfield');
+      assert.equal(island.waterAt(tree.north, tree.east), null);
+      assert.equal(island.canopyAt(tree.north, tree.east), 0);
+      assert.ok(tree.height > 8 && tree.height < 17);
+    }
+    most = Math.max(most, count); total += count;
+  }
+  console.log(`  Trees round the camera: up to ${most} at once`);
+  assert.ok(total > 400 && most < 2500, `${most} trees at once`);
 });

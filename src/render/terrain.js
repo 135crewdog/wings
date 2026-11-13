@@ -19,18 +19,21 @@ const LEVELS = 8;      // with 5.5 m cells at the finest: 0.5, 1.1, 2.1, 4.2, 8.
 const N = 96;          // cells along each side of every level
 
 // Reading the height map, as src/sim/island.js does: 16-bit posts in red and
-// green, straight lines between them, open sea beyond the map's edge. And the
-// water: the sea at zero, the loch at its level inside its box.
+// green, the treetops over them in blue, straight lines between posts, open
+// sea beyond the map's edge. And the water: the sea at zero, the loch at its
+// level inside its box. A wood is drawn as it is flown: the ground stands
+// taller there by the height of the trees.
 const LAND_GLSL = `
   uniform sampler2D heightMap;
   uniform vec4 grid;       // the north-west post's x and z, metres between posts, posts along a side
-  uniform vec2 range;      // the lowest height, and metres per step
+  uniform vec3 range;      // the lowest height, metres per step, and metres per step of treetops
   uniform vec4 lochBox;    // west, north edge's z, east, south edge's z
   uniform float lochLevel;
-  float post(vec2 ij) { vec4 t = texture2D(heightMap, (ij + 0.5) / grid.w); return range.x + (t.r * 65280.0 + t.g * 255.0) * range.y; }
-  float land(vec2 xz) {
+  // A post: the land's height, and the treetops' height over it.
+  vec2 post(vec2 ij) { vec4 t = texture2D(heightMap, (ij + 0.5) / grid.w); return vec2(range.x + (t.r * 65280.0 + t.g * 255.0) * range.y, t.b * 255.0 * range.z); }
+  vec2 ground(vec2 xz) {
     vec2 p = (xz - grid.xy) / grid.z;
-    if (p.x < 0.0 || p.y < 0.0 || p.x > grid.w - 1.0 || p.y > grid.w - 1.0) return range.x;
+    if (p.x < 0.0 || p.y < 0.0 || p.x > grid.w - 1.0 || p.y > grid.w - 1.0) return vec2(range.x, 0.0);
     vec2 i = min(floor(p), grid.w - 2.0), f = p - i;
     return mix(mix(post(i), post(i + vec2(1.0, 0.0)), f.x), mix(post(i + vec2(0.0, 1.0)), post(i + vec2(1.0, 1.0)), f.x), f.y);
   }
@@ -39,7 +42,7 @@ const LAND_GLSL = `
     if (xz.x > lochBox.x && xz.x < lochBox.z && xz.y > lochBox.y && xz.y < lochBox.w && h < lochLevel) return lochLevel;
     return h < 0.0 ? 0.0 : -1.0e5;
   }
-  float surface(vec2 xz) { float h = land(xz); return max(h, water(xz, h)); }`;
+  float surface(vec2 xz) { vec2 g = ground(xz); return max(g.x + g.y, water(xz, g.x)); }`;
 
 const vertexShader = `${LAND_GLSL}
   uniform vec2 rel;       // the level's middle, from the camera
@@ -61,18 +64,25 @@ const fragmentShader = `${LAND_GLSL}
   uniform vec2 paint;     // farmland lies east of x; the chalk cliffs south of z
   uniform vec4 airfield;  // the runway's middle (x, z) and the way it runs (x, z)
   varying vec3 wp, rp;
-  float rand(vec2 p, float s) { return fract(sin(dot(p, vec2(127.1, 311.7)) + s * 53.7) * 43758.5453); }
+  // The same sum as src/fields.js's rand, whole number for whole number, so the plots painted here are the
+  // plots the woods and the trees stand in.
+  float rand(vec2 p, float s) {
+    uint h = uint(int(p.x)) * 374761393u + uint(int(p.y)) * 668265263u + uint(int(s)) * 2147483647u;
+    h = (h ^ (h >> 13u)) * 1274126177u;
+    return float(h ^ (h >> 16u)) / 4294967296.0;
+  }
   float bend(vec2 p, float s) {
     vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return 2.0 * mix(mix(rand(i, s), rand(i + vec2(1.0, 0.0), s), f.x), mix(rand(i + vec2(0.0, 1.0), s), rand(i + vec2(1.0, 1.0), s), f.x), f.y) - 1.0;
   }
-  vec3 crop(float pick) {
-    if (pick < 0.15) return vec3(0.376, 0.588, 0.275);
-    if (pick < 0.30) return vec3(0.478, 0.659, 0.306);
-    if (pick < 0.45) return vec3(0.588, 0.675, 0.329);
-    if (pick < 0.60) return vec3(0.690, 0.698, 0.376);
-    if (pick < 0.72) return vec3(0.549, 0.486, 0.298);
-    if (pick < 0.86) return vec3(0.329, 0.533, 0.259);
+  vec3 crop(float pick) {   // one of seven, as src/fields.js counts them
+    int k = int(pick * 7.0);
+    if (k == 0) return vec3(0.376, 0.588, 0.275);
+    if (k == 1) return vec3(0.478, 0.659, 0.306);
+    if (k == 2) return vec3(0.588, 0.675, 0.329);
+    if (k == 3) return vec3(0.690, 0.698, 0.376);
+    if (k == 4) return vec3(0.549, 0.486, 0.298);
+    if (k == 5) return vec3(0.329, 0.533, 0.259);
     return vec3(0.643, 0.588, 0.345);
   }
   // Farmland: plots with four sides, more or less. The land is cut into long strips of uneven width, each strip
@@ -104,7 +114,8 @@ const fragmentShader = `${LAND_GLSL}
   }
   void main() {
     float far = length(rp);
-    float h = land(wp.xz), level = water(wp.xz, h);
+    vec2 here = ground(wp.xz);
+    float h = here.x, level = water(wp.xz, h);
     vec3 c;
     if (level > h) {
       // Water: the sea paler in the shallows, the loch dark.
@@ -113,7 +124,8 @@ const fragmentShader = `${LAND_GLSL}
       // Flat shading: each triangle of the height map's own grid is lit as one face, whatever the distance.
       vec2 p = clamp((wp.xz - grid.xy) / grid.z, vec2(0.0), vec2(grid.w - 1.001));
       vec2 i = floor(p), f = p - i;
-      float h00 = post(i), h10 = post(i + vec2(1.0, 0.0)), h01 = post(i + vec2(0.0, 1.0)), h11 = post(i + vec2(1.0, 1.0));
+      vec2 g00 = post(i), g10 = post(i + vec2(1.0, 0.0)), g01 = post(i + vec2(0.0, 1.0)), g11 = post(i + vec2(1.0, 1.0));
+      float h00 = g00.x + g00.y, h10 = g10.x + g10.y, h01 = g01.x + g01.y, h11 = g11.x + g11.y;   // lit as the treetops lie, where there are trees
       vec3 n = normalize(f.x + f.y < 1.0 ? vec3(h00 - h10, grid.z, h00 - h01) : vec3(h01 - h11, grid.z, h10 - h11));
       float slope = length(n.xz) / n.y;
       // The paint, by rule: grass; farmland on low flat ground in the east; moor on the hills; rock high up and
@@ -121,11 +133,13 @@ const fragmentShader = `${LAND_GLSL}
       c = vec3(0.439, 0.588, 0.322);
       vec2 fromBase = wp.xz - airfield.xy;
       bool mown = abs(dot(fromBase, airfield.zw)) < 2100.0 && abs(dot(fromBase, vec2(-airfield.w, airfield.z))) < 450.0;   // the airfield's own grass
-      if (wp.x > paint.x && h < 60.0 && slope < 0.12 && !mown) c = fields(-wp.z, wp.x, far);
+      vec2 lie = (f.x + f.y < 1.0 ? vec2(g00.x - g10.x, g00.x - g01.x) : vec2(g01.x - g11.x, g10.x - g11.x)) / grid.z;   // the land's own slope, under any trees
+      if (wp.x > paint.x && h < 60.0 && length(lie) < 0.12 && !mown) c = fields(-wp.z, wp.x, far);
       c = mix(c, vec3(0.502, 0.463, 0.345), clamp((h - 150.0) / 500.0, 0.0, 1.0));
       c = mix(c, vec3(0.471, 0.455, 0.439), clamp(max((h - 1100.0) / 700.0, (slope - 0.45) / 0.3), 0.0, 1.0));
       if (wp.z > paint.y && slope > 0.5) c = vec3(0.910, 0.902, 0.863);
       if (h < 3.0) c = mix(vec3(0.839, 0.784, 0.627), c, h / 3.0);
+      if (here.y > 1.0) c = vec3(0.173, 0.329, 0.173);                                       // a wood: its top and its sides
       c *= 0.68 + 0.5 * max(dot(n, sun), 0.0);
     }
     gl_FragColor = vec4(mix(c, haze, smoothstep(hazeNear, hazeFar, far)), 1.0);
@@ -184,7 +198,7 @@ export function createTerrain(scene, land, sun, fog) {
   const shared = {
     heightMap: { value: map },
     grid: { value: new THREE.Vector4(region.east0, -region.north0, region.post, region.size) },
-    range: { value: new THREE.Vector2(region.min, region.step) },
+    range: { value: new THREE.Vector3(region.min, region.step, region.canopyStep) },
     lochBox: { value: new THREE.Vector4(loch.west, -loch.north, loch.east, -loch.south) }, lochLevel: { value: loch.level },
     paint: { value: new THREE.Vector2(region.paint.fieldsEast, -region.paint.chalkSouth) },
     airfield: { value: new THREE.Vector4(base.east, -base.north, Math.sin((base.heading * Math.PI) / 180), -Math.cos((base.heading * Math.PI) / 180)) },

@@ -4,6 +4,8 @@
 // Friction, as a fraction of the weight on a wheel or a scraping point.
 export const SURFACES = {
   runway: { mu_roll: 0.02, mu_side: 0.7, mu_brake: 0.6, mu_skid: 0.5 },
+  // Treetops: an airplane that settles onto a wood is stopped by it in a few lengths.
+  woods: { mu_roll: 0.8, mu_side: 0.9, mu_brake: 0, mu_skid: 0.9 },
   // Water ends a flight at any touch. With crashes turned off the airplane ploughs to a stop on its surface.
   water: { mu_roll: 0.6, mu_side: 0.7, mu_brake: 0, mu_skid: 0.6, ends: true },
 };

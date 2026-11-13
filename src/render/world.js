@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { createTerrain } from './terrain.js';
+import { createTrees } from './trees.js';
 
 const HORIZON = 0xcfe6f7, ZENITH = 0x1f5fb8;   // the app's sky colours, as in style.css
 const SUN = new THREE.Vector3(-3, 6, 4).normalize();   // the way to the sun: high in the south-west (x east, y up, z south)
@@ -57,11 +58,12 @@ function runwayTexture(renderer, runway) {
 
 /**
  * Builds the world into a scene. `field` is the air base (src/field.js's
- * baseField) and `land` the island ({ region, image } from src/land.js).
+ * baseField), `land` the island's files ({ region, image } from src/land.js)
+ * and `island` its land (src/sim/island.js).
  * Returns { follow(camera) }: call it each frame, so the sky and the land
  * stay round the camera.
  */
-export function createWorld(scene, renderer, field, land) {
+export function createWorld(scene, renderer, field, land, island) {
   scene.background = new THREE.Color(HORIZON);
   scene.fog = new THREE.Fog(HORIZON, 3000, FAR * 0.8);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a70, 2.4));
@@ -107,6 +109,7 @@ export function createWorld(scene, renderer, field, land) {
   scene.add(sky);
 
   const terrain = createTerrain(scene, land, SUN, scene.fog);
+  const trees = createTrees(scene, island, land.region);
 
   // The runway lies in the land's own plane, so it is drawn nudged toward
   // the eye: otherwise the two shimmer.
@@ -123,6 +126,7 @@ export function createWorld(scene, renderer, field, land) {
     follow(camera) {
       sky.position.copy(camera.position);
       terrain.follow(camera);
+      trees.follow(camera);
     },
   };
 }

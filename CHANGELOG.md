@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.19
+
+- Woods: blocks of woodland 40 feet tall, in the farmland and across the western lowlands. They are solid: with crashes on, flying into one ends the flight, and the radar altitude reads to the treetops. None stand on the airfield, off the runway's ends, or in the glens.
+- Trees along the tracks between the fields. These are scenery: you can fly through them.
+
 ## 0.0.18
 
 - With crashes on (the crash override off): flying into a mountainside ends the flight, and so does any touch of the sea or the loch, however gentle. A landing in a field still survives.
