@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.24
+
+- The land no longer jumps as you fly over it. Far ground is drawn coarser than near ground, and it used to switch from one to the other in a single frame; now it eases across.
+- Trees no longer pop into being. They are drawn half a mile farther out, and each one grows out of the ground as you come to it.
+
 ## 0.0.23
 
 - The castle school: the owner's own, on a crag 330 feet above the loch's south shore. A cluster of dark stone towers with steep pointed roofs, a great hall, a greenhouse and a boathouse; the tallest spire stands 720 feet above the ground. It is hidden: it can't be seen from the lowlands.

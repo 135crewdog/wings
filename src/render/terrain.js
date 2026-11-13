@@ -2,7 +2,9 @@
 // way to put a big landscape on a small device. Nested square grids with the
 // same number of cells but doubling in size follow the camera, each snapped
 // to its own grid so nothing swims, each with a hole where the finer one
-// sits. The vertex shader lifts each vertex to the height read from the map,
+// sits. Toward its outer edge each level eases into the shape of the coarser
+// one round it, so the land never jumps as the levels pass over it. The
+// vertex shader lifts each vertex to the height read from the map,
 // the same reading src/sim/island.js makes for the flight model, so what is
 // seen is what is hit. The grids are placed relative to the camera, so the
 // picture stays sharp far from the island's middle.
@@ -54,13 +56,23 @@ const LAND_GLSL = `
 const vertexShader = `${LAND_GLSL}
   uniform vec2 rel;       // the level's middle, from the camera
   uniform float spacing;
-  attribute vec2 edge;    // on a level's outer edge, halfway between two of the coarser level's posts: take their average, so levels meet without cracks
   varying vec3 wp;        // where in the world
   varying vec3 rp;        // where from the camera
   void main() {
     vec2 r = rel + position.xz * spacing;
     vec2 xz = cameraPosition.xz + r;
-    float h = (edge.x != 0.0 || edge.y != 0.0) ? 0.5 * (surface(xz - edge * spacing) + surface(xz + edge * spacing)) : surface(xz);
+    float h = surface(xz);
+    // Easing into the coarser level. Every other vertex of this level is one of the coarser level's too. The
+    // ones between lie on an edge of one of its triangles, half way between two of its vertices; "as the
+    // coarser level has it" is the average of those two. From two-thirds of the way out, a vertex moves from
+    // its own height toward that, and is there before the level's edge: no jump as the levels pass, no cracks
+    // where they meet.
+    float ease = clamp((max(abs(r.x), abs(r.y)) / spacing - EASE_FROM) / (EASE_TO - EASE_FROM), 0.0, 1.0);
+    vec2 odd = mod(position.xz, 2.0);
+    if (ease > 0.0 && odd.x + odd.y > 0.5) {
+      vec2 o = odd.x * odd.y > 0.5 ? vec2(spacing, -spacing) : odd * spacing;   // in the middle of a coarse square: along the diagonal its two triangles share
+      h = mix(h, 0.5 * (surface(xz - o) + surface(xz + o)), ease);
+    }
     wp = vec3(xz.x, h, xz.y);
     rp = vec3(r.x, h - cameraPosition.y, r.y);
     gl_Position = projectionMatrix * mat4(mat3(viewMatrix)) * vec4(rp, 1.0);
@@ -234,21 +246,17 @@ const fragmentShader = `${LAND_GLSL}
     gl_FragColor = vec4(mix(c, haze, smoothstep(hazeNear, hazeFar, far) * (1.0 - glow)), 1.0);
   }`;
 
-// One level's grid: (N+1) by (N+1) vertices in cell units, with the edge
-// attribute, and four index sets for the four places the finer level's hole
-// can sit.
+// One level's grid: (N+1) by (N+1) vertices in cell units, and four index
+// sets for the four places the finer level's hole can sit.
 function levelGeometry(withHole) {
-  const positions = [], edges = [];
+  const positions = [];
   for (let j = 0; j <= N; j++) {
     for (let i = 0; i <= N; i++) {
       positions.push(i - N / 2, 0, j - N / 2);
-      const onX = j === 0 || j === N, onZ = i === 0 || i === N;
-      edges.push(onX && i % 2 === 1 ? 1 : 0, onZ && j % 2 === 1 ? 1 : 0);
     }
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('edge', new THREE.Float32BufferAttribute(edges, 2));
   const variants = [];
   for (const dy of [0, 1]) {
     for (const dx of [0, 1]) {
@@ -287,7 +295,9 @@ export function createTerrain(scene, land, sun, fog) {
   const box = (l) => new THREE.Vector4(l.west, -l.north, l.east, -l.south);
   const loch = region.lochs.find((l) => l.kind === 'water'), lava = region.lochs.find((l) => l.kind === 'lava');
   const legs = region.flows[0].length - 1, flowPoints = region.flows.flat().map(([north, east]) => new THREE.Vector2(east, -north));
-  const defines = { FLOW_COUNT: region.flows.length, FLOW_LEGS: legs, FLOW_POINTS: flowPoints.length };
+  // A level's edge is N/2 cells from its middle, and its middle is up to 2 cells from the camera: so it has
+  // eased all the way by N/2 - 4 cells out, and starts well clear of the finer level's hole at N/4 + 3.
+  const defines = { FLOW_COUNT: region.flows.length, FLOW_LEGS: legs, FLOW_POINTS: flowPoints.length, EASE_FROM: (N / 3).toFixed(1), EASE_TO: (N / 2 - 4).toFixed(1) };
   const clock = { value: 0 };
   const { base, cove } = region.sites;
   // The finest cells are a whole fraction of a post, and every level snaps to whole cells from the island's
