@@ -6,6 +6,7 @@ What changed in each version a player can see, newest first.
 
 - The Strip begins: a mile and a half of road running north and south across the desert west of the canyon, with nineteen plain hotels along it, 180 to 505 feet tall. Empty lots are left for the famous places, which arrive one at a time.
 - With crashes on, the hotels are solid. With the crash override on, the jet passes through them.
+- The jet's wheels no longer sink into the runway: the runway's paint was being drawn over the bottoms of the tyres.
 
 ## 0.0.25
 
