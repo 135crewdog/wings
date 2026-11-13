@@ -446,7 +446,214 @@
     },
     "strip": {
       "north": -4700,
-      "east": -11400
+      "east": -11400,
+      "height": 415,
+      "length": 2800,
+      "road": 32,
+      "lots": {
+        "needle": {
+          "north": -3450,
+          "east": -11570,
+          "across": 140,
+          "along": 140
+        },
+        "wheel": {
+          "north": -3980,
+          "east": -11190,
+          "across": 210,
+          "along": 70
+        },
+        "balloon": {
+          "north": -4370,
+          "east": -11305,
+          "across": 50,
+          "along": 50
+        },
+        "eiffel": {
+          "north": -4550,
+          "east": -11250,
+          "across": 130,
+          "along": 130
+        },
+        "arc": {
+          "north": -4760,
+          "east": -11290,
+          "across": 60,
+          "along": 50
+        },
+        "lake": {
+          "north": -4550,
+          "east": -11650,
+          "across": 300,
+          "along": 380
+        },
+        "camelot": {
+          "north": -5320,
+          "east": -11630,
+          "across": 260,
+          "along": 240
+        },
+        "pyramid": {
+          "north": -5850,
+          "east": -11640,
+          "across": 220,
+          "along": 220
+        }
+      },
+      "hotels": [
+        {
+          "north": -3641.5,
+          "east": -11495,
+          "across": 58,
+          "along": 105,
+          "height": 55,
+          "tint": 2
+        },
+        {
+          "north": -3813,
+          "east": -11506.5,
+          "across": 57,
+          "along": 118,
+          "height": 112,
+          "tint": 2
+        },
+        {
+          "north": -4004,
+          "east": -11481,
+          "across": 52,
+          "along": 140,
+          "height": 78,
+          "tint": 3
+        },
+        {
+          "north": -4208.5,
+          "east": -11524,
+          "across": 70,
+          "along": 115,
+          "height": 106,
+          "tint": 1
+        },
+        {
+          "north": -4851,
+          "east": -11505,
+          "across": 72,
+          "along": 118,
+          "height": 63,
+          "tint": 4
+        },
+        {
+          "north": -5047,
+          "east": -11508,
+          "across": 48,
+          "along": 134,
+          "height": 82,
+          "tint": 0
+        },
+        {
+          "north": -5531,
+          "east": -11508,
+          "across": 46,
+          "along": 86,
+          "height": 75,
+          "tint": 1
+        },
+        {
+          "north": -3460,
+          "east": -11306,
+          "across": 76,
+          "along": 140,
+          "height": 105,
+          "tint": 0
+        },
+        {
+          "north": -3621,
+          "east": -11313,
+          "across": 48,
+          "along": 88,
+          "height": 114,
+          "tint": 3
+        },
+        {
+          "north": -3791.5,
+          "east": -11283.5,
+          "across": 71,
+          "along": 111,
+          "height": 149,
+          "tint": 4
+        },
+        {
+          "north": -4195,
+          "east": -11293.5,
+          "across": 67,
+          "along": 144,
+          "height": 86,
+          "tint": 3
+        },
+        {
+          "north": -4903,
+          "east": -11296.5,
+          "across": 77,
+          "along": 114,
+          "height": 150,
+          "tint": 4
+        },
+        {
+          "north": -5086,
+          "east": -11285,
+          "across": 78,
+          "along": 112,
+          "height": 82,
+          "tint": 2
+        },
+        {
+          "north": -5281,
+          "east": -11288.5,
+          "across": 75,
+          "along": 142,
+          "height": 154,
+          "tint": 0
+        },
+        {
+          "north": -5456.5,
+          "east": -11318,
+          "across": 54,
+          "along": 105,
+          "height": 135,
+          "tint": 4
+        },
+        {
+          "north": -5608,
+          "east": -11281.5,
+          "across": 79,
+          "along": 126,
+          "height": 101,
+          "tint": 0
+        },
+        {
+          "north": -5773,
+          "east": -11284,
+          "across": 76,
+          "along": 102,
+          "height": 69,
+          "tint": 2
+        },
+        {
+          "north": -5920.5,
+          "east": -11303,
+          "across": 64,
+          "along": 87,
+          "height": 129,
+          "tint": 1
+        },
+        {
+          "north": -6063,
+          "east": -11267.5,
+          "across": 85,
+          "along": 108,
+          "height": 99,
+          "tint": 4
+        }
+      ]
     },
     "cove": {
       "north": 3900,

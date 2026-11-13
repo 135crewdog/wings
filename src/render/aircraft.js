@@ -28,6 +28,10 @@ export function createAircraft() {
       action.paused = true;   // the app sets the time; nothing plays by itself
       actions[clip.name] = action;
     }
+    // Drawn after the runway and the road. Those lie in the land's own plane and are drawn nudged toward the eye,
+    // and that nudge is deep enough to paint them over the bottoms of the tyres if they come last. The order is
+    // set on every part: a model is groups within groups, and each group would start the order afresh.
+    gltf.scene.traverse((part) => { part.renderOrder = 2; });
     airplane.add(gltf.scene);
     airplane.set({ gear: 1, flaps: 0, elevator: 0.5, aileron: 0.5, rudder: 0.5 });
     return airplane;
