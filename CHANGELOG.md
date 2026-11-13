@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.21
+
+- A new app icon: the owner's F-4C, banking against a blue sky.
+
 ## 0.0.20
 
 - A new island, to the owner's own map. Mountains in an arc across the north round the loch; a canyon with a river from the loch to the south-west coast; a desert plateau with mesas in the west, running up into the mountains; a volcano in the south with a crater and a glowing lava lake; the fields and the air base in the east; a round cove a mile across on the east coast.
