@@ -1,5 +1,9 @@
 # Credits for the 3D models
 
+## `viaduct.glb`: the viaduct
+
+The owner's own model, built in Blender with Claude in a Wings project chat, after the Glenfinnan Viaduct in Scotland, with its arches opened up for a jet. Its Blender file is `viaduct.blend`, in `Wings/Blender/` in the owner's Google Drive. In the app from version 0.0.22.
+
 ## `f4c.glb`: the F-4C Phantom II
 
 The owner's own model, built in Blender with Claude in a Wings project chat, from his reference photos and drawings. Its Blender file is `f4c.blend`, in `Wings/Blender/` in the owner's Google Drive.

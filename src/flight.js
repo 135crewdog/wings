@@ -13,6 +13,7 @@ import { elevatorTravel } from './sim/aero.js';
 import { calibratedAirspeed } from './sim/airdata.js';
 import { PARKED, baseField, startState } from './field.js';
 import { createIsland, islandGround } from './sim/island.js';
+import { createSolids } from './sim/solids.js';
 import { createAircraft } from './render/aircraft.js';
 import { createChaseCamera } from './render/camera.js';
 import { attachLook, createLook } from './input/look.js';
@@ -39,7 +40,7 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
 
   const card = deriveCard(F4C);
-  const ground = islandGround(island);
+  const ground = islandGround(island, createSolids(Object.values(land.landmarks).flatMap((l) => l.solids)));
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
   const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2] - p.sag));   // where the wheels rest, not where the struts hang to
   const BUFFET_FULL = 2000;   // Pa of dynamic pressure: below this (about 110 knots) the buffet shake is weaker
@@ -137,6 +138,7 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   new ResizeObserver(wake).observe(canvas);
   for (const type of ['resize', 'orientationchange']) window.addEventListener(type, wake);
   airplane.ready.then(wake);
+  world.ready.then(wake);
   run();
   return {
     ready: airplane.ready,

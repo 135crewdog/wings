@@ -126,10 +126,13 @@ The land for the whole island first; then the canyon and viaduct; the castle and
 
 ## Where it is kept
 
-The island's map is three files in `terrain/`, all written by `terrain/make-island.mjs`; to change the island, change that script and run it.
+The island's map is four files in `terrain/`, all written by `terrain/make-island.mjs`; to change the island, change that script and run it.
 
 - `island.png`: the land's height (red and green), and what stands on it (blue: the treetops' height, or the river's mark).
 - `country.png`: what kind of country each place is: desert, lava or farmland; the rest is green.
 - `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
+- `landmarks.json`: each landmark that has a model: where it stands, and its solid shapes, read from the model in `models/`.
 
-`node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page, and flies it.
+The viaduct is in: the owner's model, standing east and west across the canyon's head. The land was shaped to it in two places: a bluff at its east end for the deck to run into, and the canyon's west wall cut back north of it, so there is room to fly out of every arch.
+
+`node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page, and flies it. `tests/landmarks.test.js` checks each landmark's model against `docs/models.md`, and flies its openings.

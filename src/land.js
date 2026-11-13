@@ -1,5 +1,5 @@
-// Fetches the island's land for the app: terrain/island.json, and the height
-// map and country map it names. The one image serves twice: its pixels are read out as
+// Fetches the island's land for the app: terrain/island.json, the height
+// map and country map it names, and terrain/landmarks.json (what stands on it). The one image serves twice: its pixels are read out as
 // heights for the flight model, and the image itself goes to the picture.
 // The loading is after 135crewdog/rage, src/main.js (loadTerrain).
 
@@ -17,12 +17,12 @@ async function pixelsOf(url) {
   return { image, pixels: pen.getImageData(0, 0, image.width, image.height).data, count: image.width * image.height };
 }
 
-/** Resolves to { region, heights, canopy, country, image, countryImage }. */
+/** Resolves to { region, landmarks, heights, canopy, country, image, countryImage }. */
 export async function loadLand() {
-  const region = await (await fetch('./terrain/island.json')).json();
+  const [region, landmarks] = await Promise.all(['island', 'landmarks'].map(async (name) => (await fetch(`./terrain/${name}.json`)).json()));
   const [land, kinds] = await Promise.all([pixelsOf(`./terrain/${region.image}`), pixelsOf(`./terrain/${region.country}`)]);
   return {
-    region, image: land.image, countryImage: kinds.image,
+    region, landmarks, image: land.image, countryImage: kinds.image,
     heights: decodeHeights(land.pixels, land.count), canopy: decodeCanopy(land.pixels, land.count), country: decodeCountry(kinds.pixels, kinds.count),
   };
 }

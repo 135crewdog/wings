@@ -436,7 +436,8 @@
     },
     "viaduct": {
       "north": 9300,
-      "east": -3700
+      "east": -3706,
+      "height": 242.75
     },
     "volcano": {
       "north": -8600,
