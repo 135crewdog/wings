@@ -126,4 +126,10 @@ The land for the whole island first; then the canyon and viaduct; the castle and
 
 ## Where it is kept
 
-The land's shape is `terrain/island.png`, a height map, with `terrain/island.json` beside it saying where it lies, where the loch is, and where each landmark stands. Both are written by `terrain/make-island.mjs`; to change the island, change that script and run it. `node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page.
+The island's map is three files in `terrain/`, all written by `terrain/make-island.mjs`; to change the island, change that script and run it.
+
+- `island.png`: the land's height (red and green), and what stands on it (blue: the treetops' height, or the river's mark).
+- `country.png`: what kind of country each place is: desert, lava or farmland; the rest is green.
+- `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
+
+`node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page, and flies it.

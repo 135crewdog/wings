@@ -5,13 +5,14 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { decodePng, encodePng } from './png.mjs';
-import { createIsland, decodeCanopy, decodeHeights } from '../src/sim/island.js';
+import { createIsland, decodeCanopy, decodeCountry, decodeHeights } from '../src/sim/island.js';
 import { onAirfield, plotAt } from '../src/fields.js';
 
 const here = (name) => fileURLToPath(new URL(name, import.meta.url));
 const region = JSON.parse(readFileSync(here('island.json')));
 const { rgb, width } = decodePng(readFileSync(here(region.image)));
-const island = createIsland(region, decodeHeights(rgb, width * width, 3), decodeCanopy(rgb, width * width, 3));
+const kinds = decodePng(readFileSync(here(region.country)));
+const island = createIsland(region, decodeHeights(rgb, width * width, 3), decodeCanopy(rgb, width * width, 3), decodeCountry(kinds.rgb, kinds.width * kinds.height, 3));
 const out = process.argv[2] ?? '.';
 const FT = 0.3048, mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * Math.min(1, Math.max(0, t)));
 const SUN = [0.5, -0.55, 0.67];   // from the south-east, high: north, east, up
@@ -19,16 +20,21 @@ const SUN = [0.5, -0.55, 0.67];   // from the south-east, high: north, east, up
 // The colour of the ground at a point: paint by rule, then light and shade.
 function colour(n, e) {
   const h = island.heightAt(n, e), water = island.waterAt(n, e);
-  if (water !== null) return water > 0 ? [52, 92, 128] : mix([70, 130, 170], [40, 90, 140], -h / 25);
+  if (island.lavaAt(n, e) !== null) return [255, 120, 20];                                    // the lava lake
+  if (water !== null) return h < 0 ? mix([70, 130, 170], [40, 90, 140], -h / 25) : water > h ? [52, 92, 128] : [60, 110, 140];   // sea, loch, river
   const s = 60, top = (a, b) => island.heightAt(a, b) + island.canopyAt(a, b), dn = (top(n + s, e) - top(n - s, e)) / (2 * s), de = (top(n, e + s) - top(n, e - s)) / (2 * s);
   const slope = Math.hypot(dn, de), len = Math.hypot(dn, de, 1), light = 0.68 + 0.5 * Math.max(0, (-dn * SUN[0] - de * SUN[1] + SUN[2]) / len);
-  const { sites } = region;
+  const { sites } = region, { desert, lava, farm } = island.countryAt(n, e);
   let c = [112, 150, 82];                                             // grass
-  if (e > region.paint.fieldsEast && h < 60 && slope < 0.12) c = field(n, e);          // fields
+  if (farm > 0.5 && h < 60 && slope < 0.12 && !onAirfield(sites.base, n, e)) c = field(n, e);
   c = mix(c, [128, 118, 88], (h - 150) / 500);                        // moor
   c = mix(c, [120, 116, 112], Math.max((h - 1100) / 700, (slope - 0.45) / 0.3));   // rock
-  if (n < region.paint.chalkSouth && slope > 0.5) c = [232, 230, 220];                 // chalk cliffs
-  if (h < 3) c = mix([214, 200, 160], c, h / 3);                      // sand
+  const band = Math.floor(h / 55) % 2 ? [196, 120, 78] : [214, 150, 96];
+  c = mix(c, mix([222, 184, 132], band, (slope - 0.12) / 0.2), desert);             // desert: tan flats, banded red rock on the slopes
+  c = mix(c, mix([38, 36, 38], [70, 52, 46], (slope - 0.2) / 0.5), lava);           // lava: black, rust on the steeps
+  const cv = sites.cove;
+  if (Math.hypot(n - cv.north, e - cv.east) < 5000 && slope > 0.5 && h < 160) c = [232, 230, 220];   // chalk cliffs
+  if (h < 3 + 9 * desert) c = mix([232, 216, 172], c, (h - 1.5 - 5 * desert) / 3);          // sand
   if (island.canopyAt(n, e) > 1) c = [44, 84, 44];                    // woods
   const a = (sites.base.heading * Math.PI) / 180, rn = n - sites.base.north, re = e - sites.base.east;
   if (Math.abs(rn * Math.cos(a) + re * Math.sin(a)) < 1402 && Math.abs(-rn * Math.sin(a) + re * Math.cos(a)) < 23) c = [70, 72, 76];   // the runway
@@ -66,7 +72,7 @@ function view(name, north, east, feet, heading, down = 4, W = 960, H = 440) {
     const dn = fwd * Math.cos(psi) - right * Math.sin(psi), de = fwd * Math.sin(psi) + right * Math.cos(psi);
     let t = 30, hit = null;
     while (t < 60000) {
-      const n = north + dn * t, e = east + de * t, u = up0 + upv * t, g = Math.max(island.heightAt(n, e) + island.canopyAt(n, e), island.waterAt(n, e) ?? -1e9);
+      const n = north + dn * t, e = east + de * t, u = up0 + upv * t, g = Math.max(island.heightAt(n, e) + island.canopyAt(n, e), island.waterAt(n, e) ?? -1e9, island.lavaAt(n, e) ?? -1e9);
       if (u < g) { hit = [n, e, t]; break; }
       t += Math.max(15, (u - g) * 0.4, t * 0.004);
     }
@@ -75,10 +81,17 @@ function view(name, north, east, feet, heading, down = 4, W = 960, H = 440) {
   }
   save(name, px, W, H);
 }
-const { base, castle, viaduct, cove } = region.sites;
+const { base, castle, viaduct, cove, volcano, strip, door } = region.sites;
 view('view-base.png', base.north - 600, base.east + 4500, 1500, 280);                    // on final for 28
-view('view-highlands.png', 0, -2000, 3000, 10, 0);                                    // the highlands from the lowlands
-view('view-glen.png', 5150, -4450, 1300, 32, 2);                                     // up the glen toward the viaduct's place
-view('view-castle.png', castle.north - 750, castle.east - 2800, 1800, 75, 6);           // the bowl, from over the loch's west end
-view('view-fields.png', base.north - 5000, base.east + 1500, 900, 335, 6);                 // low over the fields, the highlands ahead
-view('view-coast.png', cove.north - 1500, cove.east + 3500, 800, 285, 3);                // the south coast, heading west
+view('view-fields.png', base.north - 5000, base.east + 1500, 900, 335, 6);               // low over the fields, the mountains ahead
+view('view-loch.png', castle.north + 900, castle.east - 5200, 1900, 100, 6);             // along the loch, the castle's shelf on the right shore
+view('view-grounds.png', castle.north + 1500, castle.east + 400, 3600, 185, 22);         // from over the loch, south across the castle and its grounds
+view('view-canyon-head.png', 6800, -3350, 2100, 350, 4);                                 // up the canyon toward the viaduct's place and the loch
+view('view-canyon.png', -9000, -5500, 1700, 35, 2);                                      // in the canyon, flying upstream
+view('view-canyon-above.png', -6500, -9500, 9000, 70, 30);                               // the canyon from above the desert
+view('view-crest.png', -3000, -13500, 2500, 20, 0);                                      // the crest from over the desert
+view('view-strip.png', strip.north - 3500, strip.east + 500, 1800, 350, 6);              // the Strip's place, the crest behind
+view('view-volcano.png', volcano.north - 5200, volcano.east + 2500, 5500, 335, 14);      // the volcano from the south-east
+view('view-crater.png', volcano.north - 900, volcano.east - 700, 5200, 40, 40);          // into the crater
+view('view-cove.png', cove.north - 300, cove.east + 4200, 900, 275, 5);                  // the cove from the sea
+view('view-beach.png', -9500, -16800, 600, 20, 3);                                       // the south-west beaches

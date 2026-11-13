@@ -2,6 +2,13 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.20
+
+- A new island, to the owner's own map. Mountains in an arc across the north round the loch; a canyon with a river from the loch to the south-west coast; a desert plateau with mesas in the west, under a mountain wall; a volcano in the south with a crater and a glowing lava lake; the fields and the air base in the east; a round cove a mile across on the east coast.
+- New paint for the new country: red and tan rock in bands, black lava, wide sand on the desert's shore, white chalk round the cove.
+- With crashes on, the river and the lava end a flight at any touch, like the sea and the loch.
+- Still to come: forests that look like trees, the redwoods, and every landmark (castle, viaduct, the Strip, the Door).
+
 ## 0.0.19
 
 - Woods: blocks of woodland 40 feet tall, in the farmland and across the western lowlands. They are solid: with crashes on, flying into one ends the flight, and the radar altitude reads to the treetops. None stand on the airfield, off the runway's ends, or in the glens.

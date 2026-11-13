@@ -31,7 +31,7 @@ import { attitudeToThree, toThree } from './render/frames.js';
 export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   const scene = new THREE.Scene();
-  const island = createIsland(land.region, land.heights, land.canopy), field = baseField(land.region, island);
+  const island = createIsland(land.region, land.heights, land.canopy, land.country), field = baseField(land.region, island);
   const world = createWorld(scene, renderer, field, land, island);
   const airplane = createAircraft();
   scene.add(airplane);

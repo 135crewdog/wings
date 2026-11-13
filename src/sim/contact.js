@@ -8,7 +8,7 @@
 // ground: { heightAt(x, y) → m above sea level, surfaceAt(x, y) → name, surfaces: { name: { mu_roll,
 // mu_side, mu_brake, mu_skid } } }. The forces treat the ground under each point as level; the touchdown
 // check knows its slope, so flying into a hillside is the hard arrival it is. A surface with `ends: true`
-// (water) ends the flight at any touch.
+// (water, lava) ends the flight at any touch.
 
 import { add, cross, qrotate, qrotateInv } from './vec.js';
 
@@ -116,7 +116,8 @@ export function crashCheck(card, before, after, ground, wasTouching, gearDown = 
     const p = points[i];
     const ps = pointState(after, p.r, ground);
     if (ps.d <= 0) continue;
-    if (ground.surfaces[ground.surfaceAt(ps.rw[0], ps.rw[1])].ends) return { point: p.name, reason: 'water', value: 0 };
+    const under = ground.surfaceAt(ps.rw[0], ps.rw[1]);
+    if (ground.surfaces[under].ends) return { point: p.name, reason: under, value: 0 };
     if (wasTouching[i]) continue;
     const closing = closingSpeed(before, ps.rw, ground);
     if (closing > card.crash.sink) return { point: p.name, reason: 'hard impact', value: closing };

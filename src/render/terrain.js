@@ -19,30 +19,37 @@ const LEVELS = 8;      // with 5.5 m cells at the finest: 0.5, 1.1, 2.1, 4.2, 8.
 const N = 96;          // cells along each side of every level
 
 // Reading the height map, as src/sim/island.js does: 16-bit posts in red and
-// green, the treetops over them in blue, straight lines between posts, open
-// sea beyond the map's edge. And the water: the sea at zero, the loch at its
-// level inside its box. A wood is drawn as it is flown: the ground stands
-// taller there by the height of the trees.
+// green, the treetops over them in blue (or the river's mark), straight lines
+// between posts, open sea beyond the map's edge. And what stands on the land:
+// the sea at zero, the loch and the lava lake at their levels inside their
+// boxes, the river on its bed. A wood is drawn as it is flown: the ground
+// stands taller there by the height of the trees.
 const LAND_GLSL = `
   uniform sampler2D heightMap;
   uniform vec4 grid;       // the north-west post's x and z, metres between posts, posts along a side
   uniform vec3 range;      // the lowest height, metres per step, and metres per step of treetops
-  uniform vec4 lochBox;    // west, north edge's z, east, south edge's z
-  uniform float lochLevel;
-  // A post: the land's height, and the treetops' height over it.
-  vec2 post(vec2 ij) { vec4 t = texture2D(heightMap, (ij + 0.5) / grid.w); return vec2(range.x + (t.r * 65280.0 + t.g * 255.0) * range.y, t.b * 255.0 * range.z); }
-  vec2 ground(vec2 xz) {
+  uniform vec4 lochBox, lavaBox;    // west, north edge's z, east, south edge's z
+  uniform float lochLevel, lavaLevel;
+  // A post: the land's height, the treetops' height over it, and whether it is in the river (1 or 0).
+  vec3 post(vec2 ij) {
+    vec4 t = texture2D(heightMap, (ij + 0.5) / grid.w);
+    float river = step(0.998, t.b);
+    return vec3(range.x + (t.r * 65280.0 + t.g * 255.0) * range.y, (1.0 - river) * t.b * 255.0 * range.z, river);
+  }
+  vec3 ground(vec2 xz) {
     vec2 p = (xz - grid.xy) / grid.z;
-    if (p.x < 0.0 || p.y < 0.0 || p.x > grid.w - 1.0 || p.y > grid.w - 1.0) return vec2(range.x, 0.0);
+    if (p.x < 0.0 || p.y < 0.0 || p.x > grid.w - 1.0 || p.y > grid.w - 1.0) return vec3(range.x, 0.0, 0.0);
     vec2 i = min(floor(p), grid.w - 2.0), f = p - i;
     return mix(mix(post(i), post(i + vec2(1.0, 0.0)), f.x), mix(post(i + vec2(0.0, 1.0)), post(i + vec2(1.0, 1.0)), f.x), f.y);
   }
-  // The level of the water standing over ground of height h at xz; far below everything on dry land.
-  float water(vec2 xz, float h) {
-    if (xz.x > lochBox.x && xz.x < lochBox.z && xz.y > lochBox.y && xz.y < lochBox.w && h < lochLevel) return lochLevel;
+  bool within(vec2 xz, vec4 box) { return xz.x > box.x && xz.x < box.z && xz.y > box.y && xz.y < box.w; }
+  // The level of the loch, the lava lake or the sea standing over ground of height h at xz; far below everything on dry land.
+  float pool(vec2 xz, float h) {
+    if (within(xz, lochBox) && h < lochLevel) return lochLevel;
+    if (within(xz, lavaBox) && h < lavaLevel) return lavaLevel;
     return h < 0.0 ? 0.0 : -1.0e5;
   }
-  float surface(vec2 xz) { vec2 g = ground(xz); return max(g.x + g.y, water(xz, g.x)); }`;
+  float surface(vec2 xz) { vec3 g = ground(xz); return max(g.x + g.y, pool(xz, g.x)); }`;
 
 const vertexShader = `${LAND_GLSL}
   uniform vec2 rel;       // the level's middle, from the camera
@@ -61,7 +68,8 @@ const vertexShader = `${LAND_GLSL}
 
 const fragmentShader = `${LAND_GLSL}
   uniform vec3 sun, haze; uniform float hazeNear, hazeFar;
-  uniform vec2 paint;     // farmland lies east of x; the chalk cliffs south of z
+  uniform sampler2D countryMap;   // desert in red, lava in green, farmland in blue
+  uniform vec3 cove;      // the cove's middle (x, z), and how far its chalk reaches
   uniform vec4 airfield;  // the runway's middle (x, z) and the way it runs (x, z)
   varying vec3 wp, rp;
   // The same sum as src/fields.js's rand, whole number for whole number, so the plots painted here are the
@@ -114,35 +122,50 @@ const fragmentShader = `${LAND_GLSL}
   }
   void main() {
     float far = length(rp);
-    vec2 here = ground(wp.xz);
-    float h = here.x, level = water(wp.xz, h);
+    vec3 here = ground(wp.xz);
+    float h = here.x, level = pool(wp.xz, h);
     vec3 c;
-    if (level > h) {
+    float glow = 0.0;
+    if (level > h && level == lavaLevel && within(wp.xz, lavaBox)) {
+      // The lava lake: bright, with a dark crust in plates. It shines through the haze.
+      float crust = smoothstep(0.42, 0.5, 0.5 + 0.3 * bend(wp.xz / 90.0, 31.0) + 0.2 * bend(wp.xz / 23.0, 32.0));
+      c = mix(vec3(1.0, 0.56, 0.1), vec3(0.42, 0.1, 0.04), crust);
+      glow = 0.75;
+    } else if (level > h) {
       // Water: the sea paler in the shallows, the loch dark.
       c = level > 0.0 ? vec3(0.204, 0.361, 0.502) : mix(vec3(0.275, 0.510, 0.667), vec3(0.157, 0.353, 0.549), clamp(-h / 25.0, 0.0, 1.0));
+    } else if (here.z > 0.5) {
+      c = vec3(0.235, 0.431, 0.549);   // the river
     } else {
       // Flat shading: each triangle of the height map's own grid is lit as one face, whatever the distance.
       vec2 p = clamp((wp.xz - grid.xy) / grid.z, vec2(0.0), vec2(grid.w - 1.001));
       vec2 i = floor(p), f = p - i;
-      vec2 g00 = post(i), g10 = post(i + vec2(1.0, 0.0)), g01 = post(i + vec2(0.0, 1.0)), g11 = post(i + vec2(1.0, 1.0));
+      vec3 g00 = post(i), g10 = post(i + vec2(1.0, 0.0)), g01 = post(i + vec2(0.0, 1.0)), g11 = post(i + vec2(1.0, 1.0));
       float h00 = g00.x + g00.y, h10 = g10.x + g10.y, h01 = g01.x + g01.y, h11 = g11.x + g11.y;   // lit as the treetops lie, where there are trees
       vec3 n = normalize(f.x + f.y < 1.0 ? vec3(h00 - h10, grid.z, h00 - h01) : vec3(h01 - h11, grid.z, h10 - h11));
       float slope = length(n.xz) / n.y;
-      // The paint, by rule: grass; farmland on low flat ground in the east; moor on the hills; rock high up and
-      // on steep faces; chalk on the southern cliffs; sand at the shore.
+      vec3 kind = texture2D(countryMap, (wp.xz - grid.xy) / ((grid.w - 1.0) * grid.z)).rgb;
+      // The paint, by rule. Green country first: grass, farmland where the map says so on low flat ground, moor on
+      // the hills, rock high up and on steep faces.
       c = vec3(0.439, 0.588, 0.322);
       vec2 fromBase = wp.xz - airfield.xy;
       bool mown = abs(dot(fromBase, airfield.zw)) < 2100.0 && abs(dot(fromBase, vec2(-airfield.w, airfield.z))) < 450.0;   // the airfield's own grass
       vec2 lie = (f.x + f.y < 1.0 ? vec2(g00.x - g10.x, g00.x - g01.x) : vec2(g01.x - g11.x, g10.x - g11.x)) / grid.z;   // the land's own slope, under any trees
-      if (wp.x > paint.x && h < 60.0 && length(lie) < 0.12 && !mown) c = fields(-wp.z, wp.x, far);
+      if (kind.b > 0.5 && h < 60.0 && length(lie) < 0.12 && !mown) c = fields(-wp.z, wp.x, far);
       c = mix(c, vec3(0.502, 0.463, 0.345), clamp((h - 150.0) / 500.0, 0.0, 1.0));
       c = mix(c, vec3(0.471, 0.455, 0.439), clamp(max((h - 1100.0) / 700.0, (slope - 0.45) / 0.3), 0.0, 1.0));
-      if (wp.z > paint.y && slope > 0.5) c = vec3(0.910, 0.902, 0.863);
-      if (h < 3.0) c = mix(vec3(0.839, 0.784, 0.627), c, h / 3.0);
+      // Desert: tan flats, and red rock in bands on the slopes, as strata.
+      vec3 strata = mod(floor(h / 55.0), 2.0) > 0.5 ? vec3(0.769, 0.471, 0.306) : vec3(0.839, 0.588, 0.376);
+      c = mix(c, mix(vec3(0.871, 0.722, 0.518), strata, clamp((slope - 0.12) / 0.2, 0.0, 1.0)), kind.r);
+      // Lava: black, with rust on the steeps.
+      c = mix(c, mix(vec3(0.149, 0.141, 0.149), vec3(0.275, 0.204, 0.180), clamp((slope - 0.2) / 0.5, 0.0, 1.0)), kind.g);
+      // Chalk on the cliffs round the cove; sand at the shore, wide on the desert's coast.
+      if (distance(wp.xz, cove.xy) < cove.z && slope > 0.5 && h < 160.0) c = vec3(0.910, 0.902, 0.863);
+      if (h < 3.0 + 9.0 * kind.r) c = mix(vec3(0.910, 0.847, 0.675), c, clamp((h - 1.5 - 5.0 * kind.r) / 3.0, 0.0, 1.0));
       if (here.y > 1.0) c = vec3(0.173, 0.329, 0.173);                                       // a wood: its top and its sides
       c *= 0.68 + 0.5 * max(dot(n, sun), 0.0);
     }
-    gl_FragColor = vec4(mix(c, haze, smoothstep(hazeNear, hazeFar, far)), 1.0);
+    gl_FragColor = vec4(mix(c, haze, smoothstep(hazeNear, hazeFar, far) * (1.0 - glow)), 1.0);
   }`;
 
 // One level's grid: (N+1) by (N+1) vertices in cell units, with the edge
@@ -179,19 +202,25 @@ function levelGeometry(withHole) {
 }
 
 /**
- * Draws the island into a scene. `land` is { region, image } from
+ * Draws the island into a scene. `land` is { region, image, countryImage } from
  * src/land.js; `sun` is the way to the sun; `fog` the scene's haze.
  * Returns { follow(camera) }: call it each frame.
  */
 export function createTerrain(scene, land, sun, fog) {
   const { region } = land;
-  const map = new THREE.Texture(land.image);
-  map.magFilter = map.minFilter = THREE.NearestFilter;   // the posts are read one by one and joined in the shader
-  map.generateMipmaps = false;
-  map.flipY = false;                                     // row 0 is the north edge
-  map.colorSpace = THREE.NoColorSpace;
-  map.needsUpdate = true;
-  const loch = region.lochs[0], base = region.sites.base;
+  const texture = (image, filter) => {
+    const t = new THREE.Texture(image);
+    t.magFilter = t.minFilter = filter;
+    t.generateMipmaps = false;
+    t.flipY = false;                 // row 0 is the north edge
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    return t;
+  };
+  const map = texture(land.image, THREE.NearestFilter);   // the posts are read one by one and joined in the shader
+  const box = (l) => new THREE.Vector4(l.west, -l.north, l.east, -l.south);
+  const loch = region.lochs.find((l) => l.kind === 'water'), lava = region.lochs.find((l) => l.kind === 'lava');
+  const { base, cove } = region.sites;
   // The finest cells are a whole fraction of a post, and every level snaps to whole cells from the island's
   // middle, where the posts' lines also fall: so the fine levels' edges lie along the land's creases.
   const SPACING = region.post / DRAWN_CELLS_PER_POST;
@@ -199,8 +228,9 @@ export function createTerrain(scene, land, sun, fog) {
     heightMap: { value: map },
     grid: { value: new THREE.Vector4(region.east0, -region.north0, region.post, region.size) },
     range: { value: new THREE.Vector3(region.min, region.step, region.canopyStep) },
-    lochBox: { value: new THREE.Vector4(loch.west, -loch.north, loch.east, -loch.south) }, lochLevel: { value: loch.level },
-    paint: { value: new THREE.Vector2(region.paint.fieldsEast, -region.paint.chalkSouth) },
+    lochBox: { value: box(loch) }, lochLevel: { value: loch.level }, lavaBox: { value: box(lava) }, lavaLevel: { value: lava.level },
+    countryMap: { value: texture(land.countryImage, THREE.LinearFilter) },
+    cove: { value: new THREE.Vector3(cove.east, -cove.north, 5000) },
     airfield: { value: new THREE.Vector4(base.east, -base.north, Math.sin((base.heading * Math.PI) / 180), -Math.cos((base.heading * Math.PI) / 180)) },
     sun: { value: sun.clone().normalize() },
     haze: { value: fog.color.clone().convertLinearToSRGB() }, hazeNear: { value: fog.near }, hazeFar: { value: fog.far },   // the paint above is in screen colours

@@ -67,10 +67,10 @@ export const TREE_GRID = 22;   // m: one scenery tree at most in each square thi
 export function treeIn(i, j, island, region) {
   if (rand(i, j, 20) > 0.55) return null;
   const north = (i + 0.2 + 0.6 * rand(i, j, 21)) * TREE_GRID, east = (j + 0.2 + 0.6 * rand(i, j, 22)) * TREE_GRID;
-  if (east < region.paint.fieldsEast || onAirfield(region.sites.base, north, east, 150)) return null;
+  if (onAirfield(region.sites.base, north, east, 150) || island.countryAt(north, east).farm < 0.5) return null;
   const side = plotAt(north, east).side;
   if (side < 6 || side > 16) return null;                    // beside a track, not on it and not out in the crop
   const h = island.heightAt(north, east);
-  if (h < 4 || h > 60 || island.canopyAt(north, east) > 0 || island.waterAt(north, east) !== null) return null;
+  if (h < 4 || h > 60 || island.canopyAt(north, east) > 0 || island.waterAt(north, east) !== null || island.lavaAt(north, east) !== null) return null;
   return { north, east, height: 9 + 7 * rand(i, j, 23) };
 }

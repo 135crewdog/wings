@@ -8,6 +8,8 @@ export const SURFACES = {
   woods: { mu_roll: 0.8, mu_side: 0.9, mu_brake: 0, mu_skid: 0.9 },
   // Water ends a flight at any touch. With crashes turned off the airplane ploughs to a stop on its surface.
   water: { mu_roll: 0.6, mu_side: 0.7, mu_brake: 0, mu_skid: 0.6, ends: true },
+  // Lava ends a flight the same way.
+  lava: { mu_roll: 0.8, mu_side: 0.8, mu_brake: 0, mu_skid: 0.8, ends: true },
 };
 
 /** A flat field at `height` metres above sea level. */

@@ -4,22 +4,32 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodePng } from '../terrain/png.mjs';
-import { build, canopy as plantWoods, region as freshRegion } from '../terrain/make-island.mjs';
-import { DRAWN_CELLS_PER_POST, createIsland, decodeCanopy, decodeHeights } from '../src/sim/island.js';
+import { build, canopy as plantWoods, countryMap, region as freshRegion } from '../terrain/make-island.mjs';
+import { DRAWN_CELLS_PER_POST, RIVER, createIsland, decodeCanopy, decodeCountry, decodeHeights } from '../src/sim/island.js';
 
 const FT = 0.3048, NM = 1852, DEG = Math.PI / 180;
 const region = JSON.parse(readFileSync(new URL('../terrain/island.json', import.meta.url)));
 const png = decodePng(readFileSync(new URL(`../terrain/${region.image}`, import.meta.url)));
 const heights = decodeHeights(png.rgb, png.width * png.height, 3);
 const woods = decodeCanopy(png.rgb, png.width * png.height, 3);
-const island = createIsland(region, heights, woods);
-const { base, castle, viaduct, cove, door } = region.sites;
+const kinds = decodePng(readFileSync(new URL(`../terrain/${region.country}`, import.meta.url)));
+const island = createIsland(region, heights, woods, decodeCountry(kinds.rgb, kinds.width * kinds.height, 3));
+const { base, castle, viaduct, cove, door, volcano, strip } = region.sites;
+const loch = region.lochs.find((l) => l.kind === 'water'), lake = region.lochs.find((l) => l.kind === 'lava');
+// Every post on dry land, as { north, east, h }.
+function* land() {
+  for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
+    const h = region.min + heights[r * region.size + c] * region.step;
+    if (h > 0) yield { north: region.north0 - r * region.post, east: region.east0 + c * region.post, h, post: r * region.size + c };
+  }
+}
 
 test('island: the files are what the script writes today', () => {
   assert.equal(png.width, region.size);
   assert.deepEqual(region, JSON.parse(JSON.stringify(freshRegion())), 'island.json is stale: run node terrain/make-island.mjs');
   assert.deepEqual(heights, build(), 'island.png is stale: run node terrain/make-island.mjs');
   assert.deepEqual(woods, plantWoods(heights), 'island.png\'s woods are stale: run node terrain/make-island.mjs');
+  assert.deepEqual(kinds.rgb, countryMap(), 'country.png is stale: run node terrain/make-island.mjs');
 });
 
 test('island: about 20 miles across, with open sea all round', () => {
@@ -36,7 +46,7 @@ test('island: about 20 miles across, with open sea all round', () => {
   }
 });
 
-test('island: the highlands top out between 6,000 and 8,000 feet, in the north', () => {
+test('island: the mountains top out between 6,000 and 8,000 feet, in the north', () => {
   let top = 0, where = null;
   for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
     const h = region.min + heights[r * region.size + c] * region.step;
@@ -57,27 +67,29 @@ test('island: the base is flat along the runway and its overruns, 30 feet up', (
   assert.ok(Math.abs(base.height / FT - 30) < 1);
 });
 
-test('island: the loch is level, and the castle stands on dry rock above it', () => {
-  const loch = region.lochs[0];
-  let wet = 0;
+test('island: the loch is level and held in by its shores; the castle\'s shelf is on its south shore', () => {
+  let wet = 0, southmost = Infinity;
   for (let n = loch.south; n <= loch.north; n += 50) for (let e = loch.west; e <= loch.east; e += 50) {
     const level = island.waterAt(n, e);
-    if (level !== null) { wet++; assert.equal(level, loch.level); }
+    if (level === null || level !== loch.level) continue;
+    wet++;
+    if (Math.abs(e - castle.east) < 100) southmost = Math.min(southmost, n);
   }
-  assert.ok(wet > 400, `the loch covers ${wet / 4} hectares`);
-  // Its shores hold it in: all round the edge of its box the ground is above the water.
+  assert.ok(wet > 1500, `the loch covers ${wet / 4} hectares`);
+  // All round the edge of its box the ground is above the water, but for the river's lip.
   for (let t = 0; t <= 1; t += 0.002) {
     const n = loch.south + t * (loch.north - loch.south), e = loch.west + t * (loch.east - loch.west);
     for (const [pn, pe] of [[n, loch.west], [n, loch.east], [loch.south, e], [loch.north, e]]) {
       assert.ok(island.heightAt(pn, pe) >= loch.level, `the loch spills at ${pn}, ${pe}: ground ${island.heightAt(pn, pe)} m`);
     }
   }
-  assert.equal(island.waterAt(castle.north, castle.east), null);
-  assert.ok(Math.abs(island.heightAt(castle.north, castle.east) - castle.height) < 2);
-  assert.ok(castle.height > loch.level + 50);
+  assert.equal(island.waterAt(castle.north, castle.east), null, 'the shelf is dry');
+  assert.ok(Math.abs(island.heightAt(castle.north, castle.east) - castle.height) < 2, 'and level');
+  console.log(`  The castle's shelf: ${Math.round((castle.height - loch.level) / FT)} ft above the loch, ${Math.round(southmost - castle.north)} m from its south shore`);
+  assert.ok(castle.height > loch.level + 15 && southmost > castle.north && southmost - castle.north < 500, 'on the south shore');
 });
 
-// Whether the top of the castle (100 m above its rock) can be seen from a point.
+// Whether the top of the castle (100 m above its shelf) can be seen from a point.
 function seesCastle(n, e, up) {
   const top = castle.height + 100, dist = Math.hypot(castle.north - n, castle.east - e);
   for (let d = 100; d < dist - 300; d += 40) {
@@ -87,34 +99,79 @@ function seesCastle(n, e, up) {
   return true;
 }
 
-test('island: the castle is hidden from the base and from 1,000 feet over the lowlands', () => {
+test('island: the castle is hidden from the base and from 1,000 feet over the fields, the desert and the south', () => {
   assert.equal(seesCastle(base.north, base.east, base.height + 3), false, 'seen from the runway');
   let seen = 0, looked = 0;
-  for (let n = -19000; n <= 2500; n += 600) for (let e = -19000; e <= 19000; e += 600) {
-    const ground = island.heightAt(n, e);
-    if (ground <= 0) continue;
+  for (let n = -19000; n <= 19000; n += 600) for (let e = -19000; e <= 19000; e += 600) {
+    const here = island.heightAt(n, e), { desert, lava, farm } = island.countryAt(n, e);
+    if (here <= 0 || !(desert > 0.5 || lava > 0.5 || farm > 0.5 || n < -3000)) continue;   // outside the mountains
     looked++;
-    if (seesCastle(n, e, ground + 1000 * FT)) seen++;
+    if (seesCastle(n, e, here + 1000 * FT)) seen++;
   }
-  console.log(`  The castle: seen from ${seen} of ${looked} places 1,000 ft over the lowlands`);
+  console.log(`  The castle: seen from ${seen} of ${looked} places 1,000 ft over the country outside the mountains`);
   assert.equal(seen, 0);
 });
 
-test('island: the south coast has its cliffs, cove and headland; the viaduct has a glen to span', () => {
-  // The cove: water in the middle, cliffs round it, the sea through its mouth.
-  assert.equal(island.waterAt(cove.north, cove.east), 0);
-  assert.equal(island.waterAt(cove.north - cove.radius - 150, cove.east), 0, 'the mouth is open to the sea');
-  for (const bearing of [0, 60, 300]) {
-    const reach = cove.radius + 300, n = cove.north + reach * Math.cos(bearing * DEG), e = cove.east + reach * Math.sin(bearing * DEG);
-    assert.ok(island.heightAt(n, e) > 60, `cliff ${bearing} deg from the cove: ${island.heightAt(n, e)} m`);
+test('island: the canyon runs from the loch to the sea, a river in it all the way, deep and wide enough to fly', () => {
+  const course = region.river;
+  let shallowest = Infinity, narrowest = Infinity, dry = 0, length = 0, previous = Infinity;
+  for (let i = 1; i < course.length; i++) {
+    const [an, ae] = course[i - 1], [bn, be] = course[i], leg = Math.hypot(bn - an, be - ae), across = [-(be - ae) / leg, (bn - an) / leg];
+    length += leg;
+    for (let t = 0; t < 1; t += 0.25) {
+      const n = an + (bn - an) * t, e = ae + (be - ae) * t, bed = island.heightAt(n, e);
+      if (bed <= 0 || island.waterAt(n, e) === loch.level) continue;     // in the sea, or still in the loch
+      if (island.waterAt(n, e) === null) dry++;
+      assert.ok(bed <= previous + 6, `the river runs uphill at ${Math.round(n)}, ${Math.round(e)}`);
+      previous = Math.min(previous, bed);
+      // The rims: the highest ground within three-quarters of a mile either side. The floor: how far the flat reaches.
+      const rim = (sign) => { let top = -Infinity; for (let d = 300; d <= 1400; d += 50) top = Math.max(top, island.heightAt(n + sign * across[0] * d, e + sign * across[1] * d)); return top; };
+      const flat = (sign) => { let d = 0; while (d < 1000 && island.heightAt(n + sign * across[0] * d, e + sign * across[1] * d) < bed + 30) d += 10; return d; };
+      if (i > 8 && bed > 12) {   // past the head, where the viaduct stands, and short of the mouth, where the walls come down to the beach
+        shallowest = Math.min(shallowest, Math.min(rim(1), rim(-1)) - bed); narrowest = Math.min(narrowest, flat(1) + flat(-1)); }
+    }
   }
-  assert.ok(island.heightAt(door.north + 100, door.east) > 5, 'the Door stands on land');
-  assert.equal(island.waterAt(door.north - 400, door.east), 0);
-  // The glen at the viaduct: a floor with high ground half a mile either side.
-  const floor = island.heightAt(viaduct.north, viaduct.east);
-  let sides = 0;
-  for (let b = 0; b < 360; b += 30) if (island.heightAt(viaduct.north + 800 * Math.cos(b * DEG), viaduct.east + 800 * Math.sin(b * DEG)) > floor + 150) sides++;
-  assert.ok(sides >= 4, `${sides} of 12 directions rise from the glen floor`);
+  console.log(`  The canyon: ${(length / NM).toFixed(1)} miles of river; at least ${Math.round(shallowest / FT)} ft from rim to river and ${(narrowest / NM).toFixed(2)} miles wide at the river`);
+  assert.equal(dry, 0, 'water all the way');
+  assert.ok(length / NM > 12);
+  assert.ok(shallowest / FT > 2500, 'at least 2,500 ft deep, away from its head and its mouth');
+  assert.ok(narrowest / NM > 0.23, 'about a quarter mile wide at the river');
+  assert.ok(Math.hypot(viaduct.north - course[4][0], viaduct.east - course[4][1]) < 400, 'the viaduct\'s place is on the river, at the canyon\'s head');
+});
+
+test('island: the desert, its crest, the volcano and its lava lake, the cove and the Door', () => {
+  // The Strip's place: desert, and fairly flat.
+  assert.ok(island.countryAt(strip.north, strip.east).desert > 0.9, 'the Strip stands in the desert');
+  // The crest: from the desert a mile south of the mountains' wall, the ground rises at least 2,500 ft within two miles north.
+  let wall = 0;
+  for (let e = -11500; e <= -8500; e += 500) {
+    let foot = Infinity, top = 0;
+    for (let n = -1500; n <= 6500; n += 100) { const h = island.heightAt(n, e); if (island.countryAt(n, e).desert > 0.5) foot = Math.min(foot, h); top = Math.max(top, h); }
+    wall = Math.max(wall, top - foot);
+  }
+  // The volcano: a rim about 4,000 ft up, and lava in the crater below it.
+  let rim = 0;
+  for (let b = 0; b < 360; b += 10) rim = Math.max(rim, island.heightAt(volcano.north + 560 * Math.cos(b * DEG), volcano.east + 560 * Math.sin(b * DEG)));
+  assert.equal(island.lavaAt(volcano.north, volcano.east), lake.level, 'lava in the crater');
+  assert.equal(island.waterAt(volcano.north, volcano.east), null);
+  assert.ok(island.countryAt(volcano.north + 2000, volcano.east).lava > 0.9, 'lava country round it');
+  // The cove: water a mile across, cliffs round it, its mouth open to the sea in the east.
+  let across = 0;
+  for (let e = cove.east - 1500; e < cove.east + 1500; e += 20) if (island.waterAt(cove.north + 300, e) === 0) across += 20;
+  for (const bearing of [180, 225, 270, 315, 0]) {
+    const reach = cove.radius + 350, n = cove.north + reach * Math.cos(bearing * DEG), e = cove.east + reach * Math.sin(bearing * DEG);
+    assert.ok(island.heightAt(n, e) > 50, `cliff ${bearing} deg from the cove: ${island.heightAt(n, e)} m`);
+  }
+  for (let e = cove.east; e < cove.east + 3000; e += 50) assert.equal(island.waterAt(cove.north, e), 0, 'the mouth is open to the sea');
+  let mouth = 0;
+  for (let n = cove.north - 600; n < cove.north + 600; n += 10) if (island.waterAt(n, cove.east + cove.radius + 200) === 0) mouth += 10;
+  assert.ok(island.heightAt(door.north, door.east - 150) > 3, 'the Door stands on land');
+  assert.equal(island.waterAt(door.north, door.east + 400), 0);
+  console.log(`  The crest: a wall ${Math.round(wall / FT)} ft high. The volcano: rim at ${Math.round(rim / FT)} ft, lava ${Math.round((rim - lake.level) / FT)} ft below it`);
+  console.log(`  The cove: ${(across / NM).toFixed(2)} miles across, its mouth ${(mouth / NM).toFixed(2)} miles wide`);
+  assert.ok(wall / FT > 2500);
+  assert.ok(Math.abs(rim / FT - 4000) < 300 && rim - lake.level > 100);
+  assert.ok(across / NM > 0.9 && across / NM < 1.15 && mouth / NM > 0.2 && mouth / NM < 0.35);
 });
 
 // ---- flying from the island's air base, headless, as the app does ----
@@ -130,11 +187,11 @@ import { circuit } from './circuit.js';
 const ground = islandGround(island), field = baseField(region, island);
 const wood = nearestWood();
 
-test('island: the flight model stands on the sea and the loch as it does on land', () => {
+test('island: the flight model stands on the sea, the loch and the lava as it does on land', () => {
   assert.equal(ground.heightAt(-30000, 0), 0, 'the sea, far out');
   assert.equal(ground.heightAt(cove.north, cove.east), 0, 'the cove');
-  const loch = region.lochs[0];
-  assert.equal(ground.heightAt(castle.north - 500, castle.east), loch.level, 'the loch, off the castle');
+  assert.equal(ground.heightAt(castle.north + 800, castle.east), loch.level, 'the loch, off the castle');
+  assert.equal(ground.heightAt(volcano.north, volcano.east), lake.level, 'the lava lake');
   assert.ok(Math.abs(ground.heightAt(base.north, base.east) - base.height) < 0.3, 'the runway');
 });
 
@@ -155,11 +212,11 @@ test('island: at the start the jet sits still on the numbers of runway 28, with 
   assert.ok(ahead > 8900 && ahead < 9200, 'nearly all of the 9,200 ft ahead');
 });
 
-test('island: a whole flight from the base: take off on 28, fly a circuit, land and stop on the runway', () => {
+test('island: a whole flight from the base: take off on 28, fly a left-hand circuit, land and stop on the runway', () => {
   const card = deriveCard(F4C);
   const sim = new Sim(card, startState(card, field), { ground, gear: true, flaps: true });
   for (let t = 0; t < 3; t += DT) sim.step(PARKED);
-  const pilot = circuit({ field }), released = sim.t;
+  const pilot = circuit({ field, hand: -1 }), released = sim.t;   // a left-hand pattern: the mountains are to the right
   const log = fly(sim, 480, pilot, 1);
   const e = pilot.events, half = field.runway.length / 2, edge = field.runway.width / 2;
   assert.equal(sim.crashed, null, 'no crash');
@@ -174,12 +231,12 @@ test('island: a whole flight from the base: take off on 28, fly a circuit, land 
 test('island: over the hills the radar altitude and the altitude part company', () => {
   // A mile-high pass north over the range: the ground comes up under the jet and falls away again.
   let least = Infinity, most = 0;
-  for (let n = 0; n < 17000; n += 100) {
-    const above = 3000 - ground.heightAt(n, castle.east - 4000);
+  for (let n = -4000; n < 17000; n += 100) {
+    const above = 3000 - ground.heightAt(n, 9000);
     least = Math.min(least, above); most = Math.max(most, above);
   }
   console.log(`  At 9,840 ft from the lowlands north across the range: the ground is between ${Math.round(least / FT)} and ${Math.round(most / FT)} ft below`);
-  assert.ok(most > 2800 && least < 1500 && least > 0);
+  assert.ok(most > 2800 && least < 2000 && least > 0);
 });
 
 test('island: the ground drawn near the jet is the ground the flight model feels', () => {
@@ -199,7 +256,9 @@ test('island: the ground drawn near the jet is the ground the flight model feels
   };
   let worst = 0;
   const look = (n0, n1, e0, e1) => { for (let n = n0; n < n1; n += 7.3) for (let e = e0; e < e1; e += 7.3) worst = Math.max(worst, Math.abs(drawn(n, e) - felt(n, e))); };
-  look(-18600, -17400, -6000, 2000);                                   // the cliffs, the cove and the Door's headland
+  look(cove.north - 1400, cove.north + 1400, cove.east - 1400, cove.east + 1400);     // the cove and its cliffs
+  look(-6500, -4500, -5200, -2500);                                    // the canyon, wall to wall
+  look(volcano.north - 700, volcano.north + 700, volcano.east - 700, volcano.east + 700);   // the crater
   look(castle.north - 1500, castle.north + 1500, castle.east - 1500, castle.east + 1500);
   look(base.north - 600, base.north + 600, base.east - 2000, base.east + 2000);
   look(wood.north - 400, wood.north + 400, wood.east - 400, wood.east + 400);          // a wood: its top and its sides
@@ -208,8 +267,8 @@ test('island: the ground drawn near the jet is the ground the flight model feels
   // The waterline is the one crease that follows no line of the map: where a cliff stands in the sea, the drawn
   // shore and the felt one part by a few feet inside the one square the waterline crosses.
   felt = ground.heightAt; worst = 0;
-  look(-18600, -17400, -6000, 2000);
-  console.log(`  At the waterline under the cliffs: at most ${(worst / FT).toFixed(1)} ft apart`);
+  look(cove.north - 1400, cove.north + 1400, cove.east - 1400, cove.east + 1400);
+  console.log(`  At the waterline under the cove's cliffs: at most ${(worst / FT).toFixed(1)} ft apart`);
   assert.ok(worst < 3, `${worst} m apart at the waterline`);
 });
 
@@ -231,8 +290,8 @@ const KT = 0.514444;
 
 test('island: with crashes on, flying into a mountain ends the flight; a scrape, a slope landing and the override do not', () => {
   const card = deriveCard(F4C);
-  // Level at 400 knots toward the mountain north of the loch, below its top.
-  const into = { north: 9000, east: -1500, feet: 4500, heading: 0, kt: 400 };
+  // Level at 400 knots over the loch toward the mountain north of it, below its top.
+  const into = { north: 10800, east: 600, feet: 4500, heading: 0, kt: 400 };
   const hit = over(card, into);
   fly(hit, 60);
   console.log(`  Into the mountainside at 400 kt: ${hit.crashed ? `${hit.crashed.reason}, closing at ${Math.round(hit.crashed.value / KT)} kt, ${(hit.t).toFixed(0)} s in` : 'no crash'}`);
@@ -251,18 +310,24 @@ test('island: with crashes on, flying into a mountain ends the flight; a scrape,
   assert.equal(land.crashed, null, 'a gentle arrival on land survives');
 });
 
-test('island: with crashes on, any touch of the sea or the loch ends the flight, however gentle', () => {
+test('island: with crashes on, any touch of the sea, the loch, the river or the lava ends the flight, however gentle', () => {
   const card = deriveCard(F4C);
-  const loch = region.lochs[0];
-  for (const [name, at] of [['the sea', { north: -22000, east: 0, feet: 12 }], ['the loch', { north: castle.north - 500, east: castle.east, feet: loch.level / FT + 12 }]]) {
-    const wet = over(card, { ...at, heading: 90, kt: 150, fpm: 100, pitch: 8 });
-    fly(wet, 30);
-    console.log(`  Onto ${name} at 100 ft/min: ${wet.crashed ? wet.crashed.reason : 'no crash'}`);
-    assert.equal(wet.crashed?.reason, 'water', name);
-    const dry = over(card, { ...at, heading: 90, kt: 150, fpm: 100, pitch: 8, crashes: false });
-    fly(dry, 30);
-    assert.equal(dry.crashed, null, `${name}, with the override on`);
-    assert.ok(-dry.state.x[2] > (name === 'the sea' ? 0 : loch.level) - 1, 'and the water holds the jet up');
+  const river = region.river[30], bed = island.heightAt(river[0], river[1]);
+  const places = [
+    ['the sea', { north: -22000, east: 0, feet: 12 }, 'water', 0],
+    ['the loch', { north: castle.north + 800, east: castle.east - 1500, feet: loch.level / FT + 12 }, 'water', loch.level],
+    ['the river', { north: river[0], east: river[1], feet: bed / FT + 12, heading: 200 }, 'water', bed - 40],
+    ['the lava', { north: volcano.north, east: volcano.east - 250, feet: lake.level / FT + 12 }, 'lava', lake.level],
+  ];
+  for (const [name, at, reason, floor] of places) {
+    const down = over(card, { heading: 90, kt: 150, fpm: 100, pitch: 8, ...at });
+    fly(down, 12);
+    console.log(`  Onto ${name} at 100 ft/min: ${down.crashed ? down.crashed.reason : 'no crash'}`);
+    assert.equal(down.crashed?.reason, reason, name);
+    const spared = over(card, { heading: 90, kt: 150, fpm: 100, pitch: 8, ...at, crashes: false });
+    fly(spared, 12);
+    assert.equal(spared.crashed, null, `${name}, with the override on`);
+    assert.ok(-spared.state.x[2] > floor - 1, 'and it holds the jet up');
   }
 });
 
@@ -275,27 +340,27 @@ function nearestWood() {
   for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
     if (!woods[r * region.size + c]) continue;
     const north = region.north0 - r * region.post, east = region.east0 + c * region.post, far = Math.hypot(north - base.north, east - (base.east - 4000));
-    if (east > region.paint.fieldsEast && (!best || far < best.far)) best = { north, east, far };
+    if (woods[r * region.size + c] !== RIVER && (!best || far < best.far)) best = { north, east, far };
   }
   return best;
 }
 
-test('island: woods stand 40 feet tall, cover a modest part of the land, and keep off the airfield and the glens', () => {
+test('island: woods stand 40 feet tall, in the farmland, and keep off the airfield', () => {
   const tall = island.canopyAt(wood.north, wood.east);
-  let posts = 0, onField = 0, inGlens = 0, landPosts = 0;
-  for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
-    const north = region.north0 - r * region.post, east = region.east0 + c * region.post;
-    if (region.min + heights[r * region.size + c] * region.step > 0) landPosts++;
-    if (!woods[r * region.size + c]) continue;
+  let posts = 0, onField = 0, elsewhere = 0, farmland = 0;
+  for (const { north, east, post } of land()) {
+    const farm = island.countryAt(north, east).farm > 0.5;
+    if (farm) farmland++;
+    if (!woods[post] || woods[post] === RIVER) continue;
     posts++;
     if (onAirfield(base, north, east, 300)) onField++;
-    if (north > 4500 && (east < region.paint.fieldsEast || region.min + heights[r * region.size + c] * region.step > 60)) inGlens++;   // farmland runs north along the east coast; its woods are not in the glens
+    if (!farm) elsewhere++;
   }
-  console.log(`  Woods: ${(tall / FT).toFixed(0)} ft tall, ${((100 * posts) / landPosts).toFixed(1)}% of the land`);
+  console.log(`  Woods: ${(tall / FT).toFixed(0)} ft tall, ${((100 * posts) / farmland).toFixed(1)}% of the farmland`);
   assert.ok(Math.abs(tall / FT - 40) < 1);
-  assert.ok(posts / landPosts > 0.02 && posts / landPosts < 0.1);
+  assert.ok(posts / farmland > 0.02 && posts / farmland < 0.1);
   assert.equal(onField, 0, 'none on the airfield or off the runway\'s ends');
-  assert.equal(inGlens, 0, 'none in the highlands: the glens are for flying');
+  assert.ok(elsewhere / posts < 0.02, 'the farmland\'s woods are in the farmland');
 });
 
 test('island: a wood is solid at its treetops, and the radar altimeter reads to them', () => {
@@ -320,7 +385,7 @@ test('island: a wood is solid at its treetops, and the radar altimeter reads to 
 
 test('island: scenery trees stand beside the tracks, never on the airfield, the water or a wood, and not too many at once', () => {
   let most = 0, total = 0;
-  for (const [north, east] of [[base.north, base.east], [base.north - 4000, base.east - 3000], [wood.north, wood.east], [-9000, 9000]]) {
+  for (const [north, east] of [[base.north, base.east], [base.north - 4000, base.east - 3000], [wood.north, wood.east], [-9000, 9000], [strip.north, strip.east], [volcano.north, volcano.east]]) {
     let count = 0;
     for (let i = Math.round((north - 1400) / 22); i <= (north + 1400) / 22; i++) for (let j = Math.round((east - 1400) / 22); j <= (east + 1400) / 22; j++) {
       const tree = treeIn(i, j, island, region);
@@ -329,10 +394,69 @@ test('island: scenery trees stand beside the tracks, never on the airfield, the 
       assert.equal(onAirfield(base, tree.north, tree.east, 100), false, 'a tree on the airfield');
       assert.equal(island.waterAt(tree.north, tree.east), null);
       assert.equal(island.canopyAt(tree.north, tree.east), 0);
+      assert.ok(island.countryAt(tree.north, tree.east).farm > 0.5, 'a field tree outside the farmland');
       assert.ok(tree.height > 8 && tree.height < 17);
     }
     most = Math.max(most, count); total += count;
   }
   console.log(`  Trees round the camera: up to ${most} at once`);
   assert.ok(total > 400 && most < 2500, `${most} trees at once`);
+});
+
+// ---- flying the canyon ----
+import { gPilot } from './fly.js';
+
+// A pilot who follows the river: aims at a point a little way up the course, banks to turn onto it, and holds a
+// height above the river bed. `up` is true to fly upstream, from the sea to the loch.
+function riverPilot(course, { kt, above, ahead = 1100 }) {
+  const pull = gPilot(0.1);
+  let power = 0.5, at = 0;
+  return (r, sim) => {
+    const [n, e] = [sim.state.x[0], sim.state.x[1]];
+    // The nearest point of the course from where we last were on it, then on by the look-ahead.
+    while (at < course.length - 2 && Math.hypot(course[at + 1][0] - n, course[at + 1][1] - e) < Math.hypot(course[at][0] - n, course[at][1] - e)) at++;
+    let aim = at, gone = 0;
+    while (aim < course.length - 1 && gone < ahead) { gone += Math.hypot(course[aim + 1][0] - course[aim][0], course[aim + 1][1] - course[aim][1]); aim++; }
+    const bearing = Math.atan2(course[aim][1] - e, course[aim][0] - n) / DEG, off = ((bearing - r.heading + 540) % 360) - 180;
+    const bank = Math.max(-80, Math.min(80, off * 3.2));
+    const wanted = island.heightAt(course[aim][0], course[aim][1]) / FT + above, climb = Math.max(-2500, Math.min(2500, (wanted - r.ft) * 6));
+    const g = Math.max(0.3, Math.min(6.5, 1 / Math.max(0.2, Math.cos(r.roll * DEG)) + (climb - r.fpm) / 2500));
+    power = Math.max(0, Math.min(1, power + 0.004 * (kt - r.kias) * DT * 60));
+    return { elevator: pull(r, g), aileron: Math.max(-1, Math.min(1, 0.045 * (bank - r.roll) - 0.012 * r.rollRate)), throttle: Math.max(0, Math.min(1, power + 0.02 * (kt - r.kias))) };
+  };
+}
+
+test('island: the canyon can be flown from the sea to the viaduct at 350 knots, below the rim all the way', () => {
+  const card = deriveCard(F4C);
+  // Upstream: the course reversed, from the mouth to the viaduct's place.
+  const course = [...region.river].reverse().filter(([n, e]) => island.heightAt(n, e) > 0 && island.waterAt(n, e) !== loch.level);
+  const stop = course.findIndex(([n, e]) => Math.hypot(n - viaduct.north, e - viaduct.east) < 300);
+  const [sn, se] = course[0], [tn, te] = course[3];
+  const sim = airborne(card, { ft: 700, kt: 350, level: true, throttle: 'trim', ground });
+  sim.state.x = [sn, se, -700 * FT];
+  sim.state.q = qfromEuler(0, sim.trim.alpha, Math.atan2(te - se, tn - sn));
+  const pilot = riverPilot(course.slice(0, stop + 1), { kt: 350, above: 700 });
+  let closest = Infinity, highest = -Infinity, steepest = 0, most = 0, reached = false;
+  const control = (r, s) => {
+    const [n, e] = s.state.x;
+    for (let b = 0; b < 360; b += 30) for (const d of [60, 120, 200]) {
+      if (ground.heightAt(n + d * Math.cos(b * DEG), e + d * Math.sin(b * DEG)) > -s.state.x[2] - 15) closest = Math.min(closest, d);
+    }
+    // The rim here: the highest ground within three-quarters of a mile.
+    let rim = -Infinity;
+    for (let b = 0; b < 360; b += 30) rim = Math.max(rim, ground.heightAt(n + 1400 * Math.cos(b * DEG), e + 1400 * Math.sin(b * DEG)));
+    if (island.heightAt(n, e) > 15) highest = Math.max(highest, -s.state.x[2] - rim);
+    steepest = Math.max(steepest, Math.abs(r.roll)); most = Math.max(most, r.g);
+    return pilot(r, s);
+  };
+  // A second at a time, until the viaduct's place is half a mile ahead.
+  while (!reached && !sim.crashed && sim.t < 400) {
+    fly(sim, 1, control, 1);
+    reached = Math.hypot(sim.state.x[0] - viaduct.north, sim.state.x[1] - viaduct.east) < 900;
+  }
+  console.log(`  The canyon run at 350 kt: ${sim.crashed ? `ends: ${sim.crashed.reason}` : reached ? `reaches the viaduct in ${(sim.t / 60).toFixed(1)} min` : 'does not get there'}; never closer than ${closest === Infinity ? 'over 650' : Math.round(closest / FT)} ft to a wall; ${Math.round(-highest / FT)} ft below the rim at its highest; up to ${Math.round(steepest)} deg of bank and ${most.toFixed(1)} g`);
+  if (sim.crashed) console.log(`  ended ${sim.t.toFixed(0)} s in at ${Math.round(sim.state.x[0])}, ${Math.round(sim.state.x[1])}, ${Math.round(-sim.state.x[2])} m; river bed there ${Math.round(island.heightAt(sim.state.x[0], sim.state.x[1]))} m`);
+  assert.equal(sim.crashed, null, 'it touches nothing');
+  assert.ok(reached, 'it gets to the viaduct');
+  assert.ok(highest < 0, 'below the rim all the way');
 });
