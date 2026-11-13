@@ -37,7 +37,7 @@ const CANYON = { floor: 230, rim: 700, lip: 400 };   // half-widths at the river
 // (see `shape`), which is why it is not a round number.
 export const VIADUCT = { north: 9300, east: -3706 };
 const VIADUCT_END = 252;    // m: from the viaduct's middle to the outside of its last arch
-const VIADUCT_DECK = 60;    // m: its deck above the river
+const VIADUCT_DECK = 120;   // m: its deck above the river
 const PLATEAU = 960;                                  // the desert's height along the canyon
 const VOLCANO = { north: -8600, east: 1900, rim: 1220, reach: 3500, crater: 520, lake: 330, deep: 250 };
 // Where the lava runs from it to the sea: one flow down the west side, fanning out to the coast in three streams.
@@ -184,13 +184,14 @@ const lavaBox = { south: VOLCANO.north - VOLCANO.crater, north: VOLCANO.north + 
 export function shape(n, e) {
   let h = natural(n, e);
   if (h <= 0) return h;
-  // The viaduct's east end. The west end runs into the canyon's wall; in the east the ground rose too gently, and
-  // the deck stopped in mid-air. So a bluff stands there for it to run into: the river's flat floor as far as the last
-  // arch, and one post on (the map's steepest slope) a rise half as high again as the deck.
-  const x = e - VIADUCT.east, off = Math.abs(n - VIADUCT.north + 12);
-  if (x > VIADUCT_END && x < 420 && off < 170) {
-    const rise = x < VIADUCT_END + POST ? (1.5 * VIADUCT_DECK * (x - VIADUCT_END)) / POST : 1.5 * VIADUCT_DECK - 0.27 * (x - VIADUCT_END - POST);
-    h = Math.max(h, viaductBed() + rise * smooth(170, 70, off));
+  // The viaduct's east end. The west end runs into the canyon's wall; in the east the ground is only half as high as
+  // the deck, which would stop in mid-air. So a hill stands there for it to run into: the river's flat floor as far
+  // as the last arch, one post on (the map's steepest slope, hidden inside the viaduct's end wall) a top just above the
+  // track, held for a post more, and then a long slope down to the ground by the loch.
+  const x = e - VIADUCT.east, off = Math.abs(n - VIADUCT.north + 35), top = VIADUCT_DECK + 10;
+  if (x > VIADUCT_END && x < 640 && off < 100) {
+    const rise = x < VIADUCT_END + POST ? (top * (x - VIADUCT_END)) / POST : top - 0.3 * Math.max(0, x - VIADUCT_END - 2 * POST);
+    h = Math.max(h, viaductBed() + rise * smooth(100, 40, off));
   }
   // Room to fly out. The viaduct stands on a bend, and upstream of it the canyon's west wall crossed straight in
   // front of the western arches, a second's flying away. It is cut back to a low terrace for 650 m north of them;

@@ -24,7 +24,7 @@ const ground = islandGround(island, createSolids(Object.values(landmarks).flatMa
 
 // What the prompt for each model asked for: its overall size in metres (east-west, up from the origin, north-south),
 // its triangle budget, and how many openings there are to fly through.
-const ASKED = { viaduct: { size: [520, 61, 33], triangles: 8000, openings: 11 } };
+const ASKED = { viaduct: { size: [640, 121, 51], triangles: 8000, openings: 11 } };
 
 test('landmarks: terrain/landmarks.json is what the script writes today', () => {
   assert.deepEqual(landmarks, JSON.parse(JSON.stringify(freshLandmarks())), 'landmarks.json is stale: run node terrain/make-island.mjs');
@@ -65,7 +65,9 @@ for (const [name, at] of Object.entries(landmarks)) {
   const legs = at.solids.filter((s) => /pier|abutment/.test(s.name)).sort((a, b) => a.centre[1] - b.centre[1]);
   const openings = legs.slice(1).map((b, i) => {
     const a = legs[i], across = [b.centre[0] - a.centre[0], b.centre[1] - a.centre[1]], gap = Math.hypot(...across);
-    return { north: (a.centre[0] + b.centre[0]) / 2, east: (a.centre[1] + b.centre[1]) / 2, gap, heading: Math.atan2(-across[0], across[1]) / DEG - 0, a, b };
+    // Its middle is half way between the two legs' facing sides; a leg's first axis lies along the landmark.
+    const t = (a.half[0] + (gap - a.half[0] - b.half[0]) / 2) / gap;
+    return { north: a.centre[0] + across[0] * t, east: a.centre[1] + across[1] * t, gap, clear: gap - a.half[0] - b.half[0], heading: Math.atan2(-across[0], across[1]) / DEG, a, b };
   });
   const card = deriveCard(F4C);
   // The jet 500 m short of a point, level at 350 knots toward it on `heading`, `up` metres above the landmark's origin.
@@ -86,21 +88,22 @@ for (const [name, at] of Object.entries(landmarks)) {
     const widths = [];
     for (const [i, o] of openings.entries()) {
       // How wide the hole in the solid shapes is: the gap between the two legs' boxes.
-      const clear = o.gap - o.a.half[0] - o.b.half[0];
+      const clear = o.clear;
       widths.push(clear);
       assert.ok(clear >= 35, `opening ${i + 1} is ${clear.toFixed(1)} m wide in the solid shapes`);
-      for (const way of [0, 180]) for (const up of [12, 30]) {
+      for (const way of [0, 180]) for (const up of [12, 90]) {
         const sim = pass(o, o.heading + way, up);
         assert.equal(sim.crashed, null, `opening ${i + 1}, heading ${Math.round(o.heading + way)}, ${up} m up: ${sim.crashed?.reason} (${sim.crashed?.solid ?? sim.crashed?.point})`);
         assert.ok(Math.hypot(sim.state.x[0] - o.north, sim.state.x[1] - o.east) > 300, 'it came out the far side');
       }
     }
-    console.log(`  ${openings.length} openings, each flown both ways at 350 kt, 40 and 100 ft above the river: all clear. The hole in the solid shapes is ${Math.min(...widths).toFixed(1)} to ${Math.max(...widths).toFixed(1)} m wide`);
+    console.log(`  ${openings.length} openings, each flown both ways at 350 kt, 40 and 300 ft above the river: all clear. The hole in the solid shapes is ${Math.min(...widths).toFixed(1)} to ${Math.max(...widths).toFixed(1)} m wide`);
     // Into the stone: a leg head-on, a wingtip on a leg, and the deck.
     const decks = at.solids.filter((s) => /deck/.test(s.name));
     const o = openings[Math.floor(openings.length / 2)], leg = { north: o.b.centre[0], east: o.b.centre[1] };
     const side = (m) => ({ north: o.north + (m / o.gap) * (o.b.centre[0] - o.a.centre[0]), east: o.east + (m / o.gap) * (o.b.centre[1] - o.a.centre[1]) });
-    const head = pass(leg, o.heading, 30), tip = pass(side(o.gap / 2 - o.b.half[0] - 4), o.heading, 30), deck = pass(o, o.heading, decks[0].centre[2] - at.up), over = pass(o, o.heading, 90), spared = pass(leg, o.heading, 30, false);
+    const above = Math.max(...decks.map((d) => d.centre[2] + d.half[1])) - at.up + 20;
+    const head = pass(leg, o.heading, 30), tip = pass(side(o.clear / 2 - 4), o.heading, 30), deck = pass(o, o.heading, decks[0].centre[2] - at.up), over = pass(o, o.heading, above), spared = pass(leg, o.heading, 30, false);
     const say = (sim) => (sim.crashed ? `ends the flight (${sim.crashed.solid ?? sim.crashed.reason})` : 'clear');
     console.log(`  Into a pier: ${say(head)}. A wingtip on a pier: ${say(tip)}. Into the deck: ${say(deck)}. Over the top: ${say(over)}. Into a pier with the crash override on: ${say(spared)}`);
     assert.equal(head.crashed?.solid, o.b.name);

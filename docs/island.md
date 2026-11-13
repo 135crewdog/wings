@@ -88,7 +88,7 @@ Painted, to match the jet: clean, flat colours on flat-shaded land. Not photogra
 Everything is real size, 1 to 1: the person who fits the F-4's cockpit can walk through a door in the castle. Three things are bigger than life on purpose:
 
 - **The mountains,** as above.
-- **The viaduct's arches,** so an F-4 can blast through one: each opening at least 115 feet wide and 130 feet tall, three times the jet's 38-foot wingspan. The real ones are about 50 feet wide.
+- **The viaduct,** twice the height of the real one to match the mountains, its deck 400 feet above the river, and its arches opened up so an F-4 can blast through one: each opening at least 115 feet wide and 130 feet tall, three times the jet's 38-foot wingspan. The real ones are about 50 feet wide.
 - **The opening in Durdle Door,** the same size at least, for the same reason.
 - **The cove,** about four times the real one's width, so a jet can turn inside it.
 
@@ -133,6 +133,6 @@ The island's map is four files in `terrain/`, all written by `terrain/make-islan
 - `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
 - `landmarks.json`: each landmark that has a model: where it stands, and its solid shapes, read from the model in `models/`.
 
-The viaduct is in: the owner's model, standing east and west across the canyon's head. The land was shaped to it in two places: a bluff at its east end for the deck to run into, and the canyon's west wall cut back north of it, so there is room to fly out of every arch.
+The viaduct is in: the owner's model, standing east and west across the canyon's head. The land was shaped to it in two places: a hill at its east end for the track to run into, as it runs into the canyon's wall in the west, and the canyon's west wall cut back north of it, so there is room to fly out of every arch.
 
 `node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page, and flies it. `tests/landmarks.test.js` checks each landmark's model against `docs/models.md`, and flies its openings.
