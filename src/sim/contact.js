@@ -6,7 +6,9 @@
 // touchdown check that ends a flight. Pure functions; the ground comes from the caller.
 //
 // ground: { heightAt(x, y) → m above sea level, surfaceAt(x, y) → name, surfaces: { name: { mu_roll,
-// mu_side, mu_brake, mu_skid } } }. The ground is flat: its normal is world up.
+// mu_side, mu_brake, mu_skid } } }. The forces treat the ground under each point as level; the touchdown
+// check knows its slope, so flying into a hillside is the hard arrival it is. A surface with `ends: true`
+// (water) ends the flight at any touch.
 
 import { add, cross, qrotate, qrotateInv } from './vec.js';
 
@@ -84,13 +86,27 @@ export function touching(card, state, ground, gearDown = true) {
   return points.map((p) => pointState(state, p.r, ground).d > 0);
 }
 
+const SLOPE_STEP = 5;   // m: the ground's slope is measured this far either side of a point
+
+/**
+ * How fast the airplane is closing with the ground under a point (m/s): its velocity into the
+ * surface there. On level ground that is its sink rate; into a hillside it is most of its speed.
+ */
+export function closingSpeed(state, at, ground) {
+  const [vn, ve, vd] = qrotate(state.q, state.v), [n, e] = at;
+  const gn = (ground.heightAt(n + SLOPE_STEP, e) - ground.heightAt(n - SLOPE_STEP, e)) / (2 * SLOPE_STEP);
+  const ge = (ground.heightAt(n, e + SLOPE_STEP) - ground.heightAt(n, e - SLOPE_STEP)) / (2 * SLOPE_STEP);
+  return (vn * gn + ve * ge + vd) / Math.hypot(gn, ge, 1);
+}
+
 /**
  * The touchdown check, after a step from `before` to `after`: a point that wasn't touching
- * and now is has touched down. What counts is how fast the airplane as a whole was coming
- * down, measured in `before`, the last state before contact; within the step the contact's
- * damping has already slowed it. It is the airplane's sink rate and not the point's own, so a
- * wing low or a nose slapping down is not punished harder than a level arrival.
- * Only a hard arrival is a crash: scrapes, slides and wingtip touches survive.
+ * and now is has touched down. What counts is how fast the airplane as a whole was closing
+ * with the ground there, measured in `before`, the last state before contact; within the step
+ * the contact's damping has already slowed it. It is the airplane's own speed into the ground and
+ * not the point's, so a wing low or a nose slapping down is not punished harder than a level arrival.
+ * Only a hard arrival is a crash: scrapes, slides and wingtip touches survive. Water is the
+ * exception: any point in it ends the flight, however gently it got there.
  * Returns null, or the crash: { point, reason, value }.
  */
 export function crashCheck(card, before, after, ground, wasTouching, gearDown = true) {
@@ -98,9 +114,12 @@ export function crashCheck(card, before, after, ground, wasTouching, gearDown = 
   const points = contactPoints(card, gearDown);
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
-    if (wasTouching[i] || pointState(after, p.r, ground).d <= 0) continue;
-    const sink = pointState(before, [0, 0, 0], ground).dDot;
-    if (sink > card.crash.sink) return { point: p.name, reason: 'hard impact', value: sink };
+    const ps = pointState(after, p.r, ground);
+    if (ps.d <= 0) continue;
+    if (ground.surfaces[ground.surfaceAt(ps.rw[0], ps.rw[1])].ends) return { point: p.name, reason: 'water', value: 0 };
+    if (wasTouching[i]) continue;
+    const closing = closingSpeed(before, ps.rw, ground);
+    if (closing > card.crash.sink) return { point: p.name, reason: 'hard impact', value: closing };
   }
   return null;
 }
