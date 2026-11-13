@@ -35,9 +35,6 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   const island = createIsland(land.region, land.heights, land.canopy, land.country), field = baseField(land.region, island);
   const world = createWorld(scene, renderer, field, land, island);
   const airplane = createAircraft();
-  // Drawn after the runway and the road. Those lie in the land's own plane and are drawn nudged toward the eye;
-  // seen from low behind, that nudge is deep enough to paint them over the bottoms of the tyres if they come last.
-  airplane.renderOrder = 2;
   scene.add(airplane);
   const chase = createChaseCamera();
   const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
