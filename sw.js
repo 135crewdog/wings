@@ -4,7 +4,7 @@
 // never calls skipWaiting() on its own; the app offers the update and posts
 // "skip-waiting" when the pilot accepts.
 
-const VERSION = '0.0.21';   // the same value as APP_VERSION in src/version.js
+const VERSION = '0.0.22';   // the same value as APP_VERSION in src/version.js
 const CACHE = `wings-${VERSION}`;
 const FILES = [
   './',
@@ -20,6 +20,7 @@ const FILES = [
   './src/flight.js',
   './src/field.js',
   './terrain/island.json',
+  './terrain/landmarks.json',
   './terrain/island.png',
   './terrain/country.png',
   './src/land.js',
@@ -30,6 +31,7 @@ const FILES = [
   './src/render/aircraft.js',
   './src/render/camera.js',
   './src/render/frames.js',
+  './src/render/landmarks.js',
   './src/render/terrain.js',
   './src/render/trees.js',
   './src/render/world.js',
@@ -44,6 +46,7 @@ const FILES = [
   './src/sim/ground.js',
   './src/sim/island.js',
   './src/sim/sim.js',
+  './src/sim/solids.js',
   './src/sim/trim.js',
   './src/sim/vec.js',
   './src/ui/throttle.js',
@@ -53,6 +56,7 @@ const FILES = [
   './vendor/three/examples/jsm/utils/BufferGeometryUtils.js',
   './vendor/three/examples/jsm/utils/SkeletonUtils.js',
   './models/f4c.glb',
+  './models/viaduct.glb',
 ];
 
 self.addEventListener('install', (event) => {

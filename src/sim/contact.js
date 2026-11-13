@@ -9,6 +9,9 @@
 // mu_side, mu_brake, mu_skid } } }. The forces treat the ground under each point as level; the touchdown
 // check knows its slope, so flying into a hillside is the hard arrival it is. A surface with `ends: true`
 // (water, lava) ends the flight at any touch.
+// The ground may also carry `solidBetween(from, to)` → the name of a landmark's solid shape on the straight
+// path between two points, each [north, east, up], or null: the piers, towers and walls that stand on the
+// land. Touching one ends the flight.
 
 import { add, cross, qrotate, qrotateInv } from './vec.js';
 
@@ -86,6 +89,7 @@ export function touching(card, state, ground, gearDown = true) {
   return points.map((p) => pointState(state, p.r, ground).d > 0);
 }
 
+const up = (x) => [x[0], x[1], -x[2]];
 const SLOPE_STEP = 5;   // m: the ground's slope is measured this far either side of a point
 
 /**
@@ -106,7 +110,8 @@ export function closingSpeed(state, at, ground) {
  * the contact's damping has already slowed it. It is the airplane's own speed into the ground and
  * not the point's, so a wing low or a nose slapping down is not punished harder than a level arrival.
  * Only a hard arrival is a crash: scrapes, slides and wingtip touches survive. Water is the
- * exception: any point in it ends the flight, however gently it got there.
+ * exception: any point in it ends the flight, however gently it got there. So is a landmark:
+ * any point whose path through the step touches one of its solid shapes ends the flight.
  * Returns null, or the crash: { point, reason, value }.
  */
 export function crashCheck(card, before, after, ground, wasTouching, gearDown = true) {
@@ -115,6 +120,8 @@ export function crashCheck(card, before, after, ground, wasTouching, gearDown = 
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     const ps = pointState(after, p.r, ground);
+    const solid = ground.solidBetween ? ground.solidBetween(up(add(before.x, qrotate(before.q, p.r))), up(ps.rw)) : null;
+    if (solid) return { point: p.name, reason: 'landmark', value: 0, solid };
     if (ps.d <= 0) continue;
     const under = ground.surfaceAt(ps.rw[0], ps.rw[1]);
     if (ground.surfaces[under].ends) return { point: p.name, reason: under, value: 0 };

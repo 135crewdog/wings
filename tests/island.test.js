@@ -310,8 +310,8 @@ import { airborne } from './fly.js';
 import { qfromEuler } from '../src/sim/vec.js';
 
 // The jet over the island at a place, `feet` above the sea, flying level on `heading` at `kt`, coming down at `fpm`.
-function over(card, { north, east, feet, heading, kt, fpm = 0, pitch = 0, gear = false, crashes = true }) {
-  const sim = airborne(card, { ft: feet, kt, pitch, gear, flaps: gear, ground });
+function over(card, { north, east, feet, heading, kt, fpm = 0, pitch = 0, gear = false, crashes = true, on = ground }) {
+  const sim = airborne(card, { ft: feet, kt, pitch, gear, flaps: gear, ground: on });
   const V = kt * KT, a = heading * DEG;
   sim.state.x = [north, east, -feet * FT];
   sim.state.q = qfromEuler(0, pitch * DEG, a);
@@ -502,4 +502,39 @@ test('island: the canyon can be flown from the sea to the viaduct at 350 knots, 
   assert.equal(sim.crashed, null, 'it touches nothing');
   assert.ok(reached, 'it gets to the viaduct');
   assert.ok(highest < 0, 'below the rim all the way');
+});
+
+// ---- landmarks' solid shapes (docs/models.md, "Landmarks") ----
+import { createSolids } from '../src/sim/solids.js';
+
+test('island: a landmark is solid where its boxes are and open where they are not', () => {
+  const card = deriveCard(F4C);
+  // A stand-in arch in the fields, until the first landmark arrives: two piers 9 m wide with a 37 m opening
+  // between them, and a deck across their tops from 45 m up. It stands square across a track of 030.
+  const at = { north: base.north + 3000, east: base.east - 2500 }, up = island.heightAt(at.north, at.east);
+  const track = 30 * DEG, along = [Math.cos(track), Math.sin(track), 0], across = [-Math.sin(track), Math.cos(track), 0], axes = [along, across, [0, 0, 1]];
+  const set = (name, side, height, half) => ({ name, centre: [at.north + across[0] * side, at.east + across[1] * side, up + height], half, axes });
+  const solids = createSolids([set('solid_pier_1', -23, 22.5, [4, 4.5, 22.5]), set('solid_pier_2', 23, 22.5, [4, 4.5, 22.5]), set('solid_deck', 0, 52.5, [4, 27.5, 7.5])]);
+  const on = islandGround(island, solids);
+  // Each pass starts 600 m short, level at 400 knots, `side` metres right of the opening's middle and `feet` above the ground.
+  const pass = (side, feet, crashes = true) => {
+    const sim = over(card, { north: at.north - along[0] * 600 + across[0] * side, east: at.east - along[1] * 600 + across[1] * side, feet: (up + 2) / FT + feet, heading: 30, kt: 400, crashes, on });
+    fly(sim, 5);
+    return sim.crashed;
+  };
+  const through = pass(0, 70), pier = pass(23, 70), deck = pass(0, 165), wing = pass(13.5, 70), overTop = pass(0, 260), spared = pass(23, 70, false);
+  const say = (c) => (c ? `${c.reason} (${c.solid ?? c.point})` : 'clear');
+  console.log(`  A 37 m arch at 400 kt: through the middle ${say(through)}; at a pier ${say(pier)}; at the deck ${say(deck)}; a wingtip on a pier ${say(wing)}; over the top ${say(overTop)}`);
+  assert.equal(through, null, 'the opening is open');
+  assert.equal(pier?.solid, 'solid_pier_2');
+  assert.equal(deck?.solid, 'solid_deck');
+  assert.equal(wing?.reason, 'landmark', 'a wingtip counts');
+  assert.equal(overTop, null);
+  assert.equal(spared, null, 'with the override on, the jet flies through');
+  // A wall half a metre thick, a kilometre on: at 400 knots the jet moves 1.7 m between one look and the next.
+  const wall = createSolids([{ name: 'solid_wall', centre: [at.north + along[0] * 1000, at.east + along[1] * 1000, up + 30], half: [0.25, 40, 30], axes }]);
+  const thin = over(card, { north: at.north, east: at.east, feet: (up + 2) / FT + 70, heading: 30, kt: 400, on: islandGround(island, wall) });
+  fly(thin, 8);
+  console.log(`  A wall 0.5 m thick at 400 kt: ${say(thin.crashed)}`);
+  assert.equal(thin.crashed?.solid, 'solid_wall', 'a thin wall is not skipped between steps');
 });

@@ -113,3 +113,5 @@ Claude Code puts the file at `models/<name>.glb`, reads its solid boxes into the
 `models/f4c.glb` is the owner's own F-4C, built in Blender with Claude in a Wings project chat. It carries a sixth motion, `speedbrake`, which the app doesn't use yet. `models/CREDITS.md` has its history.
 
 `node models/measure.mjs models/f4c.glb` prints a model's wheel and contact positions, to copy into its card.
+
+`models/viaduct.glb` is the owner's viaduct, the first landmark. `node models/solids.mjs models/viaduct.glb` prints a landmark's solid boxes.

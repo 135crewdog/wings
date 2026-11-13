@@ -3,13 +3,16 @@
 // writes terrain/island.png (the land's height, and the treetops over it),
 // terrain/country.png (what kind of country each place is) and
 // terrain/island.json (where it all lies, the water and lava, the river, and
-// the places landmarks stand). Run by hand when the island's shape changes;
-// the app only ever reads the three files.
+// the places landmarks stand), and terrain/landmarks.json (each landmark that
+// has a model: where it stands and its solid shapes). Run by hand when the
+// island's shape or a landmark's model changes; the app only ever reads the files.
 // Metres; north and east of the island's middle.
 
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { encodePng } from './png.mjs';
+import { readGlb } from '../models/glb.mjs';
+import { solidsOf } from '../models/solids.mjs';
 import { onAirfield, plotAt } from '../src/fields.js';
 
 export const SIZE = 1024, POST = 44;                 // posts each way, and metres between them
@@ -30,7 +33,11 @@ const GROUNDS = { north: 7500, east: 3500, across: 3300, deep: 1750 };          
 const BENDS = [[10250, -2900], [9300, -3700], [7500, -3300], [5400, -4500], [3200, -3500], [1000, -4500], [-1300, -3400], [-3600, -4500],
   [-5800, -3500], [-8000, -4700], [-10000, -6000], [-11900, -5500], [-13600, -6700], [-15400, -7300], [-17300, -8200]];
 const CANYON = { floor: 230, rim: 700, lip: 400 };   // half-widths at the river and at the rim; the lip at the loch is this long
-export const VIADUCT = { north: 9300, east: -3700 };  // across the canyon's head, the river under it
+// Across the canyon's head, the river under it. Its length lies east and west; its east end is a post of the map
+// (see `shape`), which is why it is not a round number.
+export const VIADUCT = { north: 9300, east: -3706 };
+const VIADUCT_END = 252;    // m: from the viaduct's middle to the outside of its last arch
+const VIADUCT_DECK = 120;   // m: its deck above the river
 const PLATEAU = 960;                                  // the desert's height along the canyon
 const VOLCANO = { north: -8600, east: 1900, rim: 1220, reach: 3500, crater: 520, lake: 330, deep: 250 };
 // Where the lava runs from it to the sea: one flow down the west side, fanning out to the coast in three streams.
@@ -177,6 +184,20 @@ const lavaBox = { south: VOLCANO.north - VOLCANO.crater, north: VOLCANO.north + 
 export function shape(n, e) {
   let h = natural(n, e);
   if (h <= 0) return h;
+  // The viaduct's east end. The west end runs into the canyon's wall; in the east the ground is only half as high as
+  // the deck, which would stop in mid-air. So a hill stands there for it to run into: the river's flat floor as far
+  // as the last arch, one post on (the map's steepest slope, hidden inside the viaduct's end wall) a top just above the
+  // track, held for a post more, and then a long slope down to the ground by the loch.
+  const x = e - VIADUCT.east, off = Math.abs(n - VIADUCT.north + 35), top = VIADUCT_DECK + 10;
+  if (x > VIADUCT_END && x < 640 && off < 100) {
+    const rise = x < VIADUCT_END + POST ? (top * (x - VIADUCT_END)) / POST : top - 0.3 * Math.max(0, x - VIADUCT_END - 2 * POST);
+    h = Math.max(h, viaductBed() + rise * smooth(100, 40, off));
+  }
+  // Room to fly out. The viaduct stands on a bend, and upstream of it the canyon's west wall crossed straight in
+  // front of the western arches, a second's flying away. It is cut back to a low terrace for 650 m north of them;
+  // beyond that it rises again, steeply.
+  const up = n - VIADUCT.north, out = Math.hypot(Math.max(-400 - x, x - 60, 0), Math.max(60 - up, up - 650, 0));
+  if (out < 120) h = Math.min(h, viaductBed() + 8 + 4 * out);
   // The lava's channels. Lava only runs downhill: each stream's bed starts just below the lake's surface and never
   // rises again on its way to the sea. Where the land stands in its way it is cut through. That is a deep breach
   // in the crater's west rim, which is how the lava gets out, and a shallow channel wherever a rise crosses its path.
@@ -217,6 +238,10 @@ function channels() {
 }
 
 /** The land as it would lie with no lava channels cut in it. */
+let bed = null;
+/** The river's level under the middle of the viaduct. */
+function viaductBed() { return (bed ??= Math.round(natural(VIADUCT.north, VIADUCT.east) / STEP) * STEP); }
+
 function natural(n, e) {
   const d = inland(n, e);
   if (d < -2500) return MIN;
@@ -343,8 +368,31 @@ export const region = () => ({
   // Running lava: each flow's course from the crater to the sea, and how far it reaches either side.
   flows: FLOW_COURSES, flowHalf: FLOW_HALF,
   // Where things stand: metres north and east, and height above sea level.
-  sites: { base: BASE, castle: CASTLE, viaduct: VIADUCT, volcano: { north: VOLCANO.north, east: VOLCANO.east, rim: VOLCANO.rim }, strip: STRIP, cove: { north: COVE.north, east: COVE.east, radius: COVE.radius }, door: DOOR },
+  sites: { base: BASE, castle: CASTLE, viaduct: { ...VIADUCT, height: viaductBed() }, volcano: { north: VOLCANO.north, east: VOLCANO.east, rim: VOLCANO.rim }, strip: STRIP, cove: { north: COVE.north, east: COVE.east, radius: COVE.radius }, door: DOOR },
 });
+
+// The landmarks that have a model, each standing on its site. `turn` is degrees clockwise from the way it was built.
+const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 } };
+const mm = (v) => Math.round(v * 1000) / 1000;
+
+/**
+ * terrain/landmarks.json: for each landmark, its model, where its origin stands (north, east, up, turn), and its
+ * solid shapes as the flight model wants them (src/sim/solids.js): metres north, east and up on the island.
+ */
+export function landmarks() {
+  const sites = region().sites, out = {};
+  for (const [name, { model, turn }] of Object.entries(LANDMARKS)) {
+    const { north, east, height } = sites[name], cos = Math.cos((turn * Math.PI) / 180), sin = Math.sin((turn * Math.PI) / 180);
+    // The model's axes are x east, y up, z south; turned clockwise, seen from above.
+    const way = ([x, y, z]) => [-z * cos - x * sin, -z * sin + x * cos, y];
+    const solids = solidsOf(readGlb(fileURLToPath(new URL(`../models/${model}`, import.meta.url)))).map((s) => {
+      const [n, e, u] = way(s.centre);
+      return { name: s.name, centre: [mm(north + n), mm(east + e), mm(height + u)], half: s.half.map(mm), axes: s.axes.map((a) => way(a).map((v) => Math.round(v * 1e6) / 1e6)) };
+    });
+    out[name] = { model, north, east, up: height, turn, solids };
+  }
+  return out;
+}
 
 /** Every post's height, row by row from the north-west corner, in stored steps. */
 export function build() {
@@ -374,6 +422,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   writeFileSync(here('island.png'), png);
   writeFileSync(here('country.png'), kinds);
   writeFileSync(here('island.json'), JSON.stringify(region(), null, 2) + '\n');
+  writeFileSync(here('landmarks.json'), JSON.stringify(landmarks()) + '\n');
   let top = 0; for (const s of steps) top = Math.max(top, s);
   console.log(`island.png ${(png.length / 1e6).toFixed(2)} MB, country.png ${(kinds.length / 1e6).toFixed(2)} MB; highest point ${Math.round((MIN + top * STEP) / FT)} ft`);
 }

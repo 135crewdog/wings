@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.22
+
+- The viaduct: the owner's own, a curved stone railway viaduct 2,100 feet long and 400 feet high, on eleven tall arches, across the head of the canyon with the river under it. Every arch is big enough to fly through.
+- With crashes on, the viaduct is solid: touch a pier or the deck and the flight ends. With the crash override on, the jet passes through it.
+
 ## 0.0.21
 
 - A new app icon: the owner's F-4C, banking against a blue sky.

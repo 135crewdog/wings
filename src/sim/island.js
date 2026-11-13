@@ -119,9 +119,11 @@ const WOOD = 1;   // m: treetops this far above the land are a wood underfoot
 /**
  * The island as the flight model's ground. Water and lava stand as surfaces
  * at their own levels. A wood is solid at its treetops, as one block.
+ * solids: the landmarks' solid shapes, from createSolids (src/sim/solids.js), when there are any.
  */
-export function islandGround(island) {
+export function islandGround(island, solids = null) {
   return {
+    ...(solids ? { solidBetween: solids.between } : {}),
     heightAt: (north, east) => Math.max(island.heightAt(north, east) + island.canopyAt(north, east), island.waterAt(north, east) ?? -Infinity, island.lavaAt(north, east) ?? -Infinity),
     surfaceAt: (north, east) => (island.lavaAt(north, east) !== null ? 'lava' : island.waterAt(north, east) !== null ? 'water' : island.canopyAt(north, east) > WOOD ? 'woods' : 'runway'),
     surfaces: SURFACES,
