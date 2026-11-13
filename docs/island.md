@@ -61,15 +61,15 @@ Ours is far simpler: plain shapes, dark grey stone and near-black roofs, a few t
 
 **The canyon.** The river from the loch runs south down the island to the south-west coast through a canyon inspired by the Grand Canyon, cut into a high desert plateau. It is built to be fun to fly through: deep enough to be below the rim the whole way, wide enough to follow at speed, winding, with a tight stretch as a dare. The starting figures are about 3,000 feet deep, three-quarters of a mile wide at the rim and a quarter mile at the river, and about 12 miles long; they are tuned by flying it.
 
-**The crest.** Where the mountains stop above the desert in the west: a long, steep wall a few thousand feet high, after Sandia Crest near Albuquerque and Moriarty, New Mexico, famous for sailplane flying. Shaped as a proper ridge, so that if a glider and rising air are ever added, this is the place for them. That is an idea for later, not part of this build.
+**The crest.** Where the mountains meet the desert in the west, after Sandia Crest near Albuquerque and Moriarty, New Mexico, famous for sailplane flying. There is no gap and no wall between the two: the plateau leads up to the mountains, and the mountains slope down onto the plateau. It is the long mountain front a sailplane could work, if a glider and rising air are ever added. That is an idea for later, not part of this build.
 
 **The Strip.** On the desert below the crest, west of the canyon: the Las Vegas Strip and nothing else of the city. About a mile and a half of big hotels along one road. The recognizable ones are all there: a pyramid, a tall needle tower, a big wheel, a lake with fountains, an Eiffel Tower, an Arc de Triomphe, a Montgolfier balloon, and a casino that looks like Camelot. Plain slab hotels fill in between. The shapes are the famous ones; every name and sign is invented. Daytime only: the game has no night. No runway there.
 
 **The beaches.** Sandy beaches along the south-west coast.
 
-**The volcanoes park,** in the centre-south, after Hawaii's. One broad volcano about 4,000 feet high, with a crater to fly into and a glowing lava lake at the bottom, a few small cones beside it, and black lava fields running down to the south coast. No eruptions, smoke or ash for now.
+**The volcanoes park,** in the centre-south, after Hawaii's. One broad volcano about 4,000 feet high, with a crater to fly into and a glowing lava lake at the bottom, and a few small cones beside it. One lava flow, down its west side, fanning out to the south coast; lava runs in it, in glowing streams from the crater to the sea. Lava only runs downhill: it leaves the crater through a breach in the west rim, cut below the lake's level, and its bed never rises on the way to the sea. No eruptions, smoke or ash for now.
 
-**The redwoods,** in the south. A forest of giant trees about 300 feet tall, to fly over. It has to look like a forest made of trees, not a green block.
+**The redwoods,** south and east of the volcano, between it, the fields and the south coast: the ground the owner ringed on the map. A forest of giant trees about 300 feet tall, to fly over. It has to look like a forest made of trees, not a green block.
 
 **The fields, in the east.** Flat East Anglian farmland: a patchwork of four-sided fields, with tracks between them and lines of trees.
 
@@ -126,4 +126,10 @@ The land for the whole island first; then the canyon and viaduct; the castle and
 
 ## Where it is kept
 
-The land's shape is `terrain/island.png`, a height map, with `terrain/island.json` beside it saying where it lies, where the loch is, and where each landmark stands. Both are written by `terrain/make-island.mjs`; to change the island, change that script and run it. `node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page.
+The island's map is three files in `terrain/`, all written by `terrain/make-island.mjs`; to change the island, change that script and run it.
+
+- `island.png`: the land's height (red and green), and what stands on it (blue: the treetops' height, or the river's mark).
+- `country.png`: what kind of country each place is: desert, lava or farmland; the rest is green.
+- `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
+
+`node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page, and flies it.

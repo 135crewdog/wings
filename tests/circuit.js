@@ -12,7 +12,7 @@ const DEG = Math.PI / 180;
 const turn = (to, from) => ((to - from + 540) % 360) - 180;   // degrees to turn, the short way
 
 /** Returns controls(readout) for fly(); `.phase` says where in the circuit it is, `.events` what happened when. */
-export function circuit({ pattern = 1500, downwind = 300, final = 160, field = TEST_FIELD } = {}) {
+export function circuit({ pattern = 1500, downwind = 300, final = 160, field = TEST_FIELD, hand = 1 } = {}) {   // hand: 1 turns right, -1 left
   const FIELD = field, way = field.heading * DEG;
   const south = -FIELD.runway.length / 2;   // the landing threshold, metres north of the middle
   let phase = 'roll', trim = 0, power = 0.4, last = null, alpha = 3;
@@ -43,7 +43,8 @@ export function circuit({ pattern = 1500, downwind = 300, final = 160, field = T
   // A readout in the runway's terms, heights and all.
   const onRunway = (r) => {
     const n = r.north - field.north, e = r.east - field.east;
-    return { ...r, north: n * Math.cos(way) + e * Math.sin(way), east: -n * Math.sin(way) + e * Math.cos(way), heading: turn(r.heading, field.heading) };
+    // For a left-hand circuit the pilot flies its mirror image: left is right, and the stick goes the other way.
+    return { ...r, north: n * Math.cos(way) + e * Math.sin(way), east: hand * (-n * Math.sin(way) + e * Math.cos(way)), heading: hand * turn(r.heading, field.heading), roll: hand * r.roll, rollRate: hand * r.rollRate };
   };
   const fly = (seen) => {
     const r = onRunway(seen);
@@ -85,7 +86,7 @@ export function circuit({ pattern = 1500, downwind = 300, final = 160, field = T
         return { throttle: 0, gear: true, flaps: true, brake: true, elevator: 0, aileron: clamp(-r.east * 0.01 - turn(r.heading, 0) * 0.05, -0.3, 0.3) };
     }
   };
-  const pilot = (r) => fly(r);
+  const pilot = (r) => { const c = fly(r); return hand === 1 ? c : { ...c, aileron: -c.aileron }; };
   Object.defineProperty(pilot, 'phase', { get: () => phase });
   pilot.events = events;
   return pilot;
