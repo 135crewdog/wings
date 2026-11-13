@@ -4,7 +4,7 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.23
 
-- The castle school: the owner's own, on its shelf above the loch's south shore. A cluster of dark stone towers with steep pointed roofs, a great hall, a greenhouse and a boathouse; the tallest spire stands 720 feet above the ground. It is hidden: it can't be seen from the lowlands.
+- The castle school: the owner's own, on a crag 330 feet above the loch's south shore. A cluster of dark stone towers with steep pointed roofs, a great hall, a greenhouse and a boathouse; the tallest spire stands 720 feet above the ground. It is hidden: it can't be seen from the lowlands.
 - With crashes on, the castle is solid. With the crash override on, the jet passes through it.
 
 ## 0.0.22

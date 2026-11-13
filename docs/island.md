@@ -39,7 +39,7 @@ The owner's own sketch. North is up.
 
 **The loch,** in the middle of the mountains, ringed by them. A river leaves its west end.
 
-**The castle school and its grounds.** Inspired by and heavily influenced by Hogwarts: a millennial should know it at a glance. The castle stands on the loch's south shore, with its grounds running south from it. The whole place is hidden: it can't be seen from the lowlands, and a pilot finds it by flying up the canyon or over a ridge. In the grounds:
+**The castle school and its grounds.** Inspired by and heavily influenced by Hogwarts: a millennial should know it at a glance. The castle stands on a crag on the loch's south shore, with its grounds running south from it. The whole place is hidden: it can't be seen from the lowlands, and a pilot finds it by flying up the canyon or over a ridge. In the grounds:
 
 - **The forest,** dark and thick, along the grounds' edge.
 - **The gamekeeper's hut,** at the edge of the forest.
@@ -133,7 +133,7 @@ The island's map is four files in `terrain/`, all written by `terrain/make-islan
 - `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
 - `landmarks.json`: each landmark that has a model: where it stands, and its solid shapes, read from the model in `models/`.
 
-The castle is in: the owner's model, on its shelf, its tallest spire 220 m above the ground. A ridge was added to the wall south-west of the grounds, where that spire showed over the mountains from the plateau.
+The castle is in: the owner's model, on the flat top of a crag 100 m above the loch (the owner asked for a taller crag on seeing it on a low shelf), its tallest spire 220 m above the ground. A ridge was added to the wall south-west of the grounds, where that spire showed over the mountains from the plateau.
 
 The viaduct is in: the owner's model, standing east and west across the canyon's head. The land was shaped to it in two places: a hill at its east end for the track to run into, as it runs into the canyon's wall in the west, and the canyon's west wall cut back north of it, so there is room to fly out of every arch.
 

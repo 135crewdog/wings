@@ -27,7 +27,7 @@ const FT = 0.3048;
 // ---- the places (docs/island.md, and the owner's sketch in it) ----
 export const BASE = { north: -1500, east: 11000, heading: 280, height: 30 * FT };   // the runway's middle; flights take off on 28
 const LOCH = { level: 300, half: 620, path: [[10300, -2200], [10750, 300], [10350, 2900], [10650, 5400]] };
-export const CASTLE = { north: 9450, east: 2300, height: LOCH.level + 28 };          // a shelf on the loch's south shore
+export const CASTLE = { north: 9450, east: 2300, height: LOCH.level + 100 };         // the flat top of a crag on the loch's south shore
 const GROUNDS = { north: 7500, east: 3500, across: 3300, deep: 1750 };               // the bowl south of the castle: its middle and half-sizes
 // The river's course from the loch to the sea, bend by bend. The canyon is cut along it.
 const BENDS = [[10250, -2900], [9300, -3700], [7500, -3300], [5400, -4500], [3200, -3500], [1000, -4500], [-1300, -3400], [-3600, -4500],
@@ -318,7 +318,7 @@ function natural(n, e) {
   if (ld > LOCH.half + 250 && n > lochBox.south - POST && n < lochBox.north + POST && e > lochBox.west - POST && e < lochBox.east + POST) h = Math.max(h, LOCH.level + 4);
   // The castle's shelf on the south shore.
   const shelfR = Math.hypot(n - CASTLE.north, e - CASTLE.east);
-  if (shelfR < 420) h = h + (CASTLE.height - h) * smooth(420, 240, shelfR);
+  if (shelfR < 400) h = h + (CASTLE.height - h) * smooth(400, 245, shelfR);   // flat under the castle, then the crag's sides
 
   // The base: dead flat, easing into the fields round it.
   const a = (BASE.heading * Math.PI) / 180, bn = n - BASE.north, be = e - BASE.east;
