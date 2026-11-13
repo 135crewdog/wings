@@ -137,6 +137,29 @@ const fragmentShader = `${LAND_GLSL}
     c += vec3(1.0, 0.96, 0.82) * flash;
     return mix(c, haze, 0.4 * pow(1.0 - max(v.y, 0.0), 5.0));
   }
+  // A forest, made of trees. From above, its top is a field of round crowns, each its own green, with dark gaps
+  // between; on its steep sides, the edge of the wood, trunks stand in the shade under the crowns. "tall" is
+  // how tall the trees are here, "up" how high this point is above the ground, "slope" how steep the face is.
+  vec3 forest(float tall, float up, float slope, float far) {
+    float size = tall > 40.0 ? 24.0 : 11.0;                   // a crown's width: redwoods are big trees
+    vec2 cell = floor(wp.xz / size), best = vec2(9.0, 0.0);
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+      vec2 k = cell + vec2(float(i), float(j));
+      float d = distance(wp.xz / size, k + 0.5 + 0.7 * (vec2(rand(k, 51.0), rand(k, 52.0)) - 0.5));
+      if (d < best.x) best = vec2(d, rand(k, 53.0));
+    }
+    vec3 dark = tall > 40.0 ? vec3(0.071, 0.196, 0.118) : vec3(0.110, 0.243, 0.125);
+    vec3 crown = mix(dark * 1.9, dark * 2.9 + vec3(0.02, 0.04, 0.0), best.y);          // each tree its own green
+    crown *= 1.0 - 0.35 * smoothstep(0.15, 0.55, best.x);                                // rounder: darker toward its rim
+    vec3 top = mix(dark, crown, 1.0 - smoothstep(0.5, 0.62, best.x));                    // dark between the crowns
+    top = mix(top, dark * 2.1, smoothstep(2500.0, 9000.0, far));                         // far off, one even green
+    if (slope < 0.7) return top;
+    // The side of the wood: trunks below, the crowns' skirt above.
+    float along = dot(wp.xz, vec2(0.71, 0.71)) / (size * 0.42), trunk = step(0.62, fract(along + 0.3 * rand(vec2(floor(along), 0.0), 54.0)));
+    vec3 bole = tall > 40.0 ? vec3(0.416, 0.243, 0.169) : vec3(0.290, 0.227, 0.165);
+    vec3 under = mix(vec3(0.035, 0.07, 0.045), bole, trunk * (1.0 - smoothstep(1200.0, 5000.0, far)));
+    return mix(under, top, smoothstep(0.5, 0.68, up / tall));
+  }
   // Running lava: how far the point is from the nearest flow's middle, and how far down that flow it is.
   vec2 toFlow(vec2 xz) {
     float best = 1.0e9, along = 0.0;
@@ -193,7 +216,7 @@ const fragmentShader = `${LAND_GLSL}
       // Chalk on the cliffs round the cove; sand at the shore, wide on the desert's coast.
       if (distance(wp.xz, cove.xy) < cove.z && slope > 0.5 && h < 160.0) c = vec3(0.910, 0.902, 0.863);
       if (h < 3.0 + 9.0 * kind.r) c = mix(vec3(0.910, 0.847, 0.675), c, clamp((h - 1.5 - 5.0 * kind.r) / 3.0, 0.0, 1.0));
-      if (here.y > 1.0) c = vec3(0.173, 0.329, 0.173);                                       // a wood: its top and its sides
+      if (here.y > 1.0) c = forest(max(max(g00.y, g10.y), max(g01.y, g11.y)), here.y, slope, far);   // a wood or the redwoods: how tall the trees are, and how far up them this point is
       c *= 0.68 + 0.5 * max(dot(n, sun), 0.0);
       // Running lava, down each flow from the crater to the sea: a bright stream between dark banks, its crust
       // breaking into plates that ride downhill.

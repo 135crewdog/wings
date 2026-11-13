@@ -33,8 +33,13 @@ const CANYON = { floor: 230, rim: 700, lip: 400 };   // half-widths at the river
 export const VIADUCT = { north: 9300, east: -3700 };  // across the canyon's head, the river under it
 const PLATEAU = 960;                                  // the desert's height along the canyon
 const VOLCANO = { north: -8600, east: 1900, rim: 1220, reach: 3500, crater: 520, lake: 330, deep: 250 };
-// Where the lava has run from it to the sea: two tongues.
-const FLOWS = [[[-8600, 1900], [-11000, 300], [-13500, -900], [-19200, -1900]], [[-8600, 1900], [-11500, 3300], [-14000, 3000], [-19300, 4500]]];
+// Where the lava runs from it to the sea: one flow down the west side, fanning out to the coast in three streams.
+const FLOW_HEAD = [[-8600, 1900], [-10700, 500], [-12300, -700]];
+const FLOWS = [[[-14900, -2700], [-18900, -4700]], [[-15300, -1700], [-19300, -2900]], [[-15000, -500], [-19500, -1100]]].map((mouth) => [...FLOW_HEAD, ...mouth]);
+// The redwood forest: the ground inside this line, corner by corner [north, east], south and east of the volcano.
+const REDWOODS = [[-11350, -100], [-12200, 3000], [-10900, 6100], [-8300, 6500], [-6100, 8300], [-6500, 12200], [-9150, 12700], [-12200, 10500],
+  [-14000, 10700], [-14900, 8300], [-16400, 6500], [-16600, 3900], [-17500, 2100], [-17300, -500], [-12700, -100]];
+export const REDWOOD_TOPS = 90;                       // m: about 300 ft
 const CONES = [[-6300, 4900, 330, 800], [-10400, -1500, 280, 700], [-11800, 4000, 240, 650]];   // north, east, height, reach
 export const STRIP = { north: -4700, east: -11400 };
 const COVE = { north: 3900, radius: 900, mouth: 230, inland: 1300 };   // its middle lies this far in from the east coast
@@ -133,19 +138,33 @@ const eastCoast = (n) => { let e = 12000; while (inland(n, e) > 0) e += 20; retu
 COVE.east = eastCoast(COVE.north) - COVE.inland;
 export const DOOR = { north: DOOR_NORTH, east: eastCoast(DOOR_NORTH) - 60 };
 
+/** How far inside the redwoods' line a place is: 1 well inside, 0 outside, easing over `ramp` metres from its wandering edge. */
+export function redwoods(n0, e0, ramp = 250) {
+  const n = n0 + 350 * fbm(n0 / 1300, e0 / 1300, 3, 77), e = e0 + 350 * fbm(n0 / 1300, e0 / 1300, 3, 78);
+  let inside = false, edge = Infinity;
+  for (let i = 0, j = REDWOODS.length - 1; i < REDWOODS.length; j = i++) {
+    const [an, ae] = REDWOODS[i], [bn, be] = REDWOODS[j];
+    if ((an > n) !== (bn > n) && e < ae + ((be - ae) * (n - an)) / (bn - an)) inside = !inside;
+    edge = Math.min(edge, toPath([REDWOODS[i], REDWOODS[j]], n, e)[0]);
+  }
+  return inside ? smooth(0, ramp, edge) : 0;
+}
+
 /** What kind of country a place is: how much desert, lava and farmland (each 0..1); the rest is green. */
 export function country(n0, e0) {
   // Borders wander: every edge below is drawn on a map that has been pushed about a little.
   const n = n0 + 700 * fbm(n0 / 2800, e0 / 2800, 3, 71), e = e0 + 700 * fbm(n0 / 2800, e0 / 2800, 3, 72);
   const [dC, , side] = toPath(COURSE, n0, e0), [north, crest] = intoMountains(n0, e0), d = inland(n0, e0);
-  const south = smooth(crest ? 300 : 1800, crest ? -300 : -1200, north);   // 1 south of the mountains
+  const south = smooth(crest ? 1700 : 1800, crest ? -200 : -1200, north);   // 1 south of the mountains; the desert climbs a little way into them
   const west = side > 0 ? 1 : 1 - smooth(2600, 4600, dC + 500 * fbm(n0 / 1500, e0 / 1500, 2, 73));   // the river runs south, so its right is the west
   let lava = smooth(VOLCANO.reach * 1.05, VOLCANO.reach * 0.85, Math.hypot(n - VOLCANO.north, e - VOLCANO.east));
-  for (const flow of FLOW_COURSES) lava = Math.max(lava, smooth(950, 600, toPath(flow, n0, e0)[0] + 250 * fbm(n0 / 900, e0 / 900, 2, 76)));
+  // The flow: narrow where it leaves the volcano, a fan a mile and a half wide at the sea.
+  const [dF, aF] = toPath(FLOW_COURSES[1], n0, e0), reach = 650 + 1500 * smooth(0.25, 1, aF);
+  lava = Math.max(lava, smooth(reach + 350, reach, dF + 200 * fbm(n0 / 900, e0 / 900, 2, 76)));
   for (const [cn, ce, , reach] of CONES) lava = Math.max(lava, smooth(reach * 1.3, reach * 0.9, Math.hypot(n - cn, e - ce)));
   const desert = south * west * (1 - lava) * (side > 0 ? 1 : smooth(-15500, -12500, n));   // east of the river the desert gives way to forest country in the south
-  const farm = smooth(3500, 6000, e) * smooth(-13500, -11500, n) * south * (1 - lava) * (1 - desert) * smooth(0, 500, d);
-  return { desert, lava, farm };
+  const open = smooth(3500, 6000, e) * smooth(-13500, -11500, n) * south * (1 - lava) * (1 - desert) * smooth(0, 500, d);   // farmland, were there no forest
+  return { desert, lava, farm: open * (1 - redwoods(n0, e0)), open };
 }
 
 // The loch's box: its path, and room for its shores.
@@ -159,20 +178,25 @@ export function shape(n, e) {
   const d = inland(n, e);
   if (d < -2500) return MIN;
   const [north, crest] = intoMountains(n, e);
-  const high = smooth(crest ? -250 : -1500, crest ? 550 : 3800, north) * smooth(0, 1500, d);
-  const { desert, lava, farm } = country(n, e);
+  const high = smooth(crest ? -700 : -1500, crest ? 2800 : 3800, north) * smooth(0, 1500, d);
+  const { desert, lava, farm, open } = country(n, e);
   const [dC, aC, side] = toPath(COURSE, n, e);
 
-  // Lowlands: the farmland nearly flat; elsewhere low rolling hills.
-  let h = 8 + Math.min(d * 0.004, 30) * (1 - farm) + 3 * fbm(n / 1250, e / 1250, 3, 11);
-  h += (1 - farm) * (1 - desert) * smooth(300, 2500, d) * (70 + 70 * fbm(n / 3500, e / 3500, 4, 12));
+  // Lowlands: low rolling hills, but for the farmland and the forest floor.
+  // How level the low ground is: the farmland nearly flat, and the redwoods' ground gentle, easing in from their
+  // edge so no bank stands at the tree line. (Farmland stops being farmland where the trees start; the ground doesn't.)
+  const level = Math.max(open, 0.8 * redwoods(n, e, 900));
+  let h = 8 + Math.min(d * 0.004, 30) * (1 - level) + 3 * fbm(n / 1250, e / 1250, 3, 11);
+  h += (1 - level) * (1 - desert) * smooth(300, 2500, d) * (70 + 70 * fbm(n / 3500, e / 3500, 4, 12));
   const low = h;   // the land as it would be with no plateau, volcano or mountains on it
 
   // The desert: a plateau highest along the canyon, falling away west to the beaches and east in a scarp; mesas on it.
   const table = side > 0 ? PLATEAU - (PLATEAU - 230) * smooth(1600, 9500, dC) : PLATEAU - (PLATEAU - 260) * smooth(1900, 4300, dC);
   const mesas = 110 * smooth(0.66, 0.7, noise(n / 1900, e / 1900, 80)) + 60 * smooth(0.72, 0.75, noise(n / 900, e / 900, 81));
-  const south = smooth(crest ? 300 : 1800, crest ? -300 : -1200, north);
-  const shelf = south * smooth(0, 1300, d) * (side > 0 ? 1 : (1 - smooth(4300, 5200, dC)) * smooth(-16500, -13000, n));
+  // West of the river the plateau carries on north under the mountains' feet, so the two meet with no trough
+  // between: the plateau leads up to the mountains, and the mountains slope down onto it.
+  const south = side > 0 ? smooth(5200, 3000, north) : smooth(1800, -1200, north);
+  const shelf = south * smooth(0, 1300, d) * (side > 0 ? 1 : (1 - smooth(4300, 5200, dC)) * smooth(-14500, -11500, n));
   h += shelf * (table - h + mesas * desert + 25 * fbm(n / 2600, e / 2600, 3, 82));
   // Along the canyon the plateau holds its height wherever the river runs, mountains or not, so the canyon has its walls.
   const brink = smooth(2700, 1500, dC) * smooth(9300, 7900, n) * smooth(0, 1300, d);
@@ -241,13 +265,16 @@ export function shape(n, e) {
 }
 
 /**
- * Whether a post stands in a wood: in the farmland, one of the plots (src/fields.js marks them), kept back from
- * the plot's edge. None on the airfield. `h` is the land's height there and `slope` its steepness.
+ * How tall the trees stand over a post, or 0: in the farmland, a wood is one of the plots (src/fields.js marks
+ * them), kept back from the plot's edge; the redwoods fill their own ground, uneven on top. None on the airfield,
+ * the lava or the shore. `h` is the land's height there and `slope` its steepness.
  */
 export function wooded(n, e, h, slope) {
-  if (h < 4 || onAirfield(BASE, n, e, 400)) return false;
-  if (country(n, e).farm > 0.5 && h < 60 && slope < 0.12) { const plot = plotAt(n, e); return plot.wood && plot.side > 30; }
-  return false;
+  if (h < 4 || onAirfield(BASE, n, e, 400)) return 0;
+  const kind = country(n, e);
+  if (redwoods(n, e) > 0.5 && kind.lava < 0.3 && slope < 0.6) return REDWOOD_TOPS - 12 * noise(n / 260, e / 260, 79);
+  if (kind.farm > 0.5 && h < 60 && slope < 0.12) { const plot = plotAt(n, e); return plot.wood && plot.side > 30 ? TREETOPS : 0; }
+  return 0;
 }
 
 /** Every post's blue channel: the treetops' height over the land in stored steps, 0 for open ground, or RIVER. */
@@ -257,7 +284,8 @@ export function canopy(steps) {
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     const slope = Math.hypot(at(r - 1, c) - at(r + 1, c), at(r, c + 1) - at(r, c - 1)) / (2 * POST);
     const n = NORTH0 - r * POST, e = EAST0 + c * POST;
-    if (wooded(n, e, at(r, c), slope)) out[r * SIZE + c] = TREETOPS / CANOPY_STEP;
+    const trees = wooded(n, e, at(r, c), slope);
+    if (trees) out[r * SIZE + c] = Math.round(trees / CANOPY_STEP);
     else if (at(r, c) > 0 && toPath(COURSE, n, e)[0] < RIVER_HALF && toPath(LOCH.path, n, e)[0] > LOCH.half + 250) out[r * SIZE + c] = RIVER;   // the river, from the loch's lip to the sea
   }
   return out;

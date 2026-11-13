@@ -4,12 +4,13 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.20
 
-- A new island, to the owner's own map. Mountains in an arc across the north round the loch; a canyon with a river from the loch to the south-west coast; a desert plateau with mesas in the west, under a mountain wall; a volcano in the south with a crater and a glowing lava lake; the fields and the air base in the east; a round cove a mile across on the east coast.
+- A new island, to the owner's own map. Mountains in an arc across the north round the loch; a canyon with a river from the loch to the south-west coast; a desert plateau with mesas in the west, running up into the mountains; a volcano in the south with a crater and a glowing lava lake; the fields and the air base in the east; a round cove a mile across on the east coast.
 - New paint for the new country: red and tan rock in bands, black lava, wide sand on the desert's shore, white chalk round the cove.
-- Lava runs out of the crater and down the volcano in two glowing streams to the sea, its crust riding downhill.
+- Lava runs out of the crater and down the volcano's west side, fanning into three glowing streams to the sea, its crust riding downhill.
+- The redwoods: a forest of giants about 300 feet tall, south and east of the volcano. Solid at the treetops, like the woods. Woods and redwoods are now painted as trees: a field of crowns on top, trunks at the edges.
 - Water you can judge your height over: patches of swell and small flecks on the sea, the loch and the river, the sun's glitter toward the sun, and the sky's colour in it at a low angle.
 - With crashes on, the river and the lava (the lake and the streams) end a flight at any touch, like the sea and the loch.
-- Still to come: forests that look like trees, the redwoods, and every landmark (castle, viaduct, the Strip, the Door).
+- Still to come: tree crowns that stand up in three dimensions near the jet, and every landmark (castle, viaduct, the Strip, the Door).
 
 ## 0.0.19
 

@@ -167,7 +167,9 @@ test('island: the desert, its crest, the volcano and its lava lake, the cove and
     }
     assert.equal(last, 0, 'the flow reaches the sea');
   }
-  assert.equal(island.lavaAt(volcano.north - 3000, volcano.east + 3200), null, 'no lava off the flows');
+  assert.equal(region.flows.length, 3, 'one flow, in three streams');
+  assert.ok(region.flows.every((course) => course[course.length - 1][1] < volcano.east), 'down the west side');
+  assert.equal(island.lavaAt(volcano.north - 3000, volcano.east + 3200), null, 'no lava down the east side');
   // The cove: water a mile across, cliffs round it, its mouth open to the sea in the east.
   let across = 0;
   for (let e = cove.east - 1500; e < cove.east + 1500; e += 20) if (island.waterAt(cove.north + 300, e) === 0) across += 20;
@@ -326,7 +328,7 @@ test('island: with crashes on, flying into a mountain ends the flight; a scrape,
 test('island: with crashes on, any touch of the sea, the loch, the river or the lava ends the flight, however gentle', () => {
   const card = deriveCard(F4C);
   const river = region.river[30], bed = island.heightAt(river[0], river[1]);
-  const stream = region.flows[0][7];   // well down the western flow, on the low ground
+  const stream = region.flows[1][9];   // well down the middle stream, on the low ground
   const places = [
     ['the sea', { north: -22000, east: 0, feet: 12 }, 'water', 0],
     ['the loch', { north: castle.north + 800, east: castle.east - 1500, feet: loch.level / FT + 12 }, 'water', loch.level],
@@ -355,27 +357,35 @@ function nearestWood() {
   for (let r = 0; r < region.size; r++) for (let c = 0; c < region.size; c++) {
     if (!woods[r * region.size + c]) continue;
     const north = region.north0 - r * region.post, east = region.east0 + c * region.post, far = Math.hypot(north - base.north, east - (base.east - 4000));
-    if (woods[r * region.size + c] !== RIVER && (!best || far < best.far)) best = { north, east, far };
+    if (woods[r * region.size + c] * region.canopyStep < 30 && (!best || far < best.far)) best = { north, east, far };   // a farmland wood, not the river's mark or the redwoods
   }
   return best;
 }
 
-test('island: woods stand 40 feet tall, in the farmland, and keep off the airfield', () => {
+test('island: woods stand 40 feet tall in the farmland; the redwoods stand about 300 feet, south and east of the volcano', () => {
   const tall = island.canopyAt(wood.north, wood.east);
-  let posts = 0, onField = 0, elsewhere = 0, farmland = 0;
-  for (const { north, east, post } of land()) {
-    const farm = island.countryAt(north, east).farm > 0.5;
-    if (farm) farmland++;
+  let posts = 0, onField = 0, elsewhere = 0, farmland = 0, giants = 0, tallest = 0, shortest = Infinity, onLava = 0, north = -Infinity;
+  for (const { north: n, east: e, post } of land()) {
+    const kind = island.countryAt(n, e);
+    if (kind.farm > 0.5) farmland++;
     if (!woods[post] || woods[post] === RIVER) continue;
-    posts++;
-    if (onAirfield(base, north, east, 300)) onField++;
-    if (!farm) elsewhere++;
+    const trees = woods[post] * region.canopyStep;
+    if (onAirfield(base, n, e, 300)) onField++;
+    if (trees > 30) {
+      giants++; tallest = Math.max(tallest, trees); shortest = Math.min(shortest, trees); north = Math.max(north, n);
+      if (kind.lava > 0.5) onLava++;
+    } else { posts++; if (kind.farm < 0.5) elsewhere++; }
   }
-  console.log(`  Woods: ${(tall / FT).toFixed(0)} ft tall, ${((100 * posts) / farmland).toFixed(1)}% of the farmland`);
+  const sqMiles = (giants * region.post ** 2) / NM ** 2;
+  console.log(`  Woods: ${(tall / FT).toFixed(0)} ft tall, ${((100 * posts) / farmland).toFixed(1)}% of the farmland. Redwoods: ${Math.round(shortest / FT)} to ${Math.round(tallest / FT)} ft tall, ${sqMiles.toFixed(0)} square miles`);
   assert.ok(Math.abs(tall / FT - 40) < 1);
   assert.ok(posts / farmland > 0.02 && posts / farmland < 0.1);
-  assert.equal(onField, 0, 'none on the airfield or off the runway\'s ends');
+  assert.equal(onField, 0, 'no trees on the airfield or off the runway\'s ends');
   assert.ok(elsewhere / posts < 0.02, 'the farmland\'s woods are in the farmland');
+  assert.ok(shortest / FT > 240 && tallest / FT < 310 && sqMiles > 12 && sqMiles < 40, 'a forest of giants');
+  assert.equal(onLava, 0, 'none on the lava');
+  assert.ok(north < base.north - 3500, 'the redwoods stay south of the base');
+  assert.ok(island.canopyAt(-13000, 7000) > 60 && island.canopyAt(-9500, 9500) > 60, 'they fill the ground south and east of the volcano');
 });
 
 test('island: a wood is solid at its treetops, and the radar altimeter reads to them', () => {
