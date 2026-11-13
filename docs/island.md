@@ -67,7 +67,7 @@ Ours is far simpler: plain shapes, dark grey stone and near-black roofs, a few t
 
 **The beaches.** Sandy beaches along the south-west coast.
 
-**The volcanoes park,** in the centre-south, after Hawaii's. One broad volcano about 4,000 feet high, with a crater to fly into and a glowing lava lake at the bottom, and a few small cones beside it. One lava flow, down its west side, fanning out to the south coast; lava runs in it, in glowing streams from the crater to the sea. No eruptions, smoke or ash for now.
+**The volcanoes park,** in the centre-south, after Hawaii's. One broad volcano about 4,000 feet high, with a crater to fly into and a glowing lava lake at the bottom, and a few small cones beside it. One lava flow, down its west side, fanning out to the south coast; lava runs in it, in glowing streams from the crater to the sea. Lava only runs downhill: it leaves the crater through a breach in the west rim, cut below the lake's level, and its bed never rises on the way to the sea. No eruptions, smoke or ash for now.
 
 **The redwoods,** south and east of the volcano, between it, the fields and the south coast: the ground the owner ringed on the map. A forest of giant trees about 300 feet tall, to fly over. It has to look like a forest made of trees, not a green block.
 

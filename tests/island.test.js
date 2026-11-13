@@ -167,6 +167,24 @@ test('island: the desert, its crest, the volcano and its lava lake, the cove and
     }
     assert.equal(last, 0, 'the flow reaches the sea');
   }
+  // Lava only runs downhill: out through a breach in the rim below the lake's level, and never up again to the sea.
+  let breach = Infinity, rise = 0;
+  for (const course of region.flows) {
+    let last = lake.level;
+    for (let i = 1; i < course.length; i++) for (let t = 0; t < 1; t += 0.02) {
+      const n = course[i - 1][0] + (course[i][0] - course[i - 1][0]) * t, e = course[i - 1][1] + (course[i][1] - course[i - 1][1]) * t;
+      const from = Math.hypot(n - volcano.north, e - volcano.east), bed = island.heightAt(n, e);
+      if (bed <= 0) break;                                        // the sea
+      const top = island.lavaAt(n, e);                            // the lava's surface: the lake's level, then the stream on its bed
+      assert.ok(top !== null, `no lava at ${Math.round(n)}, ${Math.round(e)}`);
+      if (from > 340 && from < 700) breach = Math.min(breach, lake.level - bed);
+      rise = Math.max(rise, top - last);
+      last = Math.min(last, top);
+    }
+  }
+  console.log(`  The lava's way out: a breach in the rim, its floor ${breach.toFixed(0)} m below the lake's surface at the least; down the streams the lava's surface never rises more than ${rise.toFixed(1)} m`);
+  assert.ok(breach > 0, 'the breach is below the lake, so the lava can leave');
+  assert.ok(rise < 1.5, 'the streams never run uphill');
   assert.equal(region.flows.length, 3, 'one flow, in three streams');
   assert.ok(region.flows.every((course) => course[course.length - 1][1] < volcano.east), 'down the west side');
   assert.equal(island.lavaAt(volcano.north - 3000, volcano.east + 3200), null, 'no lava down the east side');

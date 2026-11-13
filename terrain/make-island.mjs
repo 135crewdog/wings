@@ -175,6 +175,49 @@ const lavaBox = { south: VOLCANO.north - VOLCANO.crater, north: VOLCANO.north + 
 
 /** The land's height at a point (metres north and east), before it is stored. */
 export function shape(n, e) {
+  let h = natural(n, e);
+  if (h <= 0) return h;
+  // The lava's channels. Lava only runs downhill: each stream's bed starts just below the lake's surface and never
+  // rises again on its way to the sea. Where the land stands in its way it is cut through. That is a deep breach
+  // in the crater's west rim, which is how the lava gets out, and a shallow channel wherever a rise crosses its path.
+  for (const run of channels()) {
+    let best = Infinity, bed = 0;
+    for (let i = 0; i < run.length - 1; i++) {
+      const a = run[i], b = run[i + 1], dn = b.n - a.n, de = b.e - a.e;
+      const t = clamp(((n - a.n) * dn + (e - a.e) * de) / (dn * dn + de * de), 0, 1), dist = Math.hypot(n - a.n - t * dn, e - a.e - t * de);
+      if (dist < best) { best = dist; bed = a.bed + (b.bed - a.bed) * t; }
+    }
+    if (best < FLOW_HALF * 6 && h > bed) h = bed + (h - bed) * smooth(FLOW_HALF * 2.4, FLOW_HALF * 6, best);   // a flat bed wider than the map's posts are apart, then banks
+  }
+  return h;
+}
+
+// Each stream as a run of points 40 m apart from the lake's edge to the sea, each with the height of the stream's
+// bed there: the natural ground, or lower, so that it only ever goes down. Worked out once.
+let runs = null;
+function channels() {
+  if (runs) return runs;
+  runs = FLOW_COURSES.map((course) => {
+    const run = [];
+    let bed = lavaLevel - 2;
+    for (let i = 0; i < course.length - 1; i++) {
+      const [an, ae] = course[i], [bn, be] = course[i + 1], leg = Math.hypot(bn - an, be - ae);
+      for (let d = 0; d < leg; d += 40) {
+        const n = an + ((bn - an) * d) / leg, e = ae + ((be - ae) * d) / leg;
+        if (Math.hypot(n - VOLCANO.north, e - VOLCANO.east) < VOLCANO.lake) continue;   // still in the lake
+        const ground = natural(n, e);
+        if (ground <= 0) return run;                                                     // the sea
+        bed = Math.min(ground, bed - 0.16);                                              // always a little downhill
+        run.push({ n, e, bed });
+      }
+    }
+    return run;
+  });
+  return runs;
+}
+
+/** The land as it would lie with no lava channels cut in it. */
+function natural(n, e) {
   const d = inland(n, e);
   if (d < -2500) return MIN;
   const [north, crest] = intoMountains(n, e);
