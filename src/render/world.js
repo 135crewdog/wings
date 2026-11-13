@@ -1,18 +1,16 @@
-// What is outside the airplane: the sky, the haze, the light, and the test
-// field with its runway. The runway and the ground's squares are after
-// 135crewdog/wings-v1, src/render/world.js; the sky and lights after
-// 135crewdog/rage, src/render/world.js: a sun, and fair-weather clouds
-// painted on the sky, far away and still, so nothing is ever flown through.
-// Rage's clouds are soft; these have clean edges and two flat tones, to match
-// the painted airplane.
+// What is outside the airplane: the sky, the haze, the light, the island and
+// the air base's runway. The runway's paint is after 135crewdog/wings-v1,
+// src/render/world.js; the sky and lights after 135crewdog/rage,
+// src/render/world.js: a sun, and fair-weather clouds painted on the sky, far
+// away and still, so nothing is ever flown through. Rage's clouds are soft;
+// these have clean edges and two flat tones, to match the painted airplane.
 
 import * as THREE from 'three';
-import { FT } from '../sim/card.js';
+import { createTerrain } from './terrain.js';
 
 const HORIZON = 0xcfe6f7, ZENITH = 0x1f5fb8;   // the app's sky colours, as in style.css
 const SUN = new THREE.Vector3(-3, 6, 4).normalize();   // the way to the sun: high in the south-west (x east, y up, z south)
 const FAR = 30000;                              // m: the haze has hidden everything by here
-const SQUARE = 1000 * FT;                       // the ground is marked in squares this size
 
 function canvas(width, height) {
   const c = document.createElement('canvas');
@@ -20,34 +18,8 @@ function canvas(width, height) {
   return [c, c.getContext('2d')];
 }
 
-// Grass in patches, with a faint line round each 1,000 ft square: something
-// to judge speed and height by.
-function groundTexture(renderer) {
-  const N = 1024, [c, g] = canvas(N, N);
-  g.fillStyle = '#6c8a4c';
-  g.fillRect(0, 0, N, N);
-  let seed = 7;
-  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (const [size, count, strength] of [[160, 60, 0.05], [48, 400, 0.05], [10, 5000, 0.06]]) {
-    for (let i = 0; i < count; i++) {
-      g.fillStyle = random() < 0.5 ? `rgba(40, 60, 20, ${strength})` : `rgba(190, 200, 120, ${strength})`;
-      const x = random() * N, y = random() * N, w = size * (0.5 + random()), h = size * (0.5 + random());
-      // Drawn again across each edge, so the squares join without a seam.
-      for (const dx of [0, -N]) for (const dy of [0, -N]) g.fillRect(x + dx, y + dy, w, h);
-    }
-  }
-  g.fillStyle = 'rgba(235, 240, 215, 0.5)';
-  g.fillRect(0, 0, N, 4);
-  g.fillRect(0, 0, 4, N);
-  const texture = new THREE.CanvasTexture(c);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return texture;
-}
-
-// The runway from above, its south end at the bottom: asphalt, edge lines,
-// threshold bars, numbers and a dashed centreline.
+// The runway from above, the end a takeoff starts from at the bottom:
+// asphalt, edge lines, threshold bars, numbers and a dashed centreline.
 function runwayTexture(renderer, runway) {
   const across = 256, along = 4096, [c, g] = canvas(across, along);
   const px = across / runway.width, py = along / runway.length;   // pixels per metre each way
@@ -84,10 +56,12 @@ function runwayTexture(renderer, runway) {
 }
 
 /**
- * Builds the field into a scene. `field` is src/field.js's FIELD. Returns
- * { follow(camera) }: call it each frame so the sky stays around the camera.
+ * Builds the world into a scene. `field` is the air base (src/field.js's
+ * baseField) and `land` the island ({ region, image } from src/land.js).
+ * Returns { follow(camera) }: call it each frame, so the sky and the land
+ * stay round the camera.
  */
-export function createWorld(scene, renderer, field) {
+export function createWorld(scene, renderer, field, land) {
   scene.background = new THREE.Color(HORIZON);
   scene.fog = new THREE.Fog(HORIZON, 3000, FAR * 0.8);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a70, 2.4));
@@ -132,27 +106,23 @@ export function createWorld(scene, renderer, field) {
   sky.renderOrder = -4;
   scene.add(sky);
 
-  // The ground and the runway lie in the same plane, so they are drawn in
-  // order, ground first, instead of by depth: otherwise the two shimmer.
-  const flat = (width, length, map, order) => {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, length), new THREE.MeshLambertMaterial({ map, depthWrite: false }));
-    mesh.rotation.x = -Math.PI / 2;   // the plane's "up" edge points north
-    mesh.position.y = field.height;
-    mesh.renderOrder = order;
-    scene.add(mesh);
-    return mesh;
-  };
-  const size = FAR * 2.2, grass = groundTexture(renderer);
-  grass.repeat.set(size / SQUARE, size / SQUARE);
-  const ground = flat(size, size, grass, -3);
-  flat(field.runway.width, field.runway.length, runwayTexture(renderer, field.runway), -2);
+  const terrain = createTerrain(scene, land, SUN, scene.fog);
+
+  // The runway lies in the land's own plane, so it is drawn nudged toward
+  // the eye: otherwise the two shimmer.
+  const runway = new THREE.Mesh(
+    new THREE.PlaneGeometry(field.runway.width, field.runway.length),
+    new THREE.MeshLambertMaterial({ map: runwayTexture(renderer, field.runway), depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+  );
+  runway.rotation.set(-Math.PI / 2, (-field.heading * Math.PI) / 180, 0, 'YXZ');   // flat, then turned so its "up" edge lies along the takeoff heading
+  runway.position.set(field.east, field.height, -field.north);
+  runway.renderOrder = 1;   // after the land
+  scene.add(runway);
 
   return {
     follow(camera) {
       sky.position.copy(camera.position);
-      // The ground goes with the camera in whole squares, so it never runs out and never seems to move.
-      ground.position.x = Math.round(camera.position.x / SQUARE) * SQUARE;
-      ground.position.z = Math.round(camera.position.z / SQUARE) * SQUARE;
+      terrain.follow(camera);
     },
   };
 }

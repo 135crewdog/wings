@@ -11,7 +11,8 @@ import { FT, KT } from './sim/card.js';
 import { atmosphere } from './sim/atmosphere.js';
 import { elevatorTravel } from './sim/aero.js';
 import { calibratedAirspeed } from './sim/airdata.js';
-import { FIELD, PARKED, fieldGround, startState } from './field.js';
+import { PARKED, baseField, startState } from './field.js';
+import { createIsland, islandGround } from './sim/island.js';
 import { createAircraft } from './render/aircraft.js';
 import { createChaseCamera } from './render/camera.js';
 import { attachLook, createLook } from './input/look.js';
@@ -20,23 +21,25 @@ import { attitudeToThree, toThree } from './render/frames.js';
 
 /**
  * Puts the flight on a canvas, parked on the runway and holding still.
+ * `land` is the island ({ region, heights, image } from src/land.js).
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
  * when a flight ends in a crash; `onReadout(knots, feet, feetAboveGround)` is
  * called every frame with what the instruments read. Returns { ready, fly(), hold(), restart(), setCrashes(on) }:
  * fly() lets time run, hold() stops it (the picture stays), restart() puts
  * the airplane back on the runway.
  */
-export function startFlight(canvas, { controls, onCrash, onReadout }) {
+export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   const scene = new THREE.Scene();
-  const world = createWorld(scene, renderer, FIELD);
+  const island = createIsland(land.region, land.heights), field = baseField(land.region, island);
+  const world = createWorld(scene, renderer, field, land);
   const airplane = createAircraft();
   scene.add(airplane);
   const chase = createChaseCamera();
   const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
 
   const card = deriveCard(F4C);
-  const ground = fieldGround();
+  const ground = islandGround(island);
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
   const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2] - p.sag));   // where the wheels rest, not where the struts hang to
   const BUFFET_FULL = 2000;   // Pa of dynamic pressure: below this (about 110 knots) the buffet shake is weaker
@@ -46,7 +49,7 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
   const pose = () => ({ position: new THREE.Vector3(...toThree(sim.state.x)), quaternion: new THREE.Quaternion(...attitudeToThree(sim.state.q)) });
   const shown = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
   const restart = () => {
-    sim = new Sim(card, startState(card), { ground, gear: true, flaps: true, crashes });
+    sim = new Sim(card, startState(card, field), { ground, gear: true, flaps: true, crashes });
     for (let t = 0; t < 3; t += DT) sim.step(PARKED);   // let it settle onto its wheels
     now = before = pose();
     carry = 0;
@@ -109,7 +112,9 @@ export function startFlight(canvas, { controls, onCrash, onReadout }) {
     onReadout(calibratedAirspeed(air.V, atmosphere(-sim.state.x[2])) / KT, height / FT, (height - ground.heightAt(sim.state.x[0], sim.state.x[1])) / FT);
     const buffet = (seen.coef?.buffet ?? 0) * Math.min(1, air.qbar / BUFFET_FULL);
     look.update(elapsed);
-    chase.update(shown.position, shown.quaternion, elapsed, FIELD.height, flying ? buffet : 0, look);
+    // The camera stays above the ground where it is; where it was a frame ago is near enough.
+    const under = Math.max(ground.heightAt(sim.state.x[0], sim.state.x[1]), ground.heightAt(-chase.camera.position.z, chase.camera.position.x));
+    chase.update(shown.position, shown.quaternion, elapsed, under, flying ? buffet : 0, look);
     world.follow(chase.camera);
     renderer.render(scene, chase.camera);
     settle = flying ? SETTLE : settle - 1;

@@ -154,6 +154,8 @@ export const region = () => ({
   lochs: [{ level: LOCH.level, ...lochBox }],
   // Where things stand: metres north and east, and height above sea level.
   sites: { base: BASE, castle: CASTLE, viaduct: VIADUCT, cove: COVE_AT, door: DOOR_AT },
+  // For the paint: farmland lies east of this line, and the chalk cliffs south of this one.
+  paint: { fieldsEast: 6500 * SCALE, chalkSouth: -24000 * SCALE },
 });
 
 /** Every post's height, row by row from the north-west corner, in stored steps. */

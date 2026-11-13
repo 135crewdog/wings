@@ -3,6 +3,7 @@
 import { APP_VERSION } from './version.js';
 import { PARKED } from './field.js';
 import { startFlight } from './flight.js';
+import { loadLand } from './land.js';
 import { createTilt } from './input/tilt.js';
 import { createThrottle } from './ui/throttle.js';
 import { readouts } from './readouts.js';
@@ -47,7 +48,7 @@ const parkControls = () => {
 
 // ---- the flight ----
 let mode = 'start';   // start, flying, paused or crashed
-const flight = startFlight($('view'), {
+const flight = startFlight($('view'), await loadLand(), {
   controls: () => ({ ...pilot, elevator: tilt.stick.pitch, aileron: tilt.stick.roll }),
   onCrash() { mode = 'crashed'; letSleep(); show('crashed'); checkForUpdate(); },
   onReadout(knots, feet, aboveGround) {

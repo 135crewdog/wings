@@ -2,6 +2,12 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.17
+
+- The island. The flat test field is gone: flights start on runway 28 of the air base, in the farmland in the island's east, with the highlands to the north, the sea all round and the south coast's cliffs.
+- The land is painted to match the jet: four-sided fields, moor on the hills, rock on the heights, chalk cliffs, sand at the shore.
+- The radar altitude now differs from the altitude: the runway is 30 feet above the sea, and the hills come up under you.
+
 ## 0.0.16
 
 - A sun and clouds in the sky. The clouds are fair-weather cumulus, far off and still; you can't fly through them. As in Rage, painted to match the jet.

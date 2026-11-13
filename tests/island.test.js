@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { decodePng } from '../terrain/png.mjs';
 import { build, region as freshRegion } from '../terrain/make-island.mjs';
-import { createIsland, decodeHeights } from '../src/sim/island.js';
+import { DRAWN_CELLS_PER_POST, createIsland, decodeHeights } from '../src/sim/island.js';
 
 const FT = 0.3048, NM = 1852, DEG = Math.PI / 180;
 const region = JSON.parse(readFileSync(new URL('../terrain/island.json', import.meta.url)));
@@ -113,4 +113,89 @@ test('island: the south coast has its cliffs, cove and headland; the viaduct has
   let sides = 0;
   for (let b = 0; b < 360; b += 30) if (island.heightAt(viaduct.north + 800 * Math.cos(b * DEG), viaduct.east + 800 * Math.sin(b * DEG)) > floor + 150) sides++;
   assert.ok(sides >= 4, `${sides} of 12 directions rise from the glen floor`);
+});
+
+// ---- flying from the island's air base, headless, as the app does ----
+import { deriveCard } from '../src/sim/card.js';
+import { F4C } from '../src/sim/cards/f4c.js';
+import { Sim, DT } from '../src/sim/sim.js';
+import { qtoEuler } from '../src/sim/vec.js';
+import { PARKED, baseField, startState } from '../src/field.js';
+import { islandGround } from '../src/sim/island.js';
+import { fly } from './fly.js';
+import { circuit } from './circuit.js';
+
+const ground = islandGround(island), field = baseField(region, island);
+
+test('island: the flight model stands on the sea and the loch as it does on land', () => {
+  assert.equal(ground.heightAt(-30000, 0), 0, 'the sea, far out');
+  assert.equal(ground.heightAt(cove.north, cove.east), 0, 'the cove');
+  const loch = region.lochs[0];
+  assert.equal(ground.heightAt(castle.north - 500, castle.east), loch.level, 'the loch, off the castle');
+  assert.ok(Math.abs(ground.heightAt(base.north, base.east) - base.height) < 0.3, 'the runway');
+});
+
+test('island: at the start the jet sits still on the numbers of runway 28, with the runway ahead', () => {
+  const card = deriveCard(F4C);
+  const sim = new Sim(card, startState(card, field), { ground, gear: true, flaps: true });
+  for (let i = 0; i < 5 / DT; i++) sim.step(PARKED);
+  const settled = [...sim.state.x];
+  for (let i = 0; i < 30 / DT; i++) sim.step(PARKED);
+  const moved = Math.hypot(...sim.state.x.map((x, i) => x - settled[i])), euler = qtoEuler(sim.state.q);
+  const a = field.heading * DEG, ahead = ((field.north - sim.state.x[0]) * Math.cos(a) + (field.east - sim.state.x[1]) * Math.sin(a) + field.runway.length / 2) / FT;
+  console.log(`  On runway 28: heading ${((euler.yaw / DEG + 360) % 360).toFixed(1)}, ${Math.round(ahead)} ft of runway ahead, field ${(field.height / FT).toFixed(0)} ft above the sea; moves ${(moved / FT).toFixed(2)} ft in 30 s`);
+  assert.equal(sim.crashed, null);
+  assert.ok(moved < 0.3, 'it stays put on the brakes');
+  assert.deepEqual(sim.touching.slice(0, 3), [true, true, true], 'all three wheels are on the ground');
+  assert.ok(Math.abs(((euler.yaw / DEG + 360) % 360) - 280) < 0.5, 'heading 280');
+  assert.ok(Math.abs(euler.pitch) < 0.2 * DEG && Math.abs(euler.roll) < 0.5 * DEG, 'level');
+  assert.ok(ahead > 8900 && ahead < 9200, 'nearly all of the 9,200 ft ahead');
+});
+
+test('island: a whole flight from the base: take off on 28, fly a circuit, land and stop on the runway', () => {
+  const card = deriveCard(F4C);
+  const sim = new Sim(card, startState(card, field), { ground, gear: true, flaps: true });
+  for (let t = 0; t < 3; t += DT) sim.step(PARKED);
+  const pilot = circuit({ field }), released = sim.t;
+  const log = fly(sim, 480, pilot, 1);
+  const e = pilot.events, half = field.runway.length / 2, edge = field.runway.width / 2;
+  assert.equal(sim.crashed, null, 'no crash');
+  for (const name of ['liftoff', 'base', 'flare', 'touchdown', 'stopped']) assert.ok(e[name], `the flight reached: ${name}`);
+  const along = (m) => Math.round((m + half) / FT);
+  console.log(`  From the base: lifts off at ${e.liftoff.kias.toFixed(0)} kt, ${along(e.liftoff.north)} ft down the runway; highest ${Math.round(Math.max(...log.map((r) => r.ft)))} ft`);
+  console.log(`  touches down at ${e.touchdown.kias.toFixed(0)} kt, ${along(e.touchdown.north)} ft past the threshold; stops ${along(e.stopped.north)} ft down the runway; the flight took ${((e.stopped.t - released) / 60).toFixed(1)} min`);
+  assert.ok(Math.abs(e.liftoff.north) < half, 'it lifts off before the end of the runway');
+  for (const name of ['touchdown', 'stopped']) assert.ok(Math.abs(e[name].north) < half && Math.abs(e[name].east) < edge, `${name} is on the runway`);
+});
+
+test('island: over the hills the radar altitude and the altitude part company', () => {
+  // A mile-high pass north over the range: the ground comes up under the jet and falls away again.
+  let least = Infinity, most = 0;
+  for (let n = 0; n < 17000; n += 100) {
+    const above = 3000 - ground.heightAt(n, castle.east - 4000);
+    least = Math.min(least, above); most = Math.max(most, above);
+  }
+  console.log(`  At 9,840 ft from the lowlands north across the range: the ground is between ${Math.round(least / FT)} and ${Math.round(most / FT)} ft below`);
+  assert.ok(most > 2800 && least < 1500 && least > 0);
+});
+
+test('island: the ground drawn near the jet is the ground the flight model feels', () => {
+  // The finest drawn squares, as src/render/terrain.js lays them: corners on whole cells from the island's
+  // middle, each square two triangles split corner to corner. Compare the drawn height with the flight
+  // model's everywhere along the south coast's cliffs, where the land is at its sharpest, and in the highlands.
+  const cell = region.post / DRAWN_CELLS_PER_POST;
+  assert.ok(Number.isInteger(region.north0 / cell) && Number.isInteger(region.east0 / cell), 'the posts lie on the lines of the drawn squares');
+  const drawn = (north, east) => {
+    const x = east / cell, z = -north / cell, i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
+    const at = (di, dj) => island.heightAt(-(j + dj) * cell, (i + di) * cell);
+    // The square's triangles are (a, c, b) and (b, c, d): a at (i, j), b at (i+1, j), c at (i, j+1), d at (i+1, j+1).
+    return fx + fz < 1 ? at(0, 0) + fx * (at(1, 0) - at(0, 0)) + fz * (at(0, 1) - at(0, 0)) : at(1, 1) + (1 - fx) * (at(0, 1) - at(1, 1)) + (1 - fz) * (at(1, 0) - at(1, 1));
+  };
+  let worst = 0;
+  const look = (n0, n1, e0, e1) => { for (let n = n0; n < n1; n += 7.3) for (let e = e0; e < e1; e += 7.3) worst = Math.max(worst, Math.abs(drawn(n, e) - island.heightAt(n, e))); };
+  look(-18600, -17400, -6000, 2000);                                   // the cliffs, the cove and the Door's headland
+  look(castle.north - 1500, castle.north + 1500, castle.east - 1500, castle.east + 1500);
+  look(base.north - 600, base.north + 600, base.east - 2000, base.east + 2000);
+  console.log(`  Drawn ground against the flight model's, near the jet: at most ${(worst / FT).toFixed(1)} ft apart`);
+  assert.ok(worst < 1, `${worst} m apart`);
 });

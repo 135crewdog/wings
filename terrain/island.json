@@ -41,5 +41,9 @@
       "north": -18410,
       "east": -2850
     }
+  },
+  "paint": {
+    "fieldsEast": 3250,
+    "chalkSouth": -12000
   }
 }

@@ -5,6 +5,15 @@
 // latitude or longitude. Metres; north and east of the island's middle.
 // No browser code.
 
+import { SURFACES } from './ground.js';
+
+// The picture draws its finest ground in squares this many to a post, with
+// their corners on the posts' own lines (src/render/terrain.js). The land
+// between posts is straight-line joined, with a crease along each line of
+// posts; squares that sit on those lines put their own edges on the creases,
+// so the drawn ground near the airplane is the ground the flight model feels.
+export const DRAWN_CELLS_PER_POST = 8;
+
 /**
  * The heights of an image's pixels, as whole steps above the map's lowest
  * point: the red channel is the high byte and the green the low. `channels`
@@ -38,4 +47,16 @@ export function createIsland(region, heights) {
     return h < 0 ? 0 : null;
   }
   return { heightAt, waterAt };
+}
+
+/**
+ * The island as the flight model's ground. Water stands as a surface at its
+ * own level: the sea at zero, a loch at the loch's.
+ */
+export function islandGround(island) {
+  return {
+    heightAt: (north, east) => Math.max(island.heightAt(north, east), island.waterAt(north, east) ?? -Infinity),
+    surfaceAt: () => 'runway',
+    surfaces: SURFACES,
+  };
 }
