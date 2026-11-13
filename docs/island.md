@@ -133,6 +133,8 @@ The island's map is four files in `terrain/`, all written by `terrain/make-islan
 - `island.json`: where the map lies, the loch and the lava lake, the river's course, and where each landmark stands.
 - `landmarks.json`: each landmark that has a model: where it stands, and its solid shapes, read from the model in `models/`.
 
+The castle is in: the owner's model, on its shelf, its tallest spire 220 m above the ground. A ridge was added to the wall south-west of the grounds, where that spire showed over the mountains from the plateau.
+
 The viaduct is in: the owner's model, standing east and west across the canyon's head. The land was shaped to it in two places: a hill at its east end for the track to run into, as it runs into the canyon's wall in the west, and the canyon's west wall cut back north of it, so there is room to fly out of every arch.
 
 `node terrain/preview.mjs <folder>` draws pictures of the result. `tests/island.test.js` checks the land against this page, and flies it. `tests/landmarks.test.js` checks each landmark's model against `docs/models.md`, and flies its openings.

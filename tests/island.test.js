@@ -89,9 +89,9 @@ test('island: the loch is level and held in by its shores; the castle\'s shelf i
   assert.ok(castle.height > loch.level + 15 && southmost > castle.north && southmost - castle.north < 500, 'on the south shore');
 });
 
-// Whether the top of the castle (100 m above its shelf) can be seen from a point.
+// Whether the top of the castle (its tallest spire, 220 m above its shelf) can be seen from a point.
 function seesCastle(n, e, up) {
-  const top = castle.height + 100, dist = Math.hypot(castle.north - n, castle.east - e);
+  const top = castle.height + 220, dist = Math.hypot(castle.north - n, castle.east - e);
   for (let d = 100; d < dist - 300; d += 40) {
     const t = d / dist;
     if (island.heightAt(n + (castle.north - n) * t, e + (castle.east - e) * t) > up + (top - up) * t) return false;

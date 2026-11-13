@@ -51,6 +51,7 @@ const CONES = [[-6300, 4900, 330, 800], [-10400, -1500, 280, 700], [-11800, 4000
 export const STRIP = { north: -4700, east: -11400 };
 const COVE = { north: 3900, radius: 900, mouth: 230, inland: 1300 };   // its middle lies this far in from the east coast
 const DOOR_NORTH = 1900;
+const HIDING_RIDGE = [[3300, -1500], [5800, -100]];   // a ridge in the wall south-west of the castle's grounds
 // The mountains: metres north and east, the top's height, and how far the mountain reaches.
 const PEAKS = [
   [15200, 600, 2330, 4500], [14400, -4400, 2240, 4300], [14300, 5600, 2160, 4300], [11700, 9700, 2060, 4300], [7600, 10300, 1900, 3900],   // the arc north and east of the loch
@@ -291,6 +292,11 @@ function natural(n, e) {
     if (t < 1) massif += ((top - 330) * Math.pow(1 - t, 1.6) * (0.72 + 0.56 * ridged(wn / 2600, we / 2600, 4, 22))) ** 3;
   }
   h = Math.max(h, low + high * (230 + 110 * fbm(n / 1800, e / 1800, 3, 27) + Math.cbrt(massif)));   // they stand on the low land, not on the plateau
+  // The castle's tallest spire stands 220 m above its shelf, and from two places on the plateau it showed over a
+  // low stretch of the wall south-west of the grounds. A ridge closes it.
+  const [ridgeA, ridgeB] = HIDING_RIDGE, rn = ridgeB[0] - ridgeA[0], re = ridgeB[1] - ridgeA[1];
+  const rt = clamp(((n - ridgeA[0]) * rn + (e - ridgeA[1]) * re) / (rn * rn + re * re), 0, 1);
+  h = Math.max(h, 1010 - 0.8 * Math.hypot(n - ridgeA[0] - rt * rn, e - ridgeA[1] - rt * re));
 
   // The grounds: a wide bowl south of the loch, walled in by the mountains round it.
   const bowl = Math.hypot((n - GROUNDS.north) / GROUNDS.deep, (e - GROUNDS.east) / GROUNDS.across);
@@ -372,7 +378,7 @@ export const region = () => ({
 });
 
 // The landmarks that have a model, each standing on its site. `turn` is degrees clockwise from the way it was built.
-const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 } };
+const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 }, castle: { model: 'castle.glb', turn: 0 } };
 const mm = (v) => Math.round(v * 1000) / 1000;
 
 /**
