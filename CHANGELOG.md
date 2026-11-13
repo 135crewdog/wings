@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.25
+
+- Durdle Door: the owner's own, a limestone arch 330 feet high standing in the sea off a headland on the east coast, just south of the cove. The hole through it is 230 feet wide and 200 tall: fly through it along the coast, north or south.
+- With crashes on, the rock is solid. With the crash override on, the jet passes through it.
+
 ## 0.0.24
 
 - The land no longer jumps as you fly over it. Far ground is drawn coarser than near ground, and it used to switch from one to the other in a single frame; now it eases across.

@@ -114,4 +114,4 @@ Claude Code puts the file at `models/<name>.glb`, reads its solid boxes into the
 
 `node models/measure.mjs models/f4c.glb` prints a model's wheel and contact positions, to copy into its card.
 
-`models/viaduct.glb` is the owner's viaduct, the first landmark; `models/castle.glb` is his castle school. `node models/solids.mjs models/viaduct.glb` prints a landmark's solid boxes.
+`models/viaduct.glb` is the owner's viaduct, the first landmark; `models/castle.glb` is his castle school, and `models/door.glb` his Durdle Door. `node models/solids.mjs models/viaduct.glb` prints a landmark's solid boxes.

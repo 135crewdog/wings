@@ -23,8 +23,14 @@ const island = createIsland(region, decodeHeights(png.rgb, png.width * png.heigh
 const ground = islandGround(island, createSolids(Object.values(landmarks).flatMap((l) => l.solids)));
 
 // What the prompt for each model asked for: its overall size in metres (east-west, up from the origin, north-south),
-// its triangle budget, and how many openings there are to fly through.
-const ASKED = { viaduct: { size: [640, 121, 51], triangles: 8000, openings: 11 }, castle: { size: [356, 220, 296], triangles: 15000, openings: 0 } };
+// its triangle budget, and its openings to fly through: how many, the solids that stand either side of them, the
+// solids over them, and the heights (m above the origin) to fly them at. `origin: 'opening'` is a landmark whose
+// origin is the middle of its one opening, not of its footprint.
+const ASKED = {
+  viaduct: { size: [640, 121, 51], triangles: 8000, openings: 11, legs: /pier|abutment/, over: /deck/, heights: [12, 90] },
+  castle: { size: [356, 220, 296], triangles: 15000, openings: 0 },
+  door: { size: [260, 100, 45], triangles: 1200, kb: 100, openings: 1, legs: /ridge|leg/, over: /top/, heights: [12, 40], origin: 'opening' },
+};
 
 test('landmarks: terrain/landmarks.json is what the script writes today', () => {
   assert.deepEqual(landmarks, JSON.parse(JSON.stringify(freshLandmarks())), 'landmarks.json is stale: run node terrain/make-island.mjs');
@@ -44,9 +50,9 @@ for (const [name, at] of Object.entries(landmarks)) {
     console.log(`  ${name}: ${size.map((v) => v.toFixed(0)).join(' x ')} m (east-west, up, north-south), ${triangles} triangles, ${kb.toFixed(0)} KB, ${solids.length} solid boxes`);
     size.forEach((v, k) => assert.ok(Math.abs(v - asked.size[k]) <= 0.05 * asked.size[k], `size ${v.toFixed(1)} m against ${asked.size[k]} m asked`));
     // The origin is in the middle of its footprint, east and west; it carries on 5 m below the ground.
-    assert.ok(Math.abs(box.min[0] + box.max[0]) < 0.02 * size[0], 'the origin is in the middle');
+    if (asked.origin !== 'opening') assert.ok(Math.abs(box.min[0] + box.max[0]) < 0.02 * size[0], 'the origin is in the middle');
     assert.ok(box.min[1] <= -4.9, `it carries on ${-box.min[1]} m below the ground`);
-    assert.ok(kb < 500 && triangles < asked.triangles, 'inside its budget');
+    assert.ok(kb < (asked.kb ?? 500) && triangles < asked.triangles, 'inside its budget');
     assert.ok(json.materials.length === 1 && (json.images ?? []).length <= 1, 'one material, one texture at most');
     assert.ok(!json.animations && !json.cameras && !json.extensions?.KHR_lights_punctual, 'no animations, cameras or lights');
     // The solids: plain cubes, moved, turned and stretched, and nothing else unseen.
@@ -62,7 +68,7 @@ for (const [name, at] of Object.entries(landmarks)) {
   });
 
   // The openings: between each pair of neighbouring legs (piers and abutments), counted along the landmark.
-  const legs = at.solids.filter((s) => /pier|abutment/.test(s.name)).sort((a, b) => a.centre[1] - b.centre[1]);
+  const legs = asked.legs ? at.solids.filter((s) => asked.legs.test(s.name)).sort((a, b) => a.centre[1] - b.centre[1]) : [];
   const openings = legs.slice(1).map((b, i) => {
     const a = legs[i], across = [b.centre[0] - a.centre[0], b.centre[1] - a.centre[1]], gap = Math.hypot(...across);
     // Its middle is half way between the two legs' facing sides; a leg's first axis lies along the landmark.
@@ -108,27 +114,28 @@ for (const [name, at] of Object.entries(landmarks)) {
       const clear = o.clear;
       widths.push(clear);
       assert.ok(clear >= 35, `opening ${i + 1} is ${clear.toFixed(1)} m wide in the solid shapes`);
-      for (const way of [0, 180]) for (const up of [12, 90]) {
+      for (const way of [0, 180]) for (const up of asked.heights) {
         const sim = pass(o, o.heading + way, up);
         assert.equal(sim.crashed, null, `opening ${i + 1}, heading ${Math.round(o.heading + way)}, ${up} m up: ${sim.crashed?.reason} (${sim.crashed?.solid ?? sim.crashed?.point})`);
         assert.ok(Math.hypot(sim.state.x[0] - o.north, sim.state.x[1] - o.east) > 300, 'it came out the far side');
       }
     }
-    console.log(`  ${openings.length} openings, each flown both ways at 350 kt, 40 and 300 ft above the river: all clear. The hole in the solid shapes is ${Math.min(...widths).toFixed(1)} to ${Math.max(...widths).toFixed(1)} m wide`);
+    console.log(`  ${openings.length} opening${openings.length > 1 ? 's' : ''}, each flown both ways at 350 kt, ${asked.heights.map((m) => Math.round(m / FT / 10) * 10).join(' and ')} ft up: all clear. The hole in the solid shapes is ${Math.min(...widths).toFixed(1)} to ${Math.max(...widths).toFixed(1)} m wide`);
     // Into the stone: a leg head-on, a wingtip on a leg, and the deck.
-    const decks = at.solids.filter((s) => /deck/.test(s.name));
+    const decks = at.solids.filter((s) => asked.over.test(s.name));
     const o = openings[Math.floor(openings.length / 2)], leg = { north: o.b.centre[0], east: o.b.centre[1] };
     const side = (m) => ({ north: o.north + (m / o.gap) * (o.b.centre[0] - o.a.centre[0]), east: o.east + (m / o.gap) * (o.b.centre[1] - o.a.centre[1]) });
-    const above = Math.max(...decks.map((d) => d.centre[2] + d.half[1])) - at.up + 20;
+    const above = roof + 30;
     const head = pass(leg, o.heading, 30), tip = pass(side(o.clear / 2 - 4), o.heading, 30), deck = pass(o, o.heading, decks[0].centre[2] - at.up), over = pass(o, o.heading, above), spared = pass(leg, o.heading, 30, false);
-    console.log(`  Into a pier: ${say(head)}. A wingtip on a pier: ${say(tip)}. Into the deck: ${say(deck)}. Over the top: ${say(over)}. Into a pier with the crash override on: ${say(spared)}`);
+    console.log(`  Into a leg: ${say(head)}. A wingtip on a leg: ${say(tip)}. Into the stone over the opening: ${say(deck)}. Over the top: ${say(over)}. Into a leg with the crash override on: ${say(spared)}`);
     assert.equal(head.crashed?.solid, o.b.name);
     assert.equal(tip.crashed?.solid, o.b.name, 'a wingtip counts');
-    assert.match(deck.crashed?.solid ?? '', /deck/);
+    assert.match(deck.crashed?.solid ?? '', asked.over);
     assert.equal(over.crashed, null);
     assert.equal(spared.crashed, null, 'with the override on, the jet flies through');
   });
 
+  const below = -bounds(json.scenes[json.scene ?? 0].nodes.filter((r) => !isSolid(json.nodes[r])).flatMap((r) => verticesUnder(glb, r, worldMatrices(json)))).min[1];   // how far it carries on below its origin
   test(`landmarks: the ${name} stands on its site`, () => {
     // The ground under every opening is below the origin's level or near it: nothing fills an arch.
     for (const [i, o] of openings.entries()) {
@@ -138,6 +145,6 @@ for (const [name, at] of Object.entries(landmarks)) {
     // Nothing hangs in the air: the ground under each standing part is within the 5 m it carries on below its origin.
     const hang = standing.map((l) => at.up - island.heightAt(l.centre[0], l.centre[1]));
     console.log(`  Under the ${name}'s ${standing.length} standing parts the ground is ${Math.min(...hang).toFixed(1)} m above to ${Math.max(...hang).toFixed(1)} m below the origin's level`);
-    assert.ok(Math.max(...hang) < 4.5, 'a part would hang in the air');
+    assert.ok(Math.max(...hang) < below - 0.5, 'a part would hang in the air');
   });
 }

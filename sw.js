@@ -4,7 +4,7 @@
 // never calls skipWaiting() on its own; the app offers the update and posts
 // "skip-waiting" when the pilot accepts.
 
-const VERSION = '0.0.24';   // the same value as APP_VERSION in src/version.js
+const VERSION = '0.0.25';   // the same value as APP_VERSION in src/version.js
 const CACHE = `wings-${VERSION}`;
 const FILES = [
   './',
@@ -58,6 +58,7 @@ const FILES = [
   './models/f4c.glb',
   './models/viaduct.glb',
   './models/castle.glb',
+  './models/door.glb',
 ];
 
 self.addEventListener('install', (event) => {

@@ -144,7 +144,10 @@ function intoMountains(n0, e0) {
 // The cove and the Door stand on the east coast, wherever the coast falls at their latitudes.
 const eastCoast = (n) => { let e = 12000; while (inland(n, e) > 0) e += 20; return e; };
 COVE.east = eastCoast(COVE.north) - COVE.inland;
-export const DOOR = { north: DOOR_NORTH, east: eastCoast(DOOR_NORTH) - 60 };
+// The Door stands in the sea off its headland's tip: this is the middle of its opening, at sea level. A post of the
+// map lies DOOR_CLIFF west of it, the top of the cliff the Door's rock runs out from; the next post east is sea.
+const DOOR_CLIFF = 80;
+export const DOOR = { north: DOOR_NORTH, east: Math.ceil((eastCoast(DOOR_NORTH) + 10 - EAST0) / POST) * POST + EAST0 + DOOR_CLIFF, height: 0 };
 
 /** How far inside the redwoods' line a place is: 1 well inside, 0 outside, easing over `ramp` metres from its wandering edge. */
 export function redwoods(n0, e0, ramp = 250) {
@@ -184,6 +187,14 @@ const lavaBox = { south: VOLCANO.north - VOLCANO.crater, north: VOLCANO.north + 
 /** The land's height at a point (metres north and east), before it is stored. */
 export function shape(n, e) {
   let h = natural(n, e);
+  // The Door's headland. The Door's rock is a ridge 90 m high running out to sea; the headland was a third of that,
+  // and the ridge would have stood on it like a wall. So the headland rises to a hill the ridge runs out of, ending
+  // in a cliff, with deep water from there on: through the opening and round the outer leg.
+  const dx = e - DOOR.east, dn = n - DOOR.north;
+  if (Math.abs(dn) < 400 && dx > -560 && dx < 300) {
+    h = Math.max(h, 84 * smooth(330, 90, Math.hypot(dx + 190, dn)) - 6);
+    if (dx > -DOOR_CLIFF + 1) h = Math.min(h, -10);
+  }
   if (h <= 0) return h;
   // The viaduct's east end. The west end runs into the canyon's wall; in the east the ground is only half as high as
   // the deck, which would stop in mid-air. So a hill stands there for it to run into: the river's flat floor as far
@@ -378,7 +389,7 @@ export const region = () => ({
 });
 
 // The landmarks that have a model, each standing on its site. `turn` is degrees clockwise from the way it was built.
-const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 }, castle: { model: 'castle.glb', turn: 0 } };
+const LANDMARKS = { viaduct: { model: 'viaduct.glb', turn: 0 }, castle: { model: 'castle.glb', turn: 0 }, door: { model: 'door.glb', turn: 0 } };
 const mm = (v) => Math.round(v * 1000) / 1000;
 
 /**
