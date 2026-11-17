@@ -78,6 +78,10 @@ Every real paved runway in the main islands 3,000 ft or longer is levelled, draw
 
 Each airfield's runways lie on one flat surface fitted to the survey's heights at their ends, so runways that cross meet at one height, with the ground eased into them round their edges. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
 
+## North
+
+The HUD's heading tape reads magnetic, as the charts and the runway numbers do. One variation for all the islands: **9.6° east**, the HNL VORTAC's. On 8R at Honolulu, pointed 090 true, the tape reads 080.
+
 ## The start
 
 **Every flight starts on the numbers of runway 8R at Honolulu, on the Hickam side:** the 12,000 ft reef runway, the one the trade winds put in use, pointed east toward Diamond Head. Gear and flaps down, brakes on. The Hawaii Air National Guard flew F-4C Phantoms from Hickam from 1976 to 1987.

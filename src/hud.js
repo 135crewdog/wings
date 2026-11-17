@@ -41,6 +41,39 @@ export function headingText(deg) {
   return String(((Math.round(deg) % 360) + 360) % 360).padStart(3, '0');
 }
 
+// Hawaii's magnetic variation, degrees east (the HNL VORTAC's, OurAirports;
+// docs/hawaii.md). The heading tape reads magnetic, as the charts and the
+// runway numbers do: on 8R at Honolulu it reads 080. The ladder and every
+// symbol drawn in the view stay true, since they are directions in the world.
+export const VARIATION = 9.6;
+
+/** A true heading (degrees) as a magnetic one, 0..360. */
+export function magnetic(trueDeg) {
+  return (((trueDeg - VARIATION) % 360) + 360) % 360;
+}
+
+/**
+ * The heading tape's marks, after 135crewdog/warwagon's: a tick every 5
+ * degrees and a two-digit number every 10, sliding past under the readout,
+ * which sits in the tape's own row under the pointer. `heading` is the
+ * magnetic heading, `pxDeg` the tape's scale and `reach` how far out it
+ * runs (px). A tick right under the pointer, or a number that would sit
+ * under the readout, is left out. Returns [{ x, major, label }], x from the
+ * middle.
+ */
+export function tapeMarks(heading, pxDeg, reach) {
+  const marks = [];
+  for (let d = -Math.ceil(reach / pxDeg / 5) * 5; d <= reach / pxDeg + 5; d += 5) {
+    const deg = Math.round((heading + d) / 5) * 5;
+    const x = (deg - heading) * pxDeg;
+    if (Math.abs(x) > reach || Math.abs(x) < 8) continue;   // clear of the pointer
+    const major = deg % 10 === 0;
+    const label = major && Math.abs(x) > 30 ? String((((deg % 360) + 360) % 360) / 10).padStart(2, '0') : null;   // under the readout otherwise
+    marks.push({ x, major, label });
+  }
+  return marks;
+}
+
 /**
  * The engine's power, as the HUD writes it: IDLE, a percentage of MIL in dry
  * power, MIL, or AB with how much of the afterburner is lit. `power` is the
@@ -135,18 +168,15 @@ export function createHud(canvas, safe) {
     // Clear of the throttle on the left and the buttons on the right.
     const left = area.left + 84, right = area.right - 170, top = area.top + 8, bottom = area.bottom - 14;
 
-    // heading tape across the top
-    const hdg = reading.heading;
-    stroke(() => { ctx.moveTo(cx, top + 22); ctx.lineTo(cx - 5, top + 30); ctx.lineTo(cx + 5, top + 30); ctx.closePath(); });
-    text(headingText(hdg), cx, top + 40, 'center', 15);
-    const span = 60, pxDeg = (w * 0.5) / span;
-    for (let d = -span / 2; d <= span / 2; d += 5) {
-      const deg = Math.round((hdg + d) / 5) * 5;
-      const x = cx + (deg - hdg) * pxDeg;
-      if (Math.abs(x - cx) > w * 0.22) continue;
-      const major = deg % 10 === 0;
-      stroke(() => { ctx.moveTo(x, top + 4); ctx.lineTo(x, top + (major ? 14 : 9)); });
-      if (major) text(String((((deg % 360) + 360) % 360) / 10).padStart(2, '0'), x, top + 22, 'center', 12);
+    // heading tape across the top, magnetic, as War Wagon's: the pointer at
+    // the top, the readout in the tape's own row under it, and the tape's
+    // numbers passing beneath as the jet turns, which keeps the top short
+    const hdg = reading.heading, mag = magnetic(hdg);
+    stroke(() => { ctx.moveTo(cx, top + 13); ctx.lineTo(cx - 5, top + 4); ctx.lineTo(cx + 5, top + 4); ctx.closePath(); });
+    text(headingText(mag), cx, top + 24, 'center', 15);
+    for (const m of tapeMarks(mag, (w * 0.5) / 60, w * 0.22)) {
+      stroke(() => { ctx.moveTo(cx + m.x, top + 4); ctx.lineTo(cx + m.x, top + (m.major ? 14 : 9)); });
+      if (m.label) text(m.label, cx + m.x, top + 23, 'center', 12);
     }
 
     // pitch ladder: each bar is a fixed-size symbol drawn where its pitch
@@ -154,7 +184,7 @@ export function createHud(canvas, safe) {
     // Only the bars within LADDER_RANGE of the nose show, plus the horizon
     // line itself, the way a real HUD's glass shows a window of the ladder.
     ctx.save();
-    ctx.beginPath(); ctx.rect(cx - w * 0.3, top + 52, w * 0.6, bottom - top - 112); ctx.clip();
+    ctx.beginPath(); ctx.rect(cx - w * 0.3, top + 36, w * 0.6, bottom - top - 96); ctx.clip();
     const pFirst = Math.ceil((reading.pitch - LADDER_RANGE) / 5) * 5, pLast = Math.floor((reading.pitch + LADDER_RANGE) / 5) * 5;
     const bars = [];
     for (let p = pFirst; p <= pLast; p += 5) if (p >= -85 && p <= 85) bars.push(p);

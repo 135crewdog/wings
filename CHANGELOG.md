@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.32
+
+- The HUD's heading tape is cleaner, as War Wagon's: the heading sits in the tape's own row under the pointer, and the tape's numbers slide past beneath it as you turn, so the top of the screen is shorter.
+- It reads magnetic, as the charts and the runway numbers do (Hawaii's variation is 9.6° east): on 8R at Honolulu it reads 080.
+
 ## 0.0.31
 
 - Hawaii. The invented island is gone; the world is the real Hawaiian Islands, all eight, from survey heights and satellite photographs a point every 10 metres. Every island is its real size and shape and height, Mauna Kea 13,800 ft and all; only the channels between them are cut to 15 km, about a minute at 500 knots.
