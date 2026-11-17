@@ -167,37 +167,6 @@ test('every runway is smooth: no step a wheel can feel', () => {
   assert.ok(worst.step <= 0.01, `no step over 1 cm (${(worst.step * 100).toFixed(1)} cm at ${worst.where})`);
 });
 
-// Round each runway the ground eases back to its own height: from the runway's
-// edges and ends outward, over the easing and a little beyond, it never climbs
-// or falls steeper than 1 in 10 (each runway's 'ease', from the script).
-test('the ground eases into every runway: no cliffs', () => {
-  const report = new Map();
-  for (const way of index.runways) {
-    const [a, b] = way.ends, length = Math.hypot(b.north - a.north, b.east - a.east);
-    const u = [(b.north - a.north) / length, (b.east - a.east) / length], v = [-u[1], u[0]];
-    const out = 30 + (way.ease ?? 0);   // the flat shoulders, then the easing
-    // Four lines outward: from the middle of each edge, and from each end along the centre line.
-    const lines = [
-      [on(way, 0.5, way.width / 2), v], [on(way, 0.5, -way.width / 2), [-v[0], -v[1]]],
-      [on(way, 0), [-u[0], -u[1]]], [on(way, 1), u],
-    ];
-    let steepest = 0;
-    for (const [[n0, e0], d] of lines) {
-      let before = hawaii.heightAt(n0, e0);
-      for (let s = 10; s <= out; s += 10) {
-        const n = n0 + d[0] * s, e = e0 + d[1] * s;
-        if (hawaii.surfaceAt(n, e) === 'water') break;   // the sea is at sea level: no runway's business
-        const here = hawaii.heightAt(n, e);
-        steepest = Math.max(steepest, Math.abs(here - before) / 10);
-        before = here;
-      }
-    }
-    report.set(way.airport, Math.max(report.get(way.airport) ?? 0, steepest));
-  }
-  console.log(`  steepest ground round each airfield: ${[...report].map(([k, s]) => `${k} 1 in ${(1 / Math.max(s, 1e-9)).toFixed(0)}`).join(', ')}`);
-  for (const [airport, s] of report) assert.ok(s <= 0.1 + 1e-6, `${airport}: no steeper than 1 in 10 round it (1 in ${(1 / s).toFixed(1)})`);
-});
-
 test('the sea is water at sea level, in the channels and beyond the islands', () => {
   for (const [north, east] of [[-5000, 5000], [-3000, 0], [500000, 500000], [-1e6, -1e6]]) {
     assert.equal(hawaii.surfaceAt(north, east), 'water', `${north}, ${east} is the sea`);

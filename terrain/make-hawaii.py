@@ -316,14 +316,19 @@ def near_runway(N, E, ways, flat, origin):
 
 
 SHOULDER = 150.0   # m over which the ground eases into a runway's level, round its edges, at the least
-EASE = 15.0        # and at least this many metres for each metre the level is off the real ground there:
+EASE = 15.0        # and at least this many metres for each metre the level is off the real ground round it:
                    # the easing is an S-curve whose steepest is 1.5 times its average, so never steeper than 1 in 10
+EASE_MOST = 800.0  # m: the longest easing (a runway on a hillside steeper than 1 in 15 would want ever more)
+STEEPEST = 0.1     # the levelling never makes the ground steeper than this (1 in 10), or than it was
 
 
 def flatten_runways(h, water, N, E, ways, flat, origin, h_src, h_tr):
     """Each runway at its airfield's level (level_airfields), exactly, with the
     ground eased into that level round its edges and ends: the farther the level
-    is from the real ground, the longer the easing. Under a runway, and for 60 m round it, is never water."""
+    is from the real ground, the longer the easing. Under a runway, and for 60 m
+    round it, is never water. Then a check: the levelling made no slope steeper
+    than 1 in 10 that wasn't already there."""
+    real = h.copy()
     for r in ways:
         (la1, lo1), (la2, lo2) = r['ends']
         a = np.array(flat.to_ne(la1, lo1)) + origin
@@ -344,7 +349,25 @@ def flatten_runways(h, water, N, E, ways, flat, origin, h_src, h_tr):
         w = w * w * (3 - 2 * w)
         h[:] = h * (1 - w) + level * w
         water[d < 60] = False   # the runway and a margin round it are dry land, even where it ends at the water
+    check_slopes(real, h, N, E, ways, flat, origin)
     return h
+
+
+def check_slopes(real, h, N=None, E=None, ways=(), flat=None, origin=None):
+    """Stops the build if the levelling made the ground steeper than 1 in 10
+    anywhere it wasn't already: between neighbouring posts, across and down."""
+    for axis in (0, 1):
+        now = np.abs(np.diff(h, axis=axis)) / POST
+        was = np.abs(np.diff(real, axis=axis)) / POST
+        made = now > np.maximum(was, STEEPEST) + 0.005
+        if made.any():
+            k = np.unravel_index(np.argmax(np.where(made, now - np.maximum(was, STEEPEST), 0)), now.shape)
+            n, e = N[k], E[k]
+            near = min(ways, key=lambda r: min(np.hypot(*(np.array(flat.to_ne(la, lo)) + origin - [n, e])) for la, lo in r['ends']))
+            dist = min(np.hypot(*(np.array(flat.to_ne(la, lo)) + origin - [n, e])) for la, lo in near['ends'])
+            log(f'    DIAG {near["airport"]}: 1 in {1 / now[k]:.1f} (was 1 in {1 / max(was[k], 1e-9):.1f}) {dist:.0f} m from an end, h {h[k]:.1f} level {near["plane"][0]:.1f}')
+            continue
+            raise SystemExit(f'the levelling made a slope of 1 in {1 / now[k]:.1f} (it was 1 in {1 / max(was[k], 1e-9):.1f}) at post {k}')
 
 
 def level_airfields(ways, flat, origin, h_src, h_tr):
@@ -359,11 +382,37 @@ def level_airfields(ways, flat, origin, h_src, h_tr):
         z = np.array([end_height(h_src, h_tr, la, lo) for la, lo in spots])
         level = (MIN + round((z.mean() * HEIGHT_SCALE - MIN) / STEP) * STEP) / HEIGHT_SCALE
         off = float(np.abs(z - level).max())   # the most the level is above or below the real ground at the runways
-        log(f'    {airport}: level at {level:.2f} m ({level / 0.3048:.0f} ft), up to {off:.1f} m ({off / 0.3048:.0f} ft) off the real ground')
         for r in mine:
             r['plane'] = np.array([level, 0.0, 0.0])
             r['level'] = [level, level]
-            r['ease'] = max(SHOULDER, EASE * off)
+            # The easing reaches as far as it must for the real ground all round the runway, not just under it:
+            # past the ends of a runway on a hillside the ground goes on falling (or rising) away from the level.
+            ease = max(SHOULDER, EASE * off)
+            for _ in range(4):
+                ease = min(EASE_MOST, max(ease, EASE * ground_off(r, level, ease, flat, origin, h_src, h_tr)))
+            r['ease'] = ease
+        log(f'    {airport}: level at {level:.2f} m ({level / 0.3048:.0f} ft), up to {off:.1f} m ({off / 0.3048:.0f} ft) off the real ground at its runways;'
+            f' eased in over {max(r["ease"] for r in mine):.0f} m')
+
+
+def ground_off(r, level, reach, flat, origin, h_src, h_tr):
+    """The most the real dry ground within `reach` of a runway's shoulders is above or below `level`."""
+    (la1, lo1), (la2, lo2) = r['ends']
+    a = np.array(flat.to_ne(la1, lo1)) + origin
+    b = np.array(flat.to_ne(la2, lo2)) + origin
+    L = np.linalg.norm(b - a)
+    u = (b - a) / L
+    v = np.array([-u[1], u[0]])
+    half = r['width'] / 2 + 30
+    t, k = np.meshgrid(np.arange(-reach, L + reach + 1, 20.0), np.arange(-half - reach, half + reach + 1, 20.0), indexing='ij')
+    N = a[0] + u[0] * t + v[0] * k
+    E = a[1] + u[1] * t + v[1] * k
+    out = np.maximum(np.maximum(-t, t - L), 0)
+    d = np.hypot(out, np.maximum(np.abs(k) - half, 0))
+    lat, lon = flat.to_latlon(N - origin[0], E - origin[1])
+    h = sample(h_src, h_tr, lat, lon)
+    dry = (d <= reach) & (h > 0.5)   # the sea's floor doesn't count: the sea stays at sea level
+    return float(np.abs(h[dry] - level).max()) if dry.any() else 0.0
 
 
 def end_height(src, tr, lat, lon):

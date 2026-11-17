@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.41
+
+- Every runway is dead flat, at one height per airfield: no more bump on the takeoff roll at about 125 knots, and the runway paint lies right on the ground. Airfields on a slope now sit on a bank at one end and in a cutting at the other (most at Bradshaw, about 18 m). The first launch after the update downloads about 64 MB of new airfield ground.
+
 ## 0.0.40
 
 - A Settings button on the start screen opens the pause screen (the map and the switches) before you fly; there, the top button says Fly.
