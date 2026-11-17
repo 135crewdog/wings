@@ -18,4 +18,6 @@ The owner's own model, built in Blender with Claude in a Wings project chat, fro
 
 It is painted as a USAF F-4C in Southeast Asia camouflage, loosely Robin Olds's jet.
 
+Revised in version 0.0.27: the windscreen reshaped and other small fixes to its looks, its wheels and contact points unchanged.
+
 It replaced a stand-in in version 0.0.13: "FREE F-4 Phantom low poly" by Artbor (Creative Commons Attribution 4.0), which the app used and credited on screen from 0.0.3 to 0.0.12. Nothing of the stand-in remains in the app.

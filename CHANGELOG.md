@@ -4,7 +4,8 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.27
 
-- The app icon's F-4C has its windscreen reshaped: rounded at the front, as on the real jet.
+- The owner's F-4C, revised: the windscreen is rounded at the front, as on the real jet, with other small fixes to its looks. It flies exactly as before; its wheels and every point that can touch the ground are where they were.
+- The app icon shows the revised jet.
 
 ## 0.0.26
 
