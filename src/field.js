@@ -1,6 +1,6 @@
 // A field: a runway, and where the airplane starts on it. One description,
 // used by the simulation (where the airplane starts) and by the picture (what
-// to draw). There are two: the island's air base, where the app flies, and
+// to draw). There are two: a runway of Hawaii's, where the app flies, and
 // the old flat test field at sea level, which the headless tests still fly
 // from. No browser code.
 
@@ -15,16 +15,6 @@ export const FIELD = {
   runway: { length: 10000 * FT, width: 150 * FT, numbers: ['36', '18'] },   // the south end is 36, taking off north
   startBack: 200 * FT,  // the airplane starts this far in from the runway's end, on the numbers
 };
-
-/**
- * The island's air base (docs/island.md): runway 10/28, 9,200 by 150 feet,
- * taking off on 28. `region` is terrain/island.json and `island` its land
- * (src/sim/island.js): the runway lies at the height the land has there.
- */
-export function baseField(region, island) {
-  const { north, east, heading } = region.sites.base;
-  return { height: island.heightAt(north, east), north, east, heading, runway: { length: 9200 * FT, width: 150 * FT, numbers: ['28', '10'] }, startBack: 200 * FT };
-}
 
 /**
  * A runway of Hawaii's (an entry of terrain/hawaii/index.json's runways),

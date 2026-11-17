@@ -89,7 +89,7 @@ The real Hawaiian Islands, designed in `docs/hawaii.md`: ground from USGS survey
 
 The islands are tiles in `terrain/hawaii/`, written by `terrain/make-hawaii.py` and read by both the flight model and the picture, so what is seen is what is hit. They download once (about 175 MB; the owner agreed to as much as 300) into their own store on the phone, which app updates never touch.
 
-The invented island of `docs/island.md`, its landmarks and its map stay in the repo only until Hawaii replaces them in the app, then go. The old flat test field (`FIELD` in `src/field.js`) is kept only for the headless tests, until milestone 4 closes.
+The invented island that came before, with its landmarks, left the app in version 0.0.31; its files are in the git history, and its Blender files stay in Drive. The old flat test field (`FIELD` in `src/field.js`) is kept only for the headless tests, until milestone 4 closes.
 
 ## Building it
 

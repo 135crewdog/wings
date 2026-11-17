@@ -1,6 +1,6 @@
 # Hawaii
 
-What the world is, as the owner chose it in November 2026. It replaces the invented island of `docs/island.md`, which stays until its code is gone. Milestone 4 is planned from this file. Distances are nautical miles unless they say otherwise.
+What the world is, as the owner chose it in November 2026. It replaced the invented island in version 0.0.31. Milestone 4 is planned from this file. Distances are nautical miles unless they say otherwise.
 
 ## The idea
 

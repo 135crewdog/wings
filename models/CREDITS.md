@@ -1,17 +1,5 @@
 # Credits for the 3D models
 
-## `door.glb`: Durdle Door
-
-The owner's own model, built in Blender with Claude in a Wings project chat, after the limestone arch on the Dorset coast, bigger than life so a jet can fly through it. Its Blender file is `door.blend`, in `Wings/Blender/` in the owner's Google Drive. In the app from version 0.0.25.
-
-## `castle.glb`: the castle school
-
-The owner's own model, built in Blender with Claude in a Wings project chat: a castle school inspired by Hogwarts, far simpler than the film castle. Its Blender file is `castle.blend`, in `Wings/Blender/` in the owner's Google Drive. In the app from version 0.0.23.
-
-## `viaduct.glb`: the viaduct
-
-The owner's own model, built in Blender with Claude in a Wings project chat, after the Glenfinnan Viaduct in Scotland, with its arches opened up for a jet. Its Blender file is `viaduct.blend`, in `Wings/Blender/` in the owner's Google Drive. In the app from version 0.0.22, in its first revision: twice as tall as first built, with longer ends that run into the hillsides.
-
 ## `f4c.glb`: the F-4C Phantom II
 
 The owner's own model, built in Blender with Claude in a Wings project chat, from his reference photos and drawings. Its Blender file is `f4c.blend`, in `Wings/Blender/` in the owner's Google Drive.
