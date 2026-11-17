@@ -406,7 +406,8 @@ def level_runways(ways, flat, origin, natural):
     """Each runway's height: dead flat (the owner's choice, 17 Nov 2026), at
     the middle value of the real ground under it, which moves the least ground,
     set to a height the tiles hold exactly (MIN + k·STEP) so it is saved with
-    no steps. Runways that cross or touch share one height, so they meet."""
+    no steps. Runways whose flat ground meets (they cross, or come close) share
+    one height, so their flat ground has no step."""
     group = {id(r): {id(r)} for r in ways}
     for i, r in enumerate(ways):
         for q in ways[i + 1:]:
@@ -439,11 +440,11 @@ def level_runways(ways, flat, origin, natural):
 
 
 def touching(r, q, flat, origin):
-    """Whether two runways' paint crosses or touches."""
+    """Whether two runways' flat ground (their paint and FLAT round it) meets or overlaps."""
     def corners(x):
         a, u, v, L = runway_frame(x, flat, origin)
-        w = x['width'] / 2
-        return [a + u * t + v * k for t in (0, L) for k in (-w, w)], (u, v)
+        w = x['width'] / 2 + FLAT
+        return [a + u * t + v * k for t in (-FLAT, L + FLAT) for k in (-w, w)], (u, v)
     cr, axr = corners(r)
     cq, axq = corners(q)
     for axis in (*axr, *axq):   # two rectangles are apart if some side's direction separates them
