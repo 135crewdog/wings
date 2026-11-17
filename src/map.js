@@ -10,6 +10,7 @@
 const LEVEL = 5;                      // the whole chain: 320 m a pixel, a few tiles
 const ZOOM_LEVEL = 3;                 // zoomed in: 80 m a pixel
 const ZOOM_ACROSS = 80000;            // metres across the map zoomed in: Oahu about fills it
+const NEAR_KEPT = 3;                  // zoomed-in pictures kept, the most recently wanted
 const SEA = '#18466f';                // one blue for all the sea, near the coast and far out
 const DOT = '#c81e96', DOT_EDGE = '#ffffff';
 const DOT_SIZE = 9;                   // points across
@@ -103,7 +104,8 @@ export function createMap(canvas, hawaii, silhouette) {
   const { index } = hawaii;
   const chain = extent(index);
   const fields = airports(index);
-  let whole = null, building = null, near = null, jet = null, zoomed = false, plane = null;
+  let whole = null, building = null, jet = null, zoomed = false, plane = null;
+  const near = new Map();   // the zoomed-in photographs made lately, by the tiles they cover: a turn of the phone and back finds them again
   const prepare = () => {
     building ??= build(chain).then((sheet) => { whole = sheet; draw(); }, () => { building = null; });   // a failure tries again at the next pause
     return building;
@@ -172,12 +174,17 @@ export function createMap(canvas, hawaii, silhouette) {
     if (whole) paint(whole, chain); else prepare();
     if (zoomed) {
       const box = cover(index, ZOOM_LEVEL, view, width, height), key = JSON.stringify(box);
-      if (near?.key !== key) {
-        near = { key, box, sheet: null };
-        const asked = near;
-        build(box).then((sheet) => { asked.sheet = sheet; if (near === asked) draw(); }, () => { if (near === asked) near = null; });
+      if (!near.has(key)) {
+        const made = { box, sheet: null };
+        near.set(key, made);
+        while (near.size > NEAR_KEPT) near.delete(near.keys().next().value);
+        build(box).then((sheet) => { made.sheet = sheet; draw(); }, () => near.delete(key));
+      } else {
+        const made = near.get(key);   // the most recently wanted last
+        near.delete(key); near.set(key, made);
       }
-      if (near.sheet) paint(near.sheet, near.box);
+      // Older ones first, then the one wanted on top: until it's made, the others fill in what they can.
+      for (const made of near.values()) if (made.sheet) paint(made.sheet, made.box);
     }
 
     for (const f of fields) {
@@ -202,6 +209,9 @@ export function createMap(canvas, hawaii, silhouette) {
   };
 
   canvas.addEventListener('click', () => { zoomed = !zoomed; draw(); });
+  // Drawn again whenever the map's box changes size: after a turn of the phone
+  // iOS reports the new size late, and a map drawn for the old one is squashed.
+  new ResizeObserver(() => draw()).observe(canvas);
   const show = (where) => { jet = where; zoomed = false; draw(); };
   return { show, prepare };
 }

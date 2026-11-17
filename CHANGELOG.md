@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.39
+
+- The pause screen's map no longer comes back squashed after turning the phone to portrait and back.
+
 ## 0.0.38
 
 - Tap the map on the pause screen to zoom in round the jet, about 80 km across, from sharper photographs; tap again to see the whole chain. Every pause opens on the whole chain.

@@ -233,7 +233,7 @@ for (const id of ['restart', 'crash-restart']) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pause(); else checkForUpdate();   // iOS drops the wake lock when the app is hidden; Resume asks again
 });
-window.addEventListener('resize', () => { if (isPortrait()) pause(); else if (mode === 'paused') showMap(); });
+window.addEventListener('resize', () => { if (isPortrait()) pause(); });
 window.addEventListener('orientationchange', pause);
 screen.orientation?.addEventListener('change', pause);
 
