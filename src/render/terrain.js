@@ -1,10 +1,16 @@
 // Hawaii, drawn. The ground is a geometry clipmap, the usual way to put a big
-// landscape on a small device (from 135crewdog/rage, src/render/terrain.js):
-// nested square grids with the same number of cells, doubling in size, follow
-// the camera, each snapped to its own grid so nothing swims, each with a hole
-// where the finer one sits, easing into the coarser one toward its edge so
-// nothing jumps or cracks. The grids are placed relative to the camera, so the
-// picture stays sharp far from the origin.
+// landscape on a small device (from 135crewdog/rage, src/render/terrain.js;
+// Losasso and Hoppe, 2004): nested square grids with the same number of
+// cells, doubling in size, follow the camera, each snapped to its own grid so
+// nothing swims, each with a hole where the finer one sits, easing into the
+// coarser one toward its edge so nothing jumps or cracks. The grids are placed
+// relative to the camera, so the picture stays sharp far from the origin.
+//
+// Far ground is drawn from coarser copies of the map, and a coarse grid cuts
+// the tops off peaks and ridges. What keeps that out of sight is how many
+// cells each grid has: enough (the textbook has 255; Wings has 320) that a grid is only
+// ever drawn where its cells are small on the screen, so a summit is never
+// more than a few pixels short at any distance (tests/hawaii.test.js).
 //
 // What's new is where the heights and colours come from. Hawaii is far too
 // big to hold whole, so each level of the tile pyramid (terrain/hawaii/) has a
@@ -24,8 +30,8 @@
 
 import * as THREE from 'three';
 
-const MESH_LEVELS = 7;   // with 10 m cells at the finest: 0.96, 1.9, 3.8, 7.7, 15, 31 and 61 km across
-const N = 96;            // cells along each side of every mesh level
+const MESH_LEVELS = 7;   // with 10 m cells at the finest: 3.2, 6.4, 13, 26, 51, 102 and 205 km across
+const N = 320;           // cells along each side of every mesh level: enough to keep every summit within 5 pixels
 const WINDOW = 4;        // tiles along each side of a level's window
 const UPLOADS = 6;       // tiles put on the GPU each frame at most
 
@@ -74,6 +80,7 @@ const vertexShader = `${SAMPLE_GLSL}
   uniform vec2 rel;       // the mesh level's middle, from the camera
   uniform float spacing;
   uniform int level;      // which level of the pyramid this mesh level reads
+  uniform int coarser;    // and which the next mesh level out reads
   varying vec3 wp;        // where in the world
   varying vec3 rp;        // where from the camera
   void main() {
@@ -91,9 +98,9 @@ const vertexShader = `${SAMPLE_GLSL}
       float coarse;
       if (odd.x + odd.y > 0.5) {
         vec2 o = odd.x * odd.y > 0.5 ? vec2(spacing, -spacing) : odd * spacing;
-        coarse = 0.5 * (heightFrom(level + 1, xz - o) + heightFrom(level + 1, xz + o));
+        coarse = 0.5 * (heightFrom(coarser, xz - o) + heightFrom(coarser, xz + o));
       } else {
-        coarse = heightFrom(level + 1, xz);
+        coarse = heightFrom(coarser, xz);
       }
       h = mix(h, coarse, ease);
     }
@@ -149,12 +156,22 @@ const fragmentShader = `${SAMPLE_GLSL}
   }`;
 
 // One mesh level's grid: (N+1) by (N+1) vertices in cell units, and four
-// index sets for the four places the finer level's hole can sit.
+// index sets for the four places the finer level's hole can sit. Every level
+// with a hole shares the same vertices and index sets, so they are on the GPU once.
+const positions = (() => {
+  const p = [];
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) p.push(i - N / 2, 0, j - N / 2);
+  return new THREE.Float32BufferAttribute(p, 3);
+})();
+const holed = indexSets(true), whole = indexSets(false);
 function levelGeometry(withHole) {
-  const positions = [];
-  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) positions.push(i - N / 2, 0, j - N / 2);
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('position', positions);
+  const variants = withHole ? holed : whole;
+  geometry.setIndex(variants[0]);
+  return { geometry, variants };
+}
+function indexSets(withHole) {
   const variants = [];
   for (const dy of [0, 1]) {
     for (const dx of [0, 1]) {
@@ -169,8 +186,7 @@ function levelGeometry(withHole) {
       variants.push(new THREE.Uint32BufferAttribute(index, 1));
     }
   }
-  geometry.setIndex(variants[0]);
-  return { geometry, variants };
+  return variants;
 }
 
 const mod = (a, n) => ((a % n) + n) % n;
@@ -215,8 +231,13 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
   for (let m = 0; m < MESH_LEVELS; m++) {
     const { geometry, variants } = levelGeometry(m > 0);
     const spacing = index.post * 2 ** m;
+    // Each mesh level reads the copy of the map whose posts are half its cells
+    // (the nearest reads the finest, so what is seen is what is hit): every
+    // vertex sits between four posts, so it is the ground averaged over one
+    // cell, not four. The next level out reads the copy above.
+    const reads = (k) => Math.min(Math.max(k - 1, 0), LEVELS - 1);
     const material = new THREE.ShaderMaterial({
-      defines, uniforms: { ...shared, rel: { value: new THREE.Vector2() }, spacing: { value: spacing }, level: { value: Math.min(m, LEVELS - 1) } },
+      defines, uniforms: { ...shared, rel: { value: new THREE.Vector2() }, spacing: { value: spacing }, level: { value: reads(m) }, coarser: { value: reads(m + 1) } },
       vertexShader, fragmentShader,
     });
     const mesh = new THREE.Mesh(geometry, material);

@@ -65,6 +65,68 @@ test('the summits are their real heights', () => {
   }
 });
 
+test('the summits as the picture draws them: never more than a few pixels short, near or far', () => {
+  // The picture's grids, read from src/render/terrain.js itself so the two can't drift apart.
+  const source = readFileSync(fileURLToPath(new URL('../src/render/terrain.js', import.meta.url)), 'utf8');
+  const N = +source.match(/const N = (\d+);/)[1], MESH_LEVELS = +source.match(/const MESH_LEVELS = (\d+);/)[1];
+  const EASE_FROM = N / 3, EASE_TO = N / 2 - 4;
+  // The ground from one level of the copies only, as the picture reads it (src/render/terrain.js, heightFrom).
+  const levels = Array.from({ length: index.levels }, (_, L) => createHawaii(index, (l, i, j) => (l < L ? undefined : tileAt(l, i, j))));
+  const reads = (m) => Math.min(Math.max(m - 1, 0), index.levels - 1);
+  const at = (l, x, z) => levels[l].heightAt(-z, x);   // three.js axes: x east, z south
+  // The top of a peak as drawn by mesh level m, from d metres off: the grid's
+  // corners lie every `s` metres; toward the level's edge each eases into the
+  // next level's ground, the in-between corners onto its triangles' edges.
+  const drawnTop = (m, d, [north, east], reach) => {
+    const s = index.post * 2 ** m, l = reads(m), k = reads(m + 1);
+    const ease = Math.min(Math.max((d / s - EASE_FROM) / (EASE_TO - EASE_FROM), 0), 1);
+    let top = -Infinity;
+    for (let a = Math.floor((east - reach) / s); a <= Math.ceil((east + reach) / s); a++) {
+      for (let b = Math.floor((-north - reach) / s); b <= Math.ceil((-north + reach) / s); b++) {
+        const x = a * s, z = b * s, ox = Math.abs(a % 2), oz = Math.abs(b % 2);
+        let h = at(l, x, z);
+        if (ease > 0) {
+          const [dx, dz] = ox && oz ? [s, -s] : [ox * s, oz * s];
+          const coarse = ox || oz ? 0.5 * (at(k, x - dx, z - dz) + at(k, x + dx, z + dz)) : at(k, x, z);
+          h += (coarse - h) * ease;
+        }
+        top = Math.max(top, h);
+      }
+    }
+    return top;
+  };
+  // The mesh level that draws ground d metres off: the finest that reaches that far.
+  const meshFor = (d) => {
+    for (let m = 0; m < MESH_LEVELS; m++) if (d <= (N / 2) * index.post * 2 ** m) return m;
+    return MESH_LEVELS - 1;
+  };
+  const PIXELS_PER_DEGREE = 1179 / 55;   // an iPhone 16's screen, landscape, 55 degrees top to bottom
+  const peaks = [
+    ['Mauna Kea', 'hawaii', 19.8207, -155.4681],
+    ['Haleakala', 'mauinui', 20.7097, -156.2533],
+    ['Kawaikini', 'kauai', 22.0587, -159.4973],
+    ['Kaala', 'oahu', 21.5086, -158.1428],
+    ['Konahuanui', 'oahu', 21.3433, -157.7956],
+    ['Puu Kukui', 'mauinui', 20.8906, -156.5867],
+  ].filter(([, group]) => index.groups[group]);
+  const kms = [2, 3, 5, 8, 12, 16, 20, 25, 30, 40, 50, 60];
+  console.log(`  feet short of the real summit, and iPhone pixels, from km off (${N} cells a grid):`);
+  console.log(`  ${''.padEnd(11)}${kms.map((k) => `${k} km`.padStart(11)).join('')}`);
+  let worst = 0;
+  for (const [name, group, lat, lon] of peaks) {
+    const place = where(group, lat, lon), reach = 1500;
+    const real = highest(place, reach);
+    const row = kms.map((km) => {
+      const d = km * 1000, short = real - drawnTop(meshFor(d), d, place, reach);
+      const px = (Math.atan2(short, d) * 180 / Math.PI) * PIXELS_PER_DEGREE;
+      worst = Math.max(worst, px);
+      return `${Math.round(short / FT)}/${px.toFixed(1)}`.padStart(11);
+    });
+    console.log(`  ${name.padEnd(11)}${row.join('')}`);
+  }
+  assert.ok(worst <= 5, `every summit within 5 pixels of its real height at every distance (worst ${worst.toFixed(1)})`);
+});
+
 test('every channel between the groups is 15 km, coast to coast', () => {
   // The land at level 3 (a post every 80 m) as one grid, cut into islands
   // (land joined to land), each island put in its group by where its middle
