@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.30
+
+- Afterburner plumes, one behind each engine, after Rage's but made to look like the F-4's J79s from photographs of Phantoms climbing out in burner: the nozzles glow orange-yellow inside, with a short yellow-white core and a salmon-orange flame behind each. They grow with how much afterburner the engines give, about one and a half metres at the least and four and a half at full, and show the engine, not the throttle: they light a moment after the throttle goes into the burner range and are gone at MIL.
+
 ## 0.0.29
 
 - A HUD, Rage's: thin green symbols over the view. Heading across the top, a pitch ladder that rolls with the view, the flight path marker and the waterline, airspeed on the left and altitude on the right (radar altitude with an R below 2,000 ft), and g, angle of attack, Mach and the engine's power in the lower left.

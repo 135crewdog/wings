@@ -115,4 +115,6 @@ Claude Code puts the file at `models/<name>.glb`, reads its solid boxes into the
 
 `node models/measure.mjs models/f4c.glb` prints a model's wheel and contact positions, to copy into its card.
 
+The engines' nozzles need nothing named: Claude Code measures the middle and the opening of each exit from the model into the card (`nozzles_ft`, `nozzle_radius_ft`), for the afterburner plumes, and `tests/model.test.js` checks there is a round opening of that size at each. An exit must be open at the back, with nothing of the airframe in the first metre behind it, or the flame would come out through the skin.
+
 `models/viaduct.glb` is the owner's viaduct, the first landmark; `models/castle.glb` is his castle school, and `models/door.glb` his Durdle Door. `node models/solids.mjs models/viaduct.glb` prints a landmark's solid boxes.
