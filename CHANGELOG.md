@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.27
+
+- The app icon's F-4C has its windscreen reshaped: rounded at the front, as on the real jet.
+
 ## 0.0.26
 
 - The Strip begins: a mile and a half of road running north and south across the desert west of the canyon, with nineteen plain hotels along it, 180 to 505 feet tall. Empty lots are left for the famous places, which arrive one at a time.
