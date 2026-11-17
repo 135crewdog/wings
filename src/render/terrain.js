@@ -396,13 +396,15 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
         placed++;
       }
       const view = sectorsInView(camera);
+      // How far the camera can see: its far limit is a depth straight ahead, so toward a corner of the screen it sees farther.
+      const ty = Math.tan((camera.fov * Math.PI) / 360) / camera.zoom, reach = camera.far * Math.hypot(1, ty * camera.aspect, ty);
       let finer = null;
       for (const m of meshes) {
         const step = 2 * m.spacing;
         const cx = Math.floor(camera.position.x / step) * step, cz = Math.floor(camera.position.z / step) * step;
         m.mesh.material.uniforms.rel.value.set(cx - camera.position.x, cz - camera.position.z);
         // A ring that starts beyond the camera's reach (its hole sits up to two cells off the camera) is not drawn.
-        m.mesh.visible = (N / 4 - 2) * m.spacing < camera.far;
+        m.mesh.visible = (N / 4 - 2) * m.spacing < reach;
         // The finest ring's hole is the core, placed as the ring is; every other ring's is the ring inside it.
         const ring = rings[finer ? Math.round((finer.z - cz) / m.spacing) * 2 + Math.round((finer.x - cx) / m.spacing) : 0];
         const { geometry } = m.mesh;
