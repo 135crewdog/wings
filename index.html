@@ -19,6 +19,8 @@
   <canvas id="view"></canvas>
 
   <div id="controls" hidden>
+    <canvas id="hud"></canvas>
+    <div id="safe"></div>
     <div id="throttle" class="throttle" role="slider" aria-label="Throttle" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div class="track"><div class="mil"></div><div class="thumb"></div></div>
     </div>
@@ -54,6 +56,10 @@
       <div class="row">
         <span id="override-label">Crash override</span>
         <button id="override" class="switch" role="switch" aria-checked="true" aria-labelledby="override-label"></button>
+      </div>
+      <div class="row">
+        <span id="hud-label">HUD</span>
+        <button id="hud-switch" class="switch" role="switch" aria-checked="true" aria-labelledby="hud-label"></button>
       </div>
       <button class="btn update" hidden>New version, tap to update</button>
       <p class="about">Wings <span class="version"></span></p>

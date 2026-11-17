@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.29
+
+- A HUD, Rage's: thin green symbols over the view. Heading across the top, a pitch ladder that rolls with the view, the flight path marker and the waterline, airspeed on the left and altitude on the right (radar altitude with an R below 2,000 ft), and g, angle of attack, Mach and the engine's power in the lower left.
+- A HUD switch on the pause screen, beside crash override. It starts on; off, the plain airspeed and altitude come back. The choice is kept.
+
 ## 0.0.28
 
 - Speedbrakes. A fourth button, Boards, opens the two panels under the wings in a second and a half; tap again to close them. They are real drag, acting where the panels are: at idle through 400 knots the jet slows about twice as fast with them out, and the nose drops a touch as they open.

@@ -10,7 +10,7 @@ import { Sim, DT, coordinate, normalizeControls, stepsFor } from './sim/sim.js';
 import { FT, KT } from './sim/card.js';
 import { atmosphere } from './sim/atmosphere.js';
 import { elevatorTravel } from './sim/aero.js';
-import { calibratedAirspeed } from './sim/airdata.js';
+import { calibratedAirspeed, instruments } from './sim/airdata.js';
 import { PARKED, baseField, startState } from './field.js';
 import { createIsland, islandGround } from './sim/island.js';
 import { createSolids, hotelSolids } from './sim/solids.js';
@@ -24,8 +24,11 @@ import { attitudeToThree, toThree } from './render/frames.js';
  * Puts the flight on a canvas, parked on the runway and holding still.
  * `land` is the island ({ region, heights, canopy, image } from src/land.js).
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
- * when a flight ends in a crash; `onReadout(knots, feet, feetAboveGround)` is
- * called every frame with what the instruments read. Returns { ready, fly(), hold(), restart(), setCrashes(on) }:
+ * when a flight ends in a crash; `onReadout(reading, project, looking)` is
+ * called every frame it draws with what the instruments read: { knots, feet,
+ * aboveGround } (feet at the wheels) and the HUD's numbers (see
+ * instruments() in src/sim/airdata.js, and `power`, the engine's); `project`
+ * turns a north, east, down direction into where it falls on the screen. Returns { ready, fly(), hold(), restart(), redraw(), setCrashes(on) }:
  * fly() lets time run, hold() stops it (the picture stays), restart() puts
  * the airplane back on the runway.
  */
@@ -59,6 +62,15 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   };
   restart();
   attachLook(canvas, look, () => flying);
+
+  // Where a north, east, down direction falls on the screen, as the camera
+  // sees it: for the HUD's conformal symbols.
+  const projected = new THREE.Vector3();
+  const project = (ned) => {
+    const [x, y, z] = toThree(ned), at = chase.camera.position;
+    projected.set(at.x + x * 10000, at.y + y * 10000, at.z + z * 10000).project(chase.camera);
+    return { x: ((projected.x + 1) / 2) * canvas.clientWidth, y: ((1 - projected.y) / 2) * canvas.clientHeight, visible: projected.z < 1 };
+  };
 
   const fit = () => {
     const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -110,7 +122,6 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
     });
     fit();   // every frame: iOS can report the new size late after a rotation
     const height = -sim.state.x[2] - wheels;
-    onReadout(calibratedAirspeed(air.V, atmosphere(-sim.state.x[2])) / KT, height / FT, (height - ground.heightAt(sim.state.x[0], sim.state.x[1])) / FT);
     const buffet = (seen.coef?.buffet ?? 0) * Math.min(1, air.qbar / BUFFET_FULL);
     look.update(elapsed);
     // The camera stays above the ground where it is; where it was a frame ago is near enough.
@@ -118,6 +129,13 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
     chase.update(shown.position, shown.quaternion, elapsed, under, flying ? buffet : 0, look);
     world.follow(chase.camera);
     renderer.render(scene, chase.camera);
+    onReadout({
+      knots: calibratedAirspeed(air.V, atmosphere(-sim.state.x[2])) / KT,
+      feet: height / FT,
+      aboveGround: (height - ground.heightAt(sim.state.x[0], sim.state.x[1])) / FT,
+      power: sim.power,
+      ...instruments(sim, seen),
+    }, project, look.active);
     settle = flying ? SETTLE : settle - 1;
     waiting = settle > 0 ? requestAnimationFrame(draw) : null;
     if (waiting === null) last = null;   // resting: the next frame starts the clock afresh
@@ -145,6 +163,8 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
     fly() { flying = true; carry = 0; look.reset(); wake(); },
     hold() { flying = false; look.release(); wake(); },
     restart() { restart(); wake(); },
+    /** Draw again, though nothing in the flight changed: the HUD was switched. */
+    redraw() { wake(); },
     /** Whether a hard arrival ends the flight. False is the crash override. Takes effect at once. */
     setCrashes(on) { crashes = on; sim.crashes = on; },
     get sim() { return sim; },

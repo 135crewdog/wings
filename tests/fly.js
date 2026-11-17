@@ -4,11 +4,11 @@
 import { deriveCard, FT, KT, DEG } from '../src/sim/card.js';
 import { F4C } from '../src/sim/cards/f4c.js';
 import { Sim, DT } from '../src/sim/sim.js';
-import { qfromEuler, qtoEuler } from '../src/sim/vec.js';
+import { qfromEuler } from '../src/sim/vec.js';
 import { onGround } from '../src/field.js';
 import { flatGround } from '../src/sim/ground.js';
 import { atmosphere } from '../src/sim/atmosphere.js';
-import { calibratedAirspeed } from '../src/sim/airdata.js';
+import { calibratedAirspeed, instruments } from '../src/sim/airdata.js';
 import { trimLevel } from '../src/sim/trim.js';
 
 export { FT, KT, DEG, DT };
@@ -105,7 +105,7 @@ export function holdAltitude(ft, elevator = 0) {
 /** What a pilot would read off the airplane right now. */
 export function readout(sim, controls = {}) {
   const obs = sim.observe(controls);
-  const euler = qtoEuler(sim.state.q);
+  const seen = instruments(sim, obs);
   const vw = sim.velocityWorld();
   return {
     t: sim.t,
@@ -117,12 +117,12 @@ export function readout(sim, controls = {}) {
     power: sim.power,
     ft: -sim.state.x[2] / FT,
     fpm: (-vw[2] / FT) * 60,
-    alpha: obs.air.alpha / DEG,
-    pitch: euler.pitch / DEG,
-    roll: euler.roll / DEG,
-    heading: euler.yaw / DEG,
+    alpha: seen.alpha,
+    pitch: seen.pitch,
+    roll: seen.roll,
+    heading: seen.heading,
     slip: obs.air.beta / DEG,
-    g: -obs.F[2] / sim.card.W + Math.cos(euler.pitch) * Math.cos(euler.roll),   // what the seat feels, along the airplane's "up"
+    g: seen.g,   // what the seat feels, along the airplane's "up"
     rollRate: sim.state.omega[0] / DEG,
     pitchRate: sim.state.omega[1] / DEG,
     yawRate: sim.state.omega[2] / DEG,
