@@ -117,7 +117,7 @@ const showMap = () => {
   const [north, east] = flight.sim.state.x;
   map.show({ north, east, heading });
 };
-flight.ready.then(() => { $('fly').disabled = false; });
+flight.ready.then(() => { $('fly').disabled = false; $('settings').disabled = false; });
 
 // The crash override: on, nothing ends a flight but the pilot. It is on until
 // the pilot turns it off, and the choice is kept between visits.
@@ -190,9 +190,17 @@ const letSleep = () => {
   lock = null;
 };
 const takeOff = () => { mode = 'flying'; show(null); flight.fly(); };
+// The pause screen before the first flight (opened with Settings on the start
+// screen): its top button is Fly, and Restart and Recenter wait for a flight.
+const menu = (beforeFlight) => {
+  $('resume').textContent = beforeFlight ? 'Fly' : 'Resume';
+  $('restart').hidden = beforeFlight;
+  recenterButton.hidden = beforeFlight;
+};
 const pause = () => {
   if (mode !== 'flying') return;
   mode = 'paused';
+  menu(false);
   letSleep();
   flight.hold();
   show('pause');
@@ -200,7 +208,8 @@ const pause = () => {
   checkForUpdate();
 };
 
-$('fly').addEventListener('click', () => {
+// The first flight, from Fly on the start screen or on the pause screen opened with Settings.
+const fly = () => {
   // Asking for motion access must be the first thing in the tap, or iOS refuses it.
   const allowed = tilt.request();
   keepAwake();
@@ -209,9 +218,16 @@ $('fly').addEventListener('click', () => {
     tilt.recenter();
     takeOff();
   });
+};
+$('fly').addEventListener('click', fly);
+$('settings').addEventListener('click', () => {
+  menu(true);
+  show('pause');
+  showMap();
 });
 $('pause').addEventListener('click', pause);
 $('resume').addEventListener('click', () => {
+  if (mode === 'start') { fly(); return; }
   if (isPortrait()) return;
   keepAwake();
   takeOff();
