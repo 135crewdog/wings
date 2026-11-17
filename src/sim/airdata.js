@@ -1,7 +1,9 @@
-// What the airspeed indicator shows. The formulas are Rage's
-// (135crewdog/rage, src/sim/airdata.js), in SI units. No browser code.
+// What the instruments show: the airspeed indicator, whose formulas are
+// Rage's (135crewdog/rage, src/sim/airdata.js), in SI units, and what the
+// HUD reads off the airplane. No browser code.
 
 import { atmosphere } from './atmosphere.js';
+import { qrotate, qtoEuler } from './vec.js';
 
 const SEA = atmosphere(0);
 
@@ -33,4 +35,29 @@ export function calibratedAirspeed(V, atm) {
     }
   }
   return SEA.a * m;
+}
+
+const DEG = Math.PI / 180;
+
+/**
+ * What the HUD reads off the airplane, from a sim and what it observes
+ * (sim.observe()): heading, pitch and roll (degrees; heading -180..180), the
+ * g the seat feels along the airplane's "up", angle of attack (degrees),
+ * Mach, and two unit directions in north, east, down: where the airplane is
+ * going (`velocity`) and where its nose points (`nose`). The tests read the
+ * same numbers.
+ */
+export function instruments(sim, seen) {
+  const { roll, pitch, yaw } = qtoEuler(sim.state.q);
+  const vw = sim.velocityWorld(), speed = Math.hypot(vw[0], vw[1], vw[2]);
+  return {
+    heading: yaw / DEG,
+    pitch: pitch / DEG,
+    roll: roll / DEG,
+    g: -seen.F[2] / sim.card.W + Math.cos(pitch) * Math.cos(roll),
+    alpha: seen.air.alpha / DEG,
+    mach: seen.air.mach,
+    velocity: speed > 1 ? vw.map((x) => x / speed) : qrotate(sim.state.q, [1, 0, 0]),
+    nose: qrotate(sim.state.q, [1, 0, 0]),
+  };
 }

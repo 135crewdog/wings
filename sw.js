@@ -4,7 +4,7 @@
 // never calls skipWaiting() on its own; the app offers the update and posts
 // "skip-waiting" when the pilot accepts.
 
-const VERSION = '0.0.28';   // the same value as APP_VERSION in src/version.js
+const VERSION = '0.0.29';   // the same value as APP_VERSION in src/version.js
 const CACHE = `wings-${VERSION}`;
 const FILES = [
   './',
@@ -28,6 +28,7 @@ const FILES = [
   './src/input/look.js',
   './src/input/tilt.js',
   './src/readouts.js',
+  './src/hud.js',
   './src/render/aircraft.js',
   './src/render/camera.js',
   './src/render/frames.js',

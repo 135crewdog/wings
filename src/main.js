@@ -7,6 +7,7 @@ import { loadLand } from './land.js';
 import { createTilt } from './input/tilt.js';
 import { createThrottle } from './ui/throttle.js';
 import { readouts } from './readouts.js';
+import { createHud } from './hud.js';
 
 const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.version')) el.textContent = APP_VERSION;
@@ -46,14 +47,23 @@ const parkControls = () => {
   showToggles();
 };
 
+// ---- the HUD, or the plain readouts ----
+const hud = createHud($('hud'), () => $('safe').getBoundingClientRect());
+let hudOn = true;
+
 // ---- the flight ----
 let mode = 'start';   // start, flying, paused or crashed
 const flight = startFlight($('view'), await loadLand(), {
   controls: () => ({ ...pilot, elevator: tilt.stick.pitch, aileron: tilt.stick.roll }),
   onCrash() { mode = 'crashed'; letSleep(); show('crashed'); checkForUpdate(); },
-  onReadout(knots, feet, aboveGround) {
-    for (const [name, text] of Object.entries(readouts(knots, feet, aboveGround))) {
-      if ($(name).textContent !== text) $(name).textContent = text;   // touch the page only when a number changes
+  onReadout(reading, project, looking) {
+    const text = readouts(reading.knots, reading.feet, reading.aboveGround);
+    if (hudOn) {
+      hud.draw({ ...reading, airspeed: text.airspeed, altitude: text.radar || text.altitude }, project, looking);
+      return;
+    }
+    for (const [name, value] of Object.entries(text)) {
+      if ($(name).textContent !== value) $(name).textContent = value;   // touch the page only when a number changes
     }
   },
 });
@@ -72,6 +82,23 @@ let saved = null;
 try { saved = localStorage.getItem(OVERRIDE_KEY); } catch { /* storage may be blocked */ }
 setOverride(saved !== 'off');
 overrideSwitch.addEventListener('click', () => setOverride(overrideSwitch.getAttribute('aria-checked') !== 'true'));
+
+// The HUD: on until the pilot turns it off, kept between visits. Off, the
+// plain readouts show instead.
+const HUD_KEY = 'wings.hud';
+const hudSwitch = $('hud-switch');
+const setHud = (on) => {
+  hudOn = on;
+  hudSwitch.setAttribute('aria-checked', String(on));
+  $('readouts').hidden = on;
+  if (!on) hud.clear();
+  flight.redraw();
+  try { localStorage.setItem(HUD_KEY, on ? 'on' : 'off'); } catch { /* storage may be blocked; the choice still holds for this visit */ }
+};
+let savedHud = null;
+try { savedHud = localStorage.getItem(HUD_KEY); } catch { /* storage may be blocked */ }
+setHud(savedHud !== 'off');
+hudSwitch.addEventListener('click', () => setHud(hudSwitch.getAttribute('aria-checked') !== 'true'));
 parkControls();
 
 const isPortrait = () => window.innerHeight > window.innerWidth;   // read directly: the media query's answer can be stale
