@@ -21,6 +21,7 @@
   <div id="controls" hidden>
     <canvas id="hud"></canvas>
     <div id="safe"></div>
+    <pre id="dev" hidden></pre>
     <div id="throttle" class="throttle" role="slider" aria-label="Throttle" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div class="track"><div class="mil"></div><div class="thumb"></div></div>
     </div>
@@ -57,6 +58,10 @@
       <div class="row">
         <span id="hud-label">HUD</span>
         <button id="hud-switch" class="switch" role="switch" aria-checked="true" aria-labelledby="hud-label"></button>
+      </div>
+      <div class="row">
+        <span id="dev-label">Developer</span>
+        <button id="dev-switch" class="switch" role="switch" aria-checked="false" aria-labelledby="dev-label"></button>
       </div>
       <button class="btn update" hidden>New version, tap to update</button>
       <p class="about">Wings <span class="version"></span><br>Ground: USGS. Pictures: ESA WorldCover 2021, Copernicus Sentinel-2.</p>

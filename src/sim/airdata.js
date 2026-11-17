@@ -42,7 +42,7 @@ const DEG = Math.PI / 180;
 /**
  * What the HUD reads off the airplane, from a sim and what it observes
  * (sim.observe()): heading, pitch and roll (degrees; heading -180..180), the
- * g the seat feels along the airplane's "up", angle of attack (degrees),
+ * g the seat feels along the airplane's "up", angle of attack and sideslip (degrees),
  * Mach, and two unit directions in north, east, down: where the airplane is
  * going (`velocity`) and where its nose points (`nose`). The tests read the
  * same numbers.
@@ -56,6 +56,7 @@ export function instruments(sim, seen) {
     roll: roll / DEG,
     g: -seen.F[2] / sim.card.W + Math.cos(pitch) * Math.cos(roll),
     alpha: seen.air.alpha / DEG,
+    beta: seen.air.beta / DEG,
     mach: seen.air.mach,
     velocity: speed > 1 ? vw.map((x) => x / speed) : qrotate(sim.state.q, [1, 0, 0]),
     nose: qrotate(sim.state.q, [1, 0, 0]),

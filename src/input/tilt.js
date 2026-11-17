@@ -69,24 +69,28 @@ export function smooth(previous, value, dtSeconds, tau = MAPPING.filterTau) {
 }
 
 /**
- * Listens to the phone. Returns { stick, request(), recenter() }: `stick` is
+ * Listens to the phone. Returns { stick, raw, request(), recenter() }: `stick` is
  * { pitch, roll }, zero until there is a neutral. request() asks iOS for
  * motion access and must be called first thing inside a tap; it resolves to
  * whether access was given. recenter() makes the phone's attitude at the next
- * reading the neutral, then calls onNeutral.
+ * reading the neutral, then calls onNeutral. `raw` is the last reading as the
+ * sensor gave it and as tilt, for the developer overlay.
  */
 export function createTilt({ onNeutral = () => {} } = {}) {
   const stick = { pitch: 0, roll: 0 };
+  const raw = { beta: 0, gamma: 0, screen: 0, pitch: 0, roll: 0, confidence: 0, neutral: null };
   let neutral = null, wanted = true, last = null;
   const screenAngle = () => (((screen.orientation?.angle ?? window.orientation ?? 0) % 360) + 360) % 360;
   window.addEventListener('deviceorientation', (event) => {
     if (event.beta === null || event.gamma === null) return;
     const tilt = tiltOf(upInScreen(event.beta, event.gamma, screenAngle()));
+    Object.assign(raw, { beta: event.beta, gamma: event.gamma, screen: screenAngle(), pitch: tilt.pitch, roll: tilt.roll, confidence: tilt.confidence });
     if (wanted && tilt.confidence > MAPPING.confidenceFade) {
       neutral = { pitch: tilt.pitch, roll: tilt.roll };
       wanted = false;
       onNeutral();
     }
+    raw.neutral = neutral;
     if (!neutral) return;
     const now = event.timeStamp / 1000, dt = last === null ? 0 : now - last, to = stickFrom(tilt, neutral);
     last = now;
@@ -95,6 +99,7 @@ export function createTilt({ onNeutral = () => {} } = {}) {
   });
   return {
     stick,
+    raw,
     request() {
       const asked = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'
         ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');
