@@ -141,6 +141,28 @@ test('the speedbrakes open down into the airflow, and close flush', () => {
   assert.ok(sides.includes(-1) && sides.includes(1), 'one each side, so they slow it without turning it');
 });
 
+test('the card\'s nozzles are the model\'s: a round opening at each, the size the card says', () => {
+  // Body axes in feet to the model's axes in metres: right +X, up +Y, aft +Z.
+  const model = ([x, y, z]) => [y * FT, -z * FT, -x * FT];
+  const skin = posed({});
+  const radius = F4C.nozzle_radius_ft * FT;
+  for (const nozzle of F4C.nozzles_ft) {
+    const [cx, cy, cz] = model(nozzle);
+    // The rim: skin within 2 cm of the exit's plane, as far out from its middle as the opening's edge.
+    const rim = skin.filter((p) => Math.abs(p[2] - cz) < 0.02 && Math.hypot(p[0] - cx, p[1] - cy) < radius + 0.15);
+    const out = rim.map((p) => Math.hypot(p[0] - cx, p[1] - cy));
+    const inside = Math.min(...out);
+    console.log(`  nozzle at ${JSON.stringify(nozzle)} ft: ${rim.length} points on its rim, the opening ${((2 * inside) / FT).toFixed(2)} ft across`);
+    assert.ok(rim.length >= 12, 'there is a nozzle there');
+    assert.ok(Math.abs(inside - radius) < 0.03, `the opening is the card's size (${(inside / FT).toFixed(2)} ft against ${F4C.nozzle_radius_ft} ft)`);
+    // Behind the exit, nothing of the airframe in the flame's way for its first metre... save the tail above it.
+    const inTheWay = skin.filter((p) => p[2] > cz + 0.05 && p[2] < cz + 1 && Math.hypot(p[0] - cx, p[1] - cy) < radius * 0.8);
+    assert.equal(inTheWay.length, 0, 'the flame comes out into open air');
+  }
+  assert.equal(F4C.nozzles_ft[0][0], F4C.nozzles_ft[1][0], 'the two nozzles side by side');
+  assert.equal(F4C.nozzles_ft[0][1], -F4C.nozzles_ft[1][1], 'and either side of the centreline');
+});
+
 test('the model is inside its budget', () => {
   const bytes = statSync(path).size;
   const triangles = json.meshes.flatMap((m) => m.primitives).reduce((sum, p) => sum + json.accessors[p.indices ?? p.attributes.POSITION].count / 3, 0);

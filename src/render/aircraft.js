@@ -5,8 +5,10 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createPlume } from './plume.js';
 
 const MODEL = './models/f4c.glb';
+const FT = 0.3048;
 export const MOTIONS = ['gear', 'flaps', 'elevator', 'aileron', 'rudder'];
 
 /**
@@ -16,9 +18,16 @@ export const MOTIONS = ['gear', 'flaps', 'elevator', 'aileron', 'rudder'];
  * flaps from up to down; the controls from full forward or left, through
  * neutral at 0.5, to full back or right; any other motion the model carries,
  * such as `speedbrake`, from 0 s (closed) to 1. Motions left out stay where they are.
+ * `burner(fraction, dt)` lights a plume at each of the card's nozzles: 0 at
+ * dry power, up to 1 at full afterburner.
  */
-export function createAircraft() {
+export function createAircraft(pilot) {
   const airplane = new THREE.Group();
+  // Feet in body axes (forward, right, down) to metres in the model's (right, up, aft).
+  const model = ([x, y, z]) => [y * FT, -z * FT, -x * FT];
+  const plumes = (pilot.nozzles_ft ?? []).map((at) => createPlume(model(at), pilot.nozzle_radius_ft * FT));
+  for (const plume of plumes) airplane.add(plume.mesh);
+  airplane.burner = (fraction, dt) => { for (const plume of plumes) plume.update(fraction, dt); };
   const actions = {};
   let mixer = null;
   airplane.ready = new GLTFLoader().loadAsync(MODEL).then((gltf) => {

@@ -60,6 +60,10 @@ export const F4C = {
   // Where the speedbrakes' drag acts: the middle of the two panels, fully
   // open, on the centreline. Measured from the model too, and checked.
   speedbrake_ft: [-5.99, 0, 2.49],
+  // The engines' nozzles, for the afterburner plumes: the middle of each exit
+  // and the opening's radius. Measured from the model too, and checked.
+  nozzles_ft: [[-16.16, -2.17, 0.61], [-16.16, 2.17, 0.61]],
+  nozzle_radius_ft: 1.15,
 
   // Tuned by feel on the phone. The 0..1 ones start in the middle.
   neutral_speed_kt: 350,

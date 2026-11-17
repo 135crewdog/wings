@@ -37,12 +37,12 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   const scene = new THREE.Scene();
   const island = createIsland(land.region, land.heights, land.canopy, land.country), field = baseField(land.region, island);
   const world = createWorld(scene, renderer, field, land, island);
-  const airplane = createAircraft();
+  const card = deriveCard(F4C);
+  const airplane = createAircraft(F4C);
   scene.add(airplane);
   const chase = createChaseCamera();
   const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
 
-  const card = deriveCard(F4C);
   const ground = islandGround(island, createSolids([...Object.values(land.landmarks).flatMap((l) => l.solids), ...hotelSolids(land.region.sites.strip)]));
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
   const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2] - p.sag));   // where the wheels rest, not where the struts hang to
@@ -120,6 +120,7 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
       elevator: 0.5 + 0.5 * elevatorTravel(card, air, stick.elevator), aileron: 0.5 + 0.5 * stick.aileron,
       rudder: 0.5 + 0.5 * coordinate(card, stick, air),
     });
+    airplane.burner(Math.min(1, Math.max(0, sim.power - 1)), flying ? elapsed : 0);   // the plumes show the engine, not the throttle
     fit();   // every frame: iOS can report the new size late after a rotation
     const height = -sim.state.x[2] - wheels;
     const buffet = (seen.coef?.buffet ?? 0) * Math.min(1, air.qbar / BUFFET_FULL);
