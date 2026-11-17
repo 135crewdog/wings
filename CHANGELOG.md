@@ -4,7 +4,7 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.41
 
-- Every runway is dead flat: no more bump on the takeoff roll at about 125 knots, and the runway paint lies right on the ground. Each runway sits at the height of the real ground under it that moves the least earth, with a bank like a road embankment where it's raised or dug in. The first launch after the update downloads about MB_TODO MB of new airfield ground.
+- Every runway is dead flat: no more bump on the takeoff roll at about 125 knots, and the runway paint lies right on the ground. Each runway sits at the height of the real ground under it that moves the least earth, with a bank like a road embankment where it's raised or dug in. The first launch after the update downloads about 64 MB of new airfield ground.
 
 ## 0.0.40
 
