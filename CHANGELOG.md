@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.35
+
+- The boards bite twice as hard. At idle through 400 knots the jet now slows about 10 knots a second with them out (6 before), 400 to 250 knots in about 22 seconds (35 before), and the nose wants to drop a little more as they open.
+
 ## 0.0.34
 
 - With the HUD switched off, the white airspeed and altitude across the top are gone: only the HUD's own airspeed and altitude stay, green, in their places, radar altitude and all.
