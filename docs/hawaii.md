@@ -76,7 +76,7 @@ Every real paved runway in the main islands 3,000 ft or longer is levelled, draw
 | | Upolu | 7/25 |
 | | Bradshaw | 9/27 |
 
-Each is level at its surveyed elevation, with the ground eased into it round its edges. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
+Each airfield's runways lie on one flat surface fitted to the survey's heights at their ends, so runways that cross meet at one height, with the ground eased into them round their edges. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
 
 ## The start
 
@@ -84,7 +84,7 @@ Each is level at its surveyed elevation, with the ground eased into it round its
 
 ## The download
 
-All of Hawaii is about **300 MB**, kept on the phone so it flies with no signal. It downloads once, on Wi-Fi, from the start screen, which shows how far it has got ("Hawaii: 120 of 300 MB"). Fly waits until it is all there. If the download stops, it carries on from where it was next time.
+All of Hawaii is about **175 MB** (the owner agreed to as much as 300), kept on the phone so it flies with no signal. It downloads once, on Wi-Fi, from the start screen, which shows how far it has got ("Hawaii: 60 of 175 MB"). Fly waits until it is all there. If the download stops, it carries on from where it was next time.
 
 The islands live in their own store on the phone, apart from the app. An update to the app doesn't download them again; only a new version of the islands does.
 
