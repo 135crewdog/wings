@@ -90,8 +90,13 @@ function runwayMesh(renderer, way) {
   const along = [(b.east - a.east) / length, -(b.north - a.north) / length];   // three.js x, z
   const right = [-along[1], along[0]];
   const half = way.width / 2;
-  // A little above the ground: the ground's heights come in quarter-metre steps, so up close it could peep through.
-  const corner = (end, side) => [end.east + right[0] * half * side, end.height + LIFT, -end.north + right[1] * half * side];
+  // On the airfield's surface (height = a + b·north + c·east), which can slope across a runway as well as
+  // along it, and a little above: the ground's heights come in quarter-metre steps, so up close it could peep through.
+  const [a0, bn, ce] = way.surface;
+  const corner = (end, side) => {
+    const east = end.east + right[0] * half * side, north = end.north - right[1] * half * side;
+    return [east, a0 + bn * north + ce * east + LIFT, -north];
+  };
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute([...corner(a, -1), ...corner(a, 1), ...corner(b, -1), ...corner(b, 1)], 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 1], 2));

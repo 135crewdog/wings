@@ -351,9 +351,14 @@ def level_airfields(ways, flat, origin, h_src, h_tr):
     for airport in {r['airport'] for r in ways}:
         mine = [r for r in ways if r['airport'] == airport]
         ends = [(np.array(flat.to_ne(la, lo)) + origin, end_height(h_src, h_tr, la, lo)) for r in mine for la, lo in r['ends']]
-        A = np.array([[1.0, ne[0], ne[1]] for ne, _ in ends])
+        # Measured from the airfield's middle, so where the ends can't say how
+        # the surface tilts across (one runway), the fit leaves it level across
+        # rather than tilting it toward wherever the world's origin happens to be.
+        mid = np.mean([ne for ne, _ in ends], axis=0)
+        A = np.array([[1.0, ne[0] - mid[0], ne[1] - mid[1]] for ne, _ in ends])
         z = np.array([h for _, h in ends])
-        plane = np.linalg.lstsq(A, z, rcond=None)[0]
+        c, sn, se = np.linalg.lstsq(A, z, rcond=None)[0]
+        plane = np.array([c - sn * mid[0] - se * mid[1], sn, se])
         for r in mine:
             r['plane'] = plane
             r['level'] = [float(plane @ np.array([1.0, *(np.array(flat.to_ne(la, lo)) + origin)])) for la, lo in r['ends']]
@@ -479,10 +484,13 @@ def main():
         for (la, lo), ident, lvl in zip(r['ends'], r['idents'], r['level']):
             n, e = np.array(flats[r['group']].to_ne(la, lo)) + origins[r['group']]
             ends.append({'ident': ident, 'north': round(float(n), 2), 'east': round(float(e), 2), 'height': round(lvl * HEIGHT_SCALE, 2)})
-        out_ways.append({'airport': r['airport'], 'name': r['name'], 'width': round(r['width'], 1), 'ends': ends})
-    start = next(w for w in out_ways if w['airport'] == 'PHNL' and w['ends'][0]['ident'] == '08R')
+        # The airfield's surface, height = a + b·north + c·east in the world, for drawing the runway on it.
+        plane = [float(r['plane'][0]) * HEIGHT_SCALE, float(r['plane'][1]) * HEIGHT_SCALE, float(r['plane'][2]) * HEIGHT_SCALE]
+        out_ways.append({'airport': r['airport'], 'name': r['name'], 'width': round(r['width'], 1), 'ends': ends, 'surface': [round(x, 9) for x in plane]})
+    # The start is 8R at Honolulu; a trial build of other islands alone has none.
+    start = next((w for w in out_ways if w['airport'] == 'PHNL' and w['ends'][0]['ident'] == '08R'), None)
     groups_info = {g: {'origin': [round(float(x), 1) for x in origins[g]], 'lat0': flats[g].lat0, 'lon0': flats[g].lon0} for g in ORDER}
-    write(levels, out_ways, {'airport': 'PHNL', 'runway': '08R', **start['ends'][0]}, groups_info)
+    write(levels, out_ways, {'airport': 'PHNL', 'runway': '08R', **start['ends'][0]} if start else None, groups_info)
 
 
 if __name__ == '__main__':
