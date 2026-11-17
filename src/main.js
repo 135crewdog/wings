@@ -19,8 +19,8 @@ const show = (name) => {
 };
 
 // ---- the pilot's controls ----
-// The three toggles and the throttle live here; the stick comes from tilt.
-const pilot = { throttle: 0, gear: true, flaps: true, brake: true };
+// The four toggles and the throttle live here; the stick comes from tilt.
+const pilot = { throttle: 0, gear: true, flaps: true, speedbrake: false, brake: true };
 const recenterButton = $('recenter');
 let recenterTimer = null;
 const tilt = createTilt({
@@ -32,7 +32,7 @@ const tilt = createTilt({
   },
 });
 const throttle = createThrottle($('throttle'), (value) => { pilot.throttle = value; });
-const toggles = [['gear', 'Gear', 'down', 'up'], ['flaps', 'Flaps', 'down', 'up'], ['brake', 'Brakes', 'on', 'off']];
+const toggles = [['gear', 'Gear', 'down', 'up'], ['flaps', 'Flaps', 'down', 'up'], ['speedbrake', 'Boards', 'out', 'in'], ['brake', 'Brakes', 'on', 'off']];
 const showToggles = () => {
   for (const [key, name, on, off] of toggles) {
     $(key).textContent = `${name} ${pilot[key] ? on : off}`;
@@ -41,7 +41,7 @@ const showToggles = () => {
 };
 for (const [key] of toggles) $(key).addEventListener('click', () => { pilot[key] = !pilot[key]; showToggles(); });
 const parkControls = () => {
-  Object.assign(pilot, { gear: PARKED.gear, flaps: PARKED.flaps, brake: PARKED.brake });
+  Object.assign(pilot, { gear: PARKED.gear, flaps: PARKED.flaps, speedbrake: PARKED.speedbrake, brake: PARKED.brake });
   throttle.set(PARKED.throttle);
   showToggles();
 };

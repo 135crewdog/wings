@@ -37,7 +37,8 @@ Rules for the motions:
 - **The file's own resting pose doesn't matter.** The app sets all five motions before it draws anything, and the tools and tests pose the model the same way: gear down, flaps up, controls at 0.5 s.
 - **Deflections are the real airplane's.** Check them against the references; for the F-4C they are about: stabilator 21° trailing edge up to 9° down; ailerons 30° down, with the spoiler on the other wing up 45°; rudder 30° each way; trailing-edge flaps 60°.
 - The gear should take its whole second: doors opening first, legs swinging down after.
-- **A model may carry other motions,** such as `speedbrake` on the F-4C. The app leaves any it doesn't know at 0 s, so 0 s must be the closed, flush position. No spinning wheels, no pilots' heads.
+- **A model may carry other motions.** The app leaves any it doesn't know at 0 s, so 0 s must be the closed, flush position. No spinning wheels, no pilots' heads.
+- **`speedbrake`,** if the airplane has them: 0 s closed and flush, 1 s fully open, every panel it moves opening into the airflow, one each side. The app opens them with the Boards button, and the flight model puts their drag at the middle of the open panels, read from the model into the card (`speedbrake_ft`); `tests/model.test.js` checks the two agree.
 
 ## The wheels
 
@@ -110,7 +111,7 @@ Claude Code puts the file at `models/<name>.glb`, reads its solid boxes into the
 
 ## The model in the app today
 
-`models/f4c.glb` is the owner's own F-4C, built in Blender with Claude in a Wings project chat. It carries a sixth motion, `speedbrake`, which the app doesn't use yet. `models/CREDITS.md` has its history.
+`models/f4c.glb` is the owner's own F-4C, built in Blender with Claude in a Wings project chat. It carries a sixth motion, `speedbrake`: two panels under the wings that open 60°. `models/CREDITS.md` has its history.
 
 `node models/measure.mjs models/f4c.glb` prints a model's wheel and contact positions, to copy into its card.
 

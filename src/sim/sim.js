@@ -15,8 +15,8 @@ export const DT = 1 / 120;
 export const MAX_RATE = 20;   // rad/s: body rates are held inside this, far beyond any real maneuver
 const G_W = [0, 0, G0];
 const RHO0 = atmosphere(0).rho;
-const AT_REST = { sep: [0, 0], power: 0, gear: 0, flaps: 0 };
-const GEAR_SECONDS = 4, FLAP_SECONDS = 3;   // full travel
+const AT_REST = { sep: [0, 0], power: 0, gear: 0, flaps: 0, speedbrake: 0 };
+const GEAR_SECONDS = 4, FLAP_SECONDS = 3, SPEEDBRAKE_SECONDS = 1.5;   // full travel
 const MAX_STEER = (30 * Math.PI) / 180;      // the nose wheel's steering angle at full tilt, standing still
 const STEER_FADE = 15;                       // m/s: by this speed the steering is down to half
 
@@ -37,8 +37,9 @@ export function normalizeControls(ctl = {}) {
     aileron: clamp(ctl.aileron ?? 0, -1, 1),
     rudder: ctl.rudder === undefined ? undefined : clamp(ctl.rudder, -1, 1),
     throttle: clamp(ctl.throttle ?? 0, 0, 1),
-    gear: ctl.gear === true,     // the three toggles: true is gear down, flaps down, brakes on
+    gear: ctl.gear === true,     // the four toggles: true is gear down, flaps down, speedbrakes out, brakes on
     flaps: ctl.flaps === true,
+    speedbrake: ctl.speedbrake === true,
     brake: ctl.brake === true,
   };
 }
@@ -63,8 +64,9 @@ export function coordinate(card, ctl, air) {
 /**
  * Body-axis force and moment on the airplane at a state: aero, thrust along
  * the nose through the CG, gravity and, with a ground, contact. `sys` is the
- * airplane's own state: { sep, power, gear, flaps } - the wing halves' stall
- * state, the engine's power, and the gear and flap positions (0 up, 1 down).
+ * airplane's own state: { sep, power, gear, flaps, speedbrake } - the wing
+ * halves' stall state, the engine's power, the gear and flap positions (0 up,
+ * 1 down) and the speedbrakes' (0 in, 1 out).
  */
 export function totalForces(card, state, ctl, ground = null, sys = AT_REST) {
   const atm = atmosphere(-state.x[2]);
@@ -74,6 +76,7 @@ export function totalForces(card, state, ctl, ground = null, sys = AT_REST) {
   air.gravity = g;
   air.gear = sys.gear;
   air.flaps = sys.flaps;
+  air.speedbrake = sys.speedbrake ?? 0;
   const flown = ctl.rudder === undefined ? { ...ctl, rudder: coordinate(card, ctl, air) } : ctl;
   const aero = aeroForces(card, air, flown, sys.sep);
   // On the ground, tilt steers the nose wheel: a lot when slow, a little when fast.
@@ -106,7 +109,7 @@ export function finite(state) {
   return [state.x, state.v, state.q, state.omega].every((a) => a.every(Number.isFinite));
 }
 
-// One step of dt for a gear or flap position toward up (0) or down (1), taking `seconds` for the full travel.
+// One step of dt for a gear, flap or speedbrake position toward up (0) or down (1), taking `seconds` for the full travel.
 const travel = (position, down, seconds, dt) => clamp(position + (down ? dt : -dt) / seconds, 0, 1);
 
 export class Sim {
@@ -125,6 +128,7 @@ export class Sim {
     this.power = powerWanted(throttle);   // the engine: 0 idle, 1 MIL, 2 full afterburner
     this.gear = gear ? 1 : 0;             // 0 up, 1 down and locked
     this.flaps = flaps ? 1 : 0;           // 0 up, 1 down
+    this.speedbrake = 0;                  // 0 in, 1 out: every flight starts with them in
     this.crashes = crashes;   // false is the crash override: no arrival, however hard, ends the flight
     this.crashed = null;   // set once: by the touchdown check, or by the safety net
     this.touching = touching(card, state, ground, this.gear >= 1);
@@ -142,6 +146,7 @@ export class Sim {
     const hadWheels = this.gear >= 1;
     this.gear = travel(this.gear, ctl.gear, GEAR_SECONDS, DT);
     this.flaps = travel(this.flaps, ctl.flaps, FLAP_SECONDS, DT);
+    this.speedbrake = travel(this.speedbrake, ctl.speedbrake, SPEEDBRAKE_SECONDS, DT);
     const wheels = this.gear >= 1;
     if (wheels !== hadWheels && this.ground) {
       const airframe = this.touching.slice(hadWheels ? this.card.contacts.filter(onGear).length : 0);
@@ -153,7 +158,7 @@ export class Sim {
       }
       this.touching = touching(this.card, before, this.ground, wheels);
     }
-    const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps };
+    const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps, speedbrake: this.speedbrake };
     const forces = (s) => totalForces(this.card, s, ctl, this.ground, sys);
     const after = rk4Step(before, this.t, DT, forces, this.card.m, this.card.I);
     // The safety net: a state that is no longer a number ends the flight on the
@@ -175,7 +180,7 @@ export class Sim {
 
   /** Forces, air data and coefficients at the current state, for instruments and tests. */
   observe(controls) {
-    const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps };
+    const sys = { sep: this.sep, power: this.power, gear: this.gear, flaps: this.flaps, speedbrake: this.speedbrake };
     return totalForces(this.card, this.state, normalizeControls(controls), this.ground, sys);
   }
 

@@ -4,7 +4,7 @@
 // already settled. No browser code.
 
 import { atmosphere } from './atmosphere.js';
-import { liftSlope, liftDragFactor, zeroLiftDrag, elevatorPower } from './aero.js';
+import { liftSlope, liftDragFactor, zeroLiftDrag, elevatorPower, speedbrakeForce } from './aero.js';
 import { thrust, throttleFor } from './engine.js';
 
 const RHO0 = atmosphere(0).rho;
@@ -14,16 +14,16 @@ const stick = (c, moment, power) => Math.max(-1, Math.min(1, moment >= 0 ? momen
 
 /**
  * Trim at true airspeed V (m/s) and altitude h (m), with the gear and flaps
- * up unless `config` says down. Returns { alpha, elevator, throttle, power,
+ * up and the speedbrakes in unless `config` says otherwise. Returns { alpha, elevator, throttle, power,
  * possible }: `possible` is false when full afterburner can't hold the speed
  * or the wing can't hold the weight, and the rest is then the nearest it can
  * do.
  */
-export function trimLevel(c, V, h, { gear = false, flaps = false } = {}) {
+export function trimLevel(c, V, h, { gear = false, flaps = false, speedbrake = false } = {}) {
   const atm = atmosphere(h);
   const mach = V / atm.a, qS = 0.5 * atm.rho * V * V * c.S;
   const CLa = liftSlope(c.AR, c.sweep, mach), K = liftDragFactor(c, mach);
-  const cd0 = zeroLiftDrag(c, mach) + (gear ? c.gearDrag : 0) + (flaps ? c.flapDrag : 0);
+  const cd0 = zeroLiftDrag(c, mach) + (gear ? c.gearDrag : 0) + (flaps ? c.flapDrag : 0) + (speedbrake && c.speedbrake ? c.speedbrake.drag : 0);
   const lift = flaps ? c.flapLift : 0, most = c.CLmax + lift;
   // Thrust is along the nose, so it carries a little of the weight; a few rounds settle it.
   let alpha = 0, T = 0, CL = 0;
@@ -40,9 +40,11 @@ export function trimLevel(c, V, h, { gear = false, flaps = false } = {}) {
     if (thrust(c, mid, mach, density) < T) lo = mid; else hi = mid;
   }
   const power = (lo + hi) / 2;
+  // The boards' own pitch moment, where they hang, is for the elevator to hold too.
+  const boards = speedbrakeForce(c, qS, [Math.cos(alpha), 0, Math.sin(alpha)], speedbrake ? 1 : 0).M[1] / (qS * c.cbar);
   return {
     alpha,
-    elevator: stick(c, -(c.Cm0 + c.Cma * Math.sin(alpha)), elevatorPower(c, V, 0.5 * atm.rho * V * V, CLa, c.CLmax / CLa, alpha)),
+    elevator: stick(c, -(c.Cm0 + c.Cma * Math.sin(alpha) + boards), elevatorPower(c, V, 0.5 * atm.rho * V * V, CLa, c.CLmax / CLa, alpha)),
     throttle: throttleFor(power),
     power,
     possible: CL <= most && thrust(c, 2, mach, density) >= T && thrust(c, 0, mach, density) <= T,
