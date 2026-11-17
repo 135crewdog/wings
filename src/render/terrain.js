@@ -10,7 +10,10 @@
 // the tops off peaks and ridges. What keeps that out of sight is how many
 // cells each grid has: enough (the textbook has 255; Wings has 320) that a grid is only
 // ever drawn where its cells are small on the screen, so a summit is never
-// more than a few pixels short at any distance (tests/hawaii.test.js).
+// more than a few pixels short at any distance (tests/hawaii.test.js). Each
+// grid's triangles are stored in order round the camera, so only the slice of
+// it the camera faces is drawn (the textbook's other half): the ground behind
+// and beside the camera costs nothing.
 //
 // What's new is where the heights and colours come from. Hawaii is far too
 // big to hold whole, so each level of the tile pyramid (terrain/hawaii/) has a
@@ -155,38 +158,85 @@ const fragmentShader = `${SAMPLE_GLSL}
     gl_FragColor = vec4(mix(c, fogColor, smoothstep(fogNear, fogFar, dist)), 1.0);
   }`;
 
-// One mesh level's grid: (N+1) by (N+1) vertices in cell units, and four
-// index sets for the four places the finer level's hole can sit. Every level
-// with a hole shares the same vertices and index sets, so they are on the GPU once.
-const positions = (() => {
+// The grids. Every mesh level is a ring: (N+1) by (N+1) vertices in cell
+// units with a hole where the finer level sits, and four index sets for the
+// four places that hole can be. The finest ring's hole holds the core, a
+// plain grid at the finest spacing, always drawn whole. Every ring shares the
+// same vertices and index sets, so they are on the GPU once.
+//
+// A ring's triangles are sorted into SECTORS slices round its middle, by the
+// direction of each cell from the camera, and the list is stored twice over,
+// so any run of slices, even one that wraps past due west, is one unbroken
+// stretch of it to draw.
+const SECTORS = 32;
+const grid = (n) => {
   const p = [];
-  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) p.push(i - N / 2, 0, j - N / 2);
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) p.push(i - n / 2, 0, j - n / 2);
   return new THREE.Float32BufferAttribute(p, 3);
-})();
-const holed = indexSets(true), whole = indexSets(false);
-function levelGeometry(withHole) {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', positions);
-  const variants = withHole ? holed : whole;
-  geometry.setIndex(variants[0]);
-  return { geometry, variants };
-}
-function indexSets(withHole) {
-  const variants = [];
-  for (const dy of [0, 1]) {
-    for (const dx of [0, 1]) {
-      const index = [];
-      for (let j = 0; j < N; j++) {
-        for (let i = 0; i < N; i++) {
-          if (withHole && i >= N / 4 + dx && i < (3 * N) / 4 + dx && j >= N / 4 + dy && j < (3 * N) / 4 + dy) continue;
-          const a = j * (N + 1) + i, b = a + 1, c = a + N + 1, d = c + 1;
-          index.push(a, c, b, b, c, d);
-        }
+};
+const sectorOf = (x, z) => Math.floor(((Math.atan2(z, x) + Math.PI) / (2 * Math.PI)) * SECTORS) % SECTORS;
+const positions = grid(N);
+const rings = [];
+for (const dy of [0, 1]) {
+  for (const dx of [0, 1]) {
+    const slices = Array.from({ length: SECTORS }, () => []);
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        if (i >= N / 4 + dx && i < (3 * N) / 4 + dx && j >= N / 4 + dy && j < (3 * N) / 4 + dy) continue;
+        const a = j * (N + 1) + i, b = a + 1, c = a + N + 1, d = c + 1;
+        slices[sectorOf(i + 0.5 - N / 2, j + 0.5 - N / 2)].push(a, c, b, b, c, d);
       }
-      variants.push(new THREE.Uint32BufferAttribute(index, 1));
+    }
+    const once = slices.flat(), starts = [0];
+    for (let k = 0; k < 2 * SECTORS; k++) starts.push(starts[k] + slices[k % SECTORS].length);
+    rings.push({ index: new THREE.Uint32BufferAttribute([...once, ...once], 1), starts });
+  }
+}
+const core = (() => {
+  const n = N / 2, index = [];
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
+      index.push(a, c, b, b, c, d);
     }
   }
-  return variants;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', grid(n));
+  geometry.setIndex(index);
+  return geometry;
+})();
+
+/**
+ * The slices of every ring the camera can see: [first, last] (last may run
+ * past SECTORS, wrapping), or null when it can see them all. What the view
+ * takes in is the fan of directions between its four corners; seen from
+ * above, that is the arc between the four corners' compass directions, unless
+ * the view holds straight down or straight up, when it is every direction.
+ */
+const toView = new THREE.Quaternion(), ray = new THREE.Vector3();
+function sectorsInView(camera) {
+  const ty = Math.tan((camera.fov * Math.PI) / 360) / camera.zoom, tx = ty * camera.aspect;
+  toView.copy(camera.quaternion).invert();
+  for (const up of [1, -1]) {
+    ray.set(0, up, 0).applyQuaternion(toView);
+    if (ray.z < 0 && Math.abs(ray.x) <= -ray.z * tx && Math.abs(ray.y) <= -ray.z * ty) return null;
+  }
+  const angles = [];
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      ray.set(sx * tx, sy * ty, -1).applyQuaternion(camera.quaternion);
+      angles.push(Math.atan2(ray.z, ray.x));
+    }
+  }
+  angles.sort((a, b) => a - b);
+  // The arc is all the way round less the widest gap between corners.
+  let gap = angles[0] + 2 * Math.PI - angles[3], start = angles[0];
+  for (let k = 1; k < 4; k++) if (angles[k] - angles[k - 1] > gap) { gap = angles[k] - angles[k - 1]; start = angles[k]; }
+  // A margin for the camera sitting up to two cells off a ring's middle, and a cell's own width.
+  const margin = 16 / N + 0.05, toSlices = SECTORS / (2 * Math.PI);
+  const first = mod((start - margin + Math.PI) * toSlices, SECTORS), width = (2 * Math.PI - gap + 2 * margin) * toSlices;
+  if (width >= SECTORS - 1) return null;
+  return [Math.floor(first), Math.floor(first + width)];
 }
 
 const mod = (a, n) => ((a % n) + n) % n;
@@ -229,7 +279,9 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
   const defines = { LEVELS, TILE, WINDOW, EASE_FROM: (N / 3).toFixed(1), EASE_TO: (N / 2 - 4).toFixed(1) };
   const meshes = [];
   for (let m = 0; m < MESH_LEVELS; m++) {
-    const { geometry, variants } = levelGeometry(m > 0);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', positions);
+    geometry.setIndex(rings[0].index);
     const spacing = index.post * 2 ** m;
     // Each mesh level reads the copy of the map whose posts are half its cells
     // (the nearest reads the finest, so what is seen is what is hit): every
@@ -243,7 +295,12 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;   // the levels always surround the camera
     scene.add(mesh);
-    meshes.push({ mesh, variants, spacing });
+    meshes.push({ mesh, spacing });
+    if (m === 0) {
+      const middle = new THREE.Mesh(core, material);   // the finest ring's hole, read and placed as that ring is
+      middle.frustumCulled = false;
+      scene.add(middle);
+    }
   }
 
   // ---- the windows: which tiles each level has on the GPU ----
@@ -338,12 +395,20 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
         queue.splice(k, 1);
         placed++;
       }
+      const view = sectorsInView(camera);
       let finer = null;
       for (const m of meshes) {
         const step = 2 * m.spacing;
         const cx = Math.floor(camera.position.x / step) * step, cz = Math.floor(camera.position.z / step) * step;
         m.mesh.material.uniforms.rel.value.set(cx - camera.position.x, cz - camera.position.z);
-        if (finer) m.mesh.geometry.setIndex(m.variants[Math.round((finer.z - cz) / m.spacing) * 2 + Math.round((finer.x - cx) / m.spacing)]);
+        // A ring that starts beyond the camera's reach (its hole sits up to two cells off the camera) is not drawn.
+        m.mesh.visible = (N / 4 - 2) * m.spacing < camera.far;
+        // The finest ring's hole is the core, placed as the ring is; every other ring's is the ring inside it.
+        const ring = rings[finer ? Math.round((finer.z - cz) / m.spacing) * 2 + Math.round((finer.x - cx) / m.spacing) : 0];
+        const { geometry } = m.mesh;
+        if (geometry.index !== ring.index) geometry.setIndex(ring.index);
+        const [first, last] = view ?? [0, SECTORS - 1];
+        geometry.setDrawRange(ring.starts[first], ring.starts[last + 1] - ring.starts[first]);
         finer = { x: cx, z: cz };
       }
     },

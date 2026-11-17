@@ -68,7 +68,7 @@ test('the summits are their real heights', () => {
 test('the summits as the picture draws them: never more than a few pixels short, near or far', () => {
   // The picture's grids, read from src/render/terrain.js itself so the two can't drift apart.
   const source = readFileSync(fileURLToPath(new URL('../src/render/terrain.js', import.meta.url)), 'utf8');
-  const N = +source.match(/const N = (\d+);/)[1], MESH_LEVELS = +source.match(/const MESH_LEVELS = (\d+);/)[1];
+  const N = +source.match(/const N = (\d+);/)[1];
   const EASE_FROM = N / 3, EASE_TO = N / 2 - 4;
   // The ground from one level of the copies only, as the picture reads it (src/render/terrain.js, heightFrom).
   const levels = Array.from({ length: index.levels }, (_, L) => createHawaii(index, (l, i, j) => (l < L ? undefined : tileAt(l, i, j))));
@@ -95,10 +95,12 @@ test('the summits as the picture draws them: never more than a few pixels short,
     }
     return top;
   };
-  // The mesh level that draws ground d metres off: the finest that reaches that far.
+  // The mesh level that draws ground d metres off: the finest that reaches that
+  // far (the picture draws as many as reach past the haze, which may be fewer).
   const meshFor = (d) => {
-    for (let m = 0; m < MESH_LEVELS; m++) if (d <= (N / 2) * index.post * 2 ** m) return m;
-    return MESH_LEVELS - 1;
+    let m = 0;
+    while ((N / 2) * index.post * 2 ** m < d) m++;
+    return m;
   };
   const PIXELS_PER_DEGREE = 1179 / 55;   // an iPhone 16's screen, landscape, 55 degrees top to bottom
   const peaks = [

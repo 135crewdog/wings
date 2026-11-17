@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.44
+
+- A smoother frame rate: the ground behind and beside you, and beyond what the camera can reach, is no longer drawn. Nothing on screen changes.
+
 ## 0.0.43
 
 - Peaks and ridges are their real height from as far away as you can see them: they no longer grow as you close in. The far ground is drawn on finer grids, so the phone works harder on the ground's shape.
