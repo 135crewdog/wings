@@ -38,7 +38,7 @@ Rules for the motions:
 - **Deflections are the real airplane's.** Check them against the references; for the F-4C they are about: stabilator 21° trailing edge up to 9° down; ailerons 30° down, with the spoiler on the other wing up 45°; rudder 30° each way; trailing-edge flaps 60°.
 - The gear should take its whole second: doors opening first, legs swinging down after.
 - **A model may carry other motions.** The app leaves any it doesn't know at 0 s, so 0 s must be the closed, flush position. No spinning wheels, no pilots' heads.
-- **`speedbrake`,** if the airplane has them: 0 s closed and flush, 1 s fully open, every panel it moves opening into the airflow, one each side. The app opens them with the Boards button, and the flight model puts their drag at the middle of the open panels, read from the model into the card (`speedbrake_ft`); `tests/model.test.js` checks the two agree.
+- **`speedbrake`,** if the airplane has them: 0 s closed and flush, 1 s fully open, every panel it moves opening into the airflow, one each side. The app opens them with the Boards button, and the flight model puts their drag halfway between the centre of gravity and the middle of the open panels (a noted departure from real, for a gentler nose drop), the panels' middle read from the model into the card (`speedbrake_ft`); `tests/model.test.js` checks the two agree.
 
 ## The wheels
 

@@ -121,11 +121,14 @@ export function deriveCard(pilot) {
     flapLift: (2 * W) / (RHO0 * S * (pilot.stall_landing_kt * KT) ** 2) - CLmax,
     flapDrag: feel(0.02, 0.08, pilot.flap_drag),
     gearDrag: feel(0.01, 0.04, pilot.gear_drag),
-    // Speedbrakes: their drag, and where it acts, at the panels as the model
-    // has them open. In the middle of the feel number they add about twice
-    // the clean airplane's own drag at low lift: the owner found half that
-    // too gentle (0.0.35). The feel number sets how much.
-    speedbrake: pilot.speedbrake_ft ? { drag: feel(0.03, 0.09, pilot.speedbrake_drag ?? 0.5), r: pilot.speedbrake_ft.map((x) => x * FT) } : null,
+    // Speedbrakes: their drag, and where it acts. In the middle of the feel
+    // number they add about twice the clean airplane's own drag at low lift:
+    // the owner found half that too gentle (0.0.35). The feel number sets how
+    // much. The drag acts halfway between the centre of gravity and the
+    // panels as the model has them open, a noted departure from real (the
+    // owner's choice, 17 Nov 2026): twice 0.0.34's drag on half its lever
+    // pitches the nose exactly as 0.0.34's did, which the owner liked.
+    speedbrake: pilot.speedbrake_ft ? { drag: feel(0.03, 0.09, pilot.speedbrake_drag ?? 0.5), r: pilot.speedbrake_ft.map((x) => 0.5 * x * FT) } : null,
     // Ground contact: where the airplane can touch, as measured from its 3D model.
     contacts: contactPoints(W, m, pilot),
     // Only a hard arrival ends a flight: the airplane coming down faster than

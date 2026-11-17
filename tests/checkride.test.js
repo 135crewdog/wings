@@ -515,13 +515,21 @@ test('the speedbrakes: how hard they slow it, and what they do to the nose', () 
   // Level at 350 kt: the tilt it takes with the boards in and out.
   const level = (speedbrake) => trimLevel(c, tas(350) * KT, ft * FT, { speedbrake });
   const before = level(false), after = level(true);
-  // How long they take to open.
-  const moving = airborne(c, { ft, kt: tas(350), level: true });
-  let out = null;
-  fly(moving, 3, (r) => {
-    if (out === null && moving.speedbrake >= 1) out = r.t;
-    return { elevator: moving.trim.elevator, speedbrake: true };
-  }, 0.05);
+  // How long they take to open, and how far the nose drops with the stick held where it was.
+  const opening = (card) => {
+    const sim = airborne(card, { ft, kt: tas(350), level: true });
+    let out = null;
+    const log = fly(sim, 4, (r) => {
+      if (out === null && sim.speedbrake >= 1) out = r.t;
+      return { elevator: sim.trim.elevator, speedbrake: true };
+    }, 0.05);
+    return { out, drop: log[0].pitch - log.at(-1).pitch };
+  };
+  const { out, drop } = opening(c);
+  // 0.0.34's boards, for comparison: half today's drag, acting at the panels themselves.
+  const old = { ...c, speedbrake: { drag: c.speedbrake.drag / 2, r: c.speedbrake.r.map((x) => 2 * x) } };
+  const oldLevel = (speedbrake) => trimLevel(old, tas(350) * KT, ft * FT, { speedbrake });
+  const oldTilt = oldLevel(true).elevator - oldLevel(false).elevator, oldDrop = opening(old).drop;
   const pct = (x) => `${round(Math.abs(x) * 100)}% ${x >= 0 ? 'back' : 'forward'}`;
   table('Speedbrakes, engine at idle, level at 10,000 ft', [
     ['slowing through 400 kt, boards in', `${round(shut.rate, 1)} kt/s`],
@@ -530,6 +538,10 @@ test('the speedbrakes: how hard they slow it, and what they do to the nose', () 
     ['  boards out', `${round(open.seconds, 1)} s`],
     ['tilt for level at 350 kt, boards in', pct(before.elevator)],
     ['  boards out', pct(after.elevator)],
+    ['tilt change when they open at 350 kt', `${round(Math.abs(after.elevator - before.elevator) * 100, 1)}%`],
+    ['  0.0.34\'s boards', `${round(Math.abs(oldTilt) * 100, 1)}%`],
+    ['nose drop, stick held, 4 s after they open', `${round(drop, 1)} deg`],
+    ['  0.0.34\'s boards', `${round(oldDrop, 1)} deg`],
     ['throttle for level at 350 kt, in / out', `${round(before.throttle * 100)}% / ${round(after.throttle * 100)}%`],
     ['time to open', `${round(out, 1)} s`],
   ]);
