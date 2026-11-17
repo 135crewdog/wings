@@ -280,26 +280,34 @@ def build_group(g, flat, origin, cache, ways):
     span = TILE * POST
     tiles = {}
     group_ways = [r for r in ways if r['group'] == g]
-    level_airfields(group_ways, flat, origin, h_src, h_tr)
+
+    def natural(N, E):
+        """The real ground at posts (north, east): heights, water, and whether in the group's box."""
+        lat, lon = flat.to_latlon(N - origin[0], E - origin[1])
+        inside = (lat >= s) & (lat <= n) & (lon >= w) & (lon <= e)
+        h = sample(h_src, h_tr, lat, lon)
+        cover = sample(w_src, w_tr, lat, lon, nearest=True)
+        water = (cover == 80) | ((cover == 0) & (h <= 0.5)) | ~inside
+        h = np.where(water & (h < 3), 0.0, h)   # the sea is at sea level
+        return np.where(inside, h, 0.0), water, inside
+
+    level_runways(group_ways, flat, origin, natural)
     for i in range(math.floor(n0 / span), math.floor(n1 / span) + 1):
         for j in range(math.floor(e0 / span), math.floor(e1 / span) + 1):
-            # Posts in the middles of their squares, row 0 along the tile's north edge.
-            north = (i + 1) * span - (np.arange(TILE) + 0.5) * POST
-            east = j * span + (np.arange(TILE) + 0.5) * POST
+            # Posts in the middles of their squares, row 0 along the tile's north edge, with PAD more all round.
+            north = (i + 1) * span - (np.arange(-PAD, TILE + PAD) + 0.5) * POST
+            east = j * span + (np.arange(-PAD, TILE + PAD) + 0.5) * POST
             N, E = np.meshgrid(north, east, indexing='ij')
-            lat, lon = flat.to_latlon(N - origin[0], E - origin[1])
-            inside = (lat >= s) & (lat <= n) & (lon >= w) & (lon <= e)
-            if not inside.any():
+            h, water, inside = natural(N, E)
+            core = (slice(PAD, PAD + TILE), slice(PAD, PAD + TILE))
+            if not inside[core].any():
                 continue
-            h = sample(h_src, h_tr, lat, lon)
-            cover = sample(w_src, w_tr, lat, lon, nearest=True)
-            water = (cover == 80) | ((cover == 0) & (h <= 0.5)) | ~inside
-            h = np.where(water & (h < 3), 0.0, h)   # the sea is at sea level
-            h = np.where(inside, h, 0.0)
-            if (water.all() and not near_runway(N, E, group_ways, flat, origin)):
+            if (water[core].all() and not near_runway(N[core], E[core], group_ways, flat, origin)):
                 continue   # open sea: implied, never written
+            h, water = flatten_runways(h, water, N, E, group_ways, flat, origin)
+            h, water, N, E = h[core], water[core], N[core], E[core]
+            lat, lon = flat.to_latlon(N - origin[0], E - origin[1])
             rgb = colour(sample(c_src, c_tr, lat, lon)).transpose(1, 2, 0)   # bands last: rows, columns, colour
-            h = flatten_runways(h, water, N, E, group_ways, flat, origin, h_src, h_tr)
             tiles[(i, j)] = (h.astype(np.float32) * HEIGHT_SCALE, water, rgb)
     log(f'  {g}: {len(tiles)} tiles at 10 m')
     return tiles
@@ -315,59 +323,135 @@ def near_runway(N, E, ways, flat, origin):
     return False
 
 
-SHOULDER = 150.0   # m over which the ground eases into a runway's level, round its edges
+BANK = 3.0     # a bank round a raised or dug-out runway: 3 m out for every 1 m up or down (the owner's 1 in 3, 17 Nov 2026)
+PAD = 10       # posts of real ground worked round each tile, so the banks agree at the tiles' seams: 100 m, more than any bank needs
+# m past the paint that is flat too. The picture draws the ground as triangles between points up to a
+# square's diagonal from the paint, each point's height read from the posts round it, up to another
+# diagonal away; so every post within two diagonals is flat, and the paint lies on flat ground to its edge.
+FLAT = 2 * POST * math.sqrt(2)
 
 
-def flatten_runways(h, water, N, E, ways, flat, origin, h_src, h_tr):
-    """Each runway on its airfield's surface (level_airfields), with the
-    ground eased into that surface round its edges. Under a runway, and for 60 m round it, is never water."""
+def runway_frame(r, flat, origin):
+    """A runway's first end in the world, its direction along and across, and its length."""
+    (la1, lo1), (la2, lo2) = r['ends']
+    a = np.array(flat.to_ne(la1, lo1)) + origin
+    b = np.array(flat.to_ne(la2, lo2)) + origin
+    L = float(np.linalg.norm(b - a))
+    u = (b - a) / L
+    return a, u, np.array([-u[1], u[0]]), L
+
+
+def under(r, N, E, flat, origin):
+    """The posts under a runway: its paint and FLAT past its edges and ends."""
+    a, u, v, L = runway_frame(r, flat, origin)
+    along = (N - a[0]) * u[0] + (E - a[1]) * u[1]
+    across = (N - a[0]) * v[0] + (E - a[1]) * v[1]
+    return (along >= -FLAT) & (along <= L + FLAT) & (np.abs(across) <= r['width'] / 2 + FLAT)
+
+
+def spread(change, keep):
+    """The most a change made at the `keep` posts can be anywhere, falling by
+    1 m for every BANK m from them (minus infinity where none reaches)."""
+    out = np.where(keep, change, -np.inf)
+    steps = [((dr, dc), POST * math.hypot(dr, dc) / BANK) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
+    while True:
+        before = out
+        for (dr, dc), lose in steps:
+            moved = np.full_like(out, -np.inf)
+            rs = slice(max(dr, 0), out.shape[0] + min(dr, 0)); rd = slice(max(-dr, 0), out.shape[0] + min(-dr, 0))
+            cs = slice(max(dc, 0), out.shape[1] + min(dc, 0)); cd = slice(max(-dc, 0), out.shape[1] + min(-dc, 0))
+            moved[rs, cs] = out[rd, cd] - lose
+            out = np.maximum(out, moved)
+        if np.array_equal(out, before):
+            return out
+
+
+def flatten_runways(h, water, N, E, ways, flat, origin):
+    """Each runway dead flat at its height (level_runways) on the posts under
+    it, and round it a bank down or up to the real ground, which is left as it
+    is beyond: the change fades by 1 m for every BANK m, so the bank adds no
+    more than 1 in BANK to the ground's own slope (the owner's choice, 17 Nov
+    2026: where the real ground falls away, the two add up, and nothing natural is reshaped). `h`, `water`, `N` and `E` are a
+    tile's posts with PAD more round it; the tile is cut out of them after.
+    Under a runway, and wherever a bank raises the ground, is dry land."""
+    target = np.full(h.shape, np.nan)
     for r in ways:
-        (la1, lo1), (la2, lo2) = r['ends']
-        a = np.array(flat.to_ne(la1, lo1)) + origin
-        b = np.array(flat.to_ne(la2, lo2)) + origin
-        L = np.linalg.norm(b - a)
-        u = (b - a) / L
-        v = np.array([-u[1], u[0]])
-        along = (N - a[0]) * u[0] + (E - a[1]) * u[1]
-        across = (N - a[0]) * v[0] + (E - a[1]) * v[1]
-        half = r['width'] / 2 + 30   # with its shoulders
-        out = np.maximum(np.maximum(-along, along - L), 0)
-        side = np.maximum(np.abs(across) - half, 0)
-        d = np.hypot(out, side)
-        if (d > SHOULDER).all():
+        mine = under(r, N, E, flat, origin)
+        if mine.any():
+            target[mine] = r['height']
+    flatten = ~np.isnan(target)
+    if not flatten.any():
+        return h, water
+    # The change under the runways, carried out round them: between the most and
+    # the least it can be with no bank steeper than 1 in BANK, the one nearest no
+    # change at all. So raised ground slopes down to the real ground, dug ground
+    # up to it, and beyond the banks the ground is untouched.
+    change = np.where(flatten, target - h, 0.0)
+    least = spread(change, flatten)
+    most = -spread(-change, flatten)
+    made = np.maximum(least, np.minimum(0.0, most))
+    out = np.where(flatten, target, h + made)
+    # The check: outside the runways, the levelling's change never climbs or falls faster than 1 in BANK.
+    # (The ground's own slope adds to it: a bank beside a gully is steeper than the bank alone.)
+    made = np.where(flatten, np.nan, made)
+    for axis in (0, 1):
+        slope = np.abs(np.diff(made, axis=axis)) / POST
+        if np.nanmax(slope, initial=0) > 1 / BANK + 1e-6:
+            raise SystemExit(f'a runway bank is steeper than 1 in {BANK:.0f}: 1 in {1 / np.nanmax(slope):.2f}')
+    dry = flatten | ((made > 0) & (out > 0.5))
+    return out, water & ~dry
+
+
+def level_runways(ways, flat, origin, natural):
+    """Each runway's height: dead flat (the owner's choice, 17 Nov 2026), at
+    the middle value of the real ground under it, which moves the least ground,
+    set to a height the tiles hold exactly (MIN + k·STEP) so it is saved with
+    no steps. Runways whose flat ground meets (they cross, or come close) share
+    one height, so their flat ground has no step."""
+    group = {id(r): {id(r)} for r in ways}
+    for i, r in enumerate(ways):
+        for q in ways[i + 1:]:
+            if r['airport'] == q['airport'] and touching(r, q, flat, origin):
+                joined = group[id(r)] | group[id(q)]
+                for k in joined:
+                    group[k] = joined
+    done = set()
+    for r in ways:
+        if id(r) in done:
             continue
-        level = r['plane'][0] + r['plane'][1] * N + r['plane'][2] * E   # the airfield's surface, right here
-        w = np.clip(1 - d / SHOULDER, 0, 1)
-        w = w * w * (3 - 2 * w)
-        h[:] = h * (1 - w) + level * w
-        water[d < 60] = False   # the runway and a margin round it are dry land, even where it ends at the water
-    return h
+        mine = [q for q in ways if id(q) in group[id(r)]]
+        ground = []
+        for q in mine:
+            a, u, v, L = runway_frame(q, flat, origin)
+            t, k = np.meshgrid(np.arange(-FLAT, L + FLAT, POST / 2), np.arange(-q['width'] / 2 - FLAT, q['width'] / 2 + FLAT, POST / 2), indexing='ij')
+            ground.append(natural(a[0] + u[0] * t + v[0] * k, a[1] + u[1] * t + v[1] * k)[0].ravel())
+        ground = np.concatenate(ground)
+        best = max(float(np.median(ground)), 0.5)   # never at or below the sea
+        height = (MIN + round((best * HEIGHT_SCALE - MIN) / STEP) * STEP) / HEIGHT_SCALE
+        most = float(np.abs(ground - height).max())
+        if most * BANK > PAD * POST:
+            raise SystemExit(f'{r["airport"]}: a bank {most * BANK:.0f} m wide reaches past the {PAD * POST:.0f} m worked round a tile: make PAD bigger')
+        names = ', '.join('/'.join(q['idents']) for q in mine)
+        log(f'    {r["airport"]} {names}: {height:.2f} m ({height / 0.3048:.0f} ft); the real ground under it from'
+            f' {ground.min() - height:+.1f} to {ground.max() - height:+.1f} m; banks reach up to {most * BANK:.0f} m')
+        for q in mine:
+            q['height'] = height
+            done.add(id(q))
 
 
-def level_airfields(ways, flat, origin, h_src, h_tr):
-    """Each airfield's runways lie on one flat surface, tilted to fit the
-    survey's heights at all their ends (the best fit, as a plane): so where
-    runways cross, they meet at one height, as real ones do."""
-    for airport in {r['airport'] for r in ways}:
-        mine = [r for r in ways if r['airport'] == airport]
-        ends = [(np.array(flat.to_ne(la, lo)) + origin, end_height(h_src, h_tr, la, lo)) for r in mine for la, lo in r['ends']]
-        # Measured from the airfield's middle, so where the ends can't say how
-        # the surface tilts across (one runway), the fit leaves it level across
-        # rather than tilting it toward wherever the world's origin happens to be.
-        mid = np.mean([ne for ne, _ in ends], axis=0)
-        A = np.array([[1.0, ne[0] - mid[0], ne[1] - mid[1]] for ne, _ in ends])
-        z = np.array([h for _, h in ends])
-        c, sn, se = np.linalg.lstsq(A, z, rcond=None)[0]
-        plane = np.array([c - sn * mid[0] - se * mid[1], sn, se])
-        for r in mine:
-            r['plane'] = plane
-            r['level'] = [float(plane @ np.array([1.0, *(np.array(flat.to_ne(la, lo)) + origin)])) for la, lo in r['ends']]
-
-
-def end_height(src, tr, lat, lon):
-    """A runway end's height: the middle of the survey's heights round it, so a blade of grass or a ditch doesn't count."""
-    la, lo = np.meshgrid(lat + np.linspace(-0.0003, 0.0003, 7), lon + np.linspace(-0.0003, 0.0003, 7), indexing='ij')
-    return float(max(np.median(sample(src, tr, la, lo)), 0.5))
+def touching(r, q, flat, origin):
+    """Whether two runways' flat ground (their paint and FLAT round it) meets or overlaps."""
+    def corners(x):
+        a, u, v, L = runway_frame(x, flat, origin)
+        w = x['width'] / 2 + FLAT
+        return [a + u * t + v * k for t in (-FLAT, L + FLAT) for k in (-w, w)], (u, v)
+    cr, axr = corners(r)
+    cq, axq = corners(q)
+    for axis in (*axr, *axq):   # two rectangles are apart if some side's direction separates them
+        pr = [float(p @ axis) for p in cr]; pq = [float(p @ axis) for p in cq]
+        if max(pr) < min(pq) or max(pq) < min(pr):
+            return False
+    return True
 
 
 # ---- the pyramid, and writing it ----
@@ -478,15 +562,15 @@ def main():
     made = set(args.only or ORDER)
     out_ways = []
     for r in ways:
-        if r['group'] not in made or 'level' not in r:
+        if r['group'] not in made or 'height' not in r:
             continue
+        height = round(r['height'] * HEIGHT_SCALE, 2)
         ends = []
-        for (la, lo), ident, lvl in zip(r['ends'], r['idents'], r['level']):
+        for (la, lo), ident in zip(r['ends'], r['idents']):
             n, e = np.array(flats[r['group']].to_ne(la, lo)) + origins[r['group']]
-            ends.append({'ident': ident, 'north': round(float(n), 2), 'east': round(float(e), 2), 'height': round(lvl * HEIGHT_SCALE, 2)})
-        # The airfield's surface, height = a + b·north + c·east in the world, for drawing the runway on it.
-        plane = [float(r['plane'][0]) * HEIGHT_SCALE, float(r['plane'][1]) * HEIGHT_SCALE, float(r['plane'][2]) * HEIGHT_SCALE]
-        out_ways.append({'airport': r['airport'], 'name': r['name'], 'width': round(r['width'], 1), 'ends': ends, 'surface': [round(x, 9) for x in plane]})
+            ends.append({'ident': ident, 'north': round(float(n), 2), 'east': round(float(e), 2), 'height': height})
+        # The runway's surface, height = a + b·north + c·east in the world, for drawing it: dead flat, so b and c are 0.
+        out_ways.append({'airport': r['airport'], 'name': r['name'], 'width': round(r['width'], 1), 'ends': ends, 'surface': [height, 0, 0]})
     # The start is 8R at Honolulu; a trial build of other islands alone has none.
     start = next((w for w in out_ways if w['airport'] == 'PHNL' and w['ends'][0]['ident'] == '08R'), None)
     groups_info = {g: {'origin': [round(float(x), 1) for x in origins[g]], 'lat0': flats[g].lat0, 'lon0': flats[g].lon0} for g in ORDER}

@@ -10,7 +10,6 @@ import { createTerrain, NOISE_GLSL } from './terrain.js';
 const HORIZON = 0xb9c7d6, ZENITH = 0x3f78c8;          // Rage's
 const SUN = new THREE.Vector3(-3, 6, 4).normalize();  // the way to the sun: high in the south-west (x east, y up, z south)
 const FAR = 30000;                                     // m: the haze has hidden everything by here
-const LIFT = 0.15;                                     // m: a runway's paint above the ground under it
 
 const skyFragment = `
   uniform vec3 horizon, zenith, sun;
@@ -82,20 +81,20 @@ function runwayTexture(renderer, runway) {
   return texture;
 }
 
-// A runway lying on the ground from one end to the other, sloping as the
-// ground does between them. Drawn nudged toward the eye, so the two don't shimmer.
+// A runway lying on the ground from one end to the other. Drawn nudged toward
+// the eye, so the paint and the ground under it don't shimmer.
 function runwayMesh(renderer, way) {
   const [a, b] = way.ends;
   const length = Math.hypot(b.north - a.north, b.east - a.east);
   const along = [(b.east - a.east) / length, -(b.north - a.north) / length];   // three.js x, z
   const right = [-along[1], along[0]];
   const half = way.width / 2;
-  // On the airfield's surface (height = a + b·north + c·east), which can slope across a runway as well as
-  // along it, and a little above: the ground's heights come in quarter-metre steps, so up close it could peep through.
+  // On the airfield's surface (height = a + b·north + c·east; every runway is level, so b and c are 0),
+  // which is exactly the ground under it: the tiles hold the runway's height with no rounding.
   const [a0, bn, ce] = way.surface;
   const corner = (end, side) => {
     const east = end.east + right[0] * half * side, north = end.north - right[1] * half * side;
-    return [east, a0 + bn * north + ce * east + LIFT, -north];
+    return [east, a0 + bn * north + ce * east, -north];
   };
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute([...corner(a, -1), ...corner(a, 1), ...corner(b, -1), ...corner(b, 1)], 3));

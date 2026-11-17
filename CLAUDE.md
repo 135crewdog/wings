@@ -85,7 +85,7 @@ The old projects are references, never inherited wholesale. Copy a piece in on p
 
 ## The world
 
-The real Hawaiian Islands, designed in `docs/hawaii.md`: ground from USGS survey data and ESA's cloud-free Sentinel-2 photographs, both a point every 10 metres on every island alike, with Rage's water and sky. Each island keeps its real size, shape and heights; only the channels are shortened, to 15 km (about a minute at 500 knots). Every real paved runway of 3,000 feet or more is level, drawn and landable. Every flight starts on the numbers of runway 8R at Honolulu and Hickam, with gear and flaps down and the brakes on.
+The real Hawaiian Islands, designed in `docs/hawaii.md`: ground from USGS survey data and ESA's cloud-free Sentinel-2 photographs, both a point every 10 metres on every island alike, with Rage's water and sky. Each island keeps its real size, shape and heights; only the channels are shortened, to 15 km (about a minute at 500 knots). Every real paved runway of 3,000 feet or more is level (dead flat, one height per runway, or for runways that cross), drawn and landable. Every flight starts on the numbers of runway 8R at Honolulu and Hickam, with gear and flaps down and the brakes on.
 
 The islands are tiles in `terrain/hawaii/`, written by `terrain/make-hawaii.py` and read by both the flight model and the picture, so what is seen is what is hit. They download once (about 175 MB; the owner agreed to as much as 300) into their own store on the phone, which app updates never touch.
 
