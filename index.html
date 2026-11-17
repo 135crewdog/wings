@@ -46,8 +46,11 @@
   </section>
 
   <section id="screen-pause" class="screen" hidden>
-    <div class="card">
-      <h2>Paused</h2>
+    <div class="map">
+      <canvas id="map" aria-label="Map"></canvas>
+      <p class="about">Wings <span class="version"></span> · Ground: USGS. Pictures: ESA WorldCover 2021, Copernicus Sentinel-2.</p>
+    </div>
+    <div class="card" aria-label="Paused">
       <button id="resume" class="btn primary">Resume</button>
       <button id="restart" class="btn">Restart</button>
       <button id="recenter" class="btn">Recenter</button>
@@ -64,7 +67,6 @@
         <button id="dev-switch" class="switch" role="switch" aria-checked="false" aria-labelledby="dev-label"></button>
       </div>
       <button class="btn update" hidden>New version, tap to update</button>
-      <p class="about">Wings <span class="version"></span><br>Ground: USGS. Pictures: ESA WorldCover 2021, Copernicus Sentinel-2.</p>
     </div>
   </section>
 

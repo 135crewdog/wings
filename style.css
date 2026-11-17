@@ -90,6 +90,15 @@ button:active { opacity: 0.6; }
 .btn { width: 100%; padding: 11px 16px; border-radius: 12px; font-size: 17px; font-weight: 600; background: rgba(255, 255, 255, 0.16); }
 .btn.primary, .btn.update { background: #007aff; }
 .btn:disabled { opacity: 0.4; }
+/* the pause screen: the map on the left, the menu on the right */
+#screen-pause { gap: 12px; }
+#screen-pause .card { width: 280px; flex: none; margin: 0 0 auto; gap: 6px; }
+#screen-pause .btn { padding: 9px 16px; }
+#screen-pause .row { padding: 2px 4px 2px 16px; }
+.map { flex: 1; min-width: 0; position: relative; border-radius: 14px; overflow: hidden; background: #18466f; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* the version and the credits, in small print along the map's foot, as a map's attribution */
+.map .about { position: absolute; left: 10px; right: 10px; bottom: 6px; margin: 0; font-size: 11px; color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 2px #000; pointer-events: none; }
 /* a setting: its name on the left, an on/off switch on the right, as in iOS Settings */
 .row { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 6px 16px; font-size: 17px; text-align: left; }
 .switch { position: relative; width: 51px; height: 31px; border-radius: 16px; background: rgba(120, 120, 128, 0.5); transition: background 0.2s; }

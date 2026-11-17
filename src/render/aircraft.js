@@ -20,6 +20,9 @@ export const MOTIONS = ['gear', 'flaps', 'elevator', 'aileron', 'rudder'];
  * such as `speedbrake`, from 0 s (closed) to 1. Motions left out stay where they are.
  * `burner(fraction, dt)` lights a plume at each of the card's nozzles: 0 at
  * dry power, up to 1 at full afterburner.
+ * `silhouette(renderer)`, once loaded, draws the airplane from straight above,
+ * gear and flaps up, onto a canvas just its size, nose up: opaque where the
+ * airplane is, clear elsewhere (the pause screen's map, src/map.js).
  */
 export function createAircraft(pilot) {
   const airplane = new THREE.Group();
@@ -46,6 +49,49 @@ export function createAircraft(pilot) {
     airplane.set({ gear: 1, flaps: 0, elevator: 0.5, aileron: 0.5, rudder: 0.5 });
     return airplane;
   });
+  airplane.silhouette = (renderer, tall = 256) => {
+    if (!mixer) return null;
+    const parent = airplane.parent, position = airplane.position.clone(), quaternion = airplane.quaternion.clone();
+    const looks = new THREE.Scene();
+    looks.add(airplane);
+    airplane.position.set(0, 0, 0);
+    airplane.quaternion.identity();
+    airplane.burner(0, 0);
+    airplane.set({ gear: 0, flaps: 0, speedbrake: 0, elevator: 0.5, aileron: 0.5, rudder: 0.5 });
+    airplane.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(airplane);
+    // Looking straight down, the nose (-z) at the top of the picture and the right wing (+x) on the right.
+    const camera = new THREE.OrthographicCamera(box.min.x, box.max.x, -box.min.z, -box.max.z, 0.1, 2 * (box.max.y - box.min.y) + 10);
+    camera.position.set(0, box.max.y + 5, 0);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(0, box.min.y, 0);
+    const wide = Math.max(1, Math.round((tall * (box.max.x - box.min.x)) / (box.max.z - box.min.z)));
+    const target = new THREE.WebGLRenderTarget(wide, tall);
+    const clear = renderer.getClearColor(new THREE.Color()), alpha = renderer.getClearAlpha();
+    renderer.setRenderTarget(target);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(looks, camera);
+    const pixels = new Uint8Array(wide * tall * 4);
+    renderer.readRenderTargetPixels(target, 0, 0, wide, tall, pixels);
+    renderer.setRenderTarget(null);
+    renderer.setClearColor(clear, alpha);
+    target.dispose();
+    parent?.add(airplane);
+    airplane.position.copy(position);
+    airplane.quaternion.copy(quaternion);
+    // WebGL's rows run bottom up; a canvas's top down. Opaque where anything was drawn.
+    const image = new ImageData(wide, tall);
+    for (let y = 0; y < tall; y++) {
+      for (let x = 0; x < wide; x++) {
+        const from = ((tall - 1 - y) * wide + x) * 4, to = (y * wide + x) * 4;
+        if (pixels[from + 3] > 32) image.data.set([255, 255, 255, 255], to);
+      }
+    }
+    const canvas = new OffscreenCanvas(wide, tall);
+    canvas.getContext('2d').putImageData(image, 0, 0);
+    return canvas;
+  };
   airplane.set = (positions) => {
     if (!mixer) return;
     for (const [name, position] of Object.entries(positions)) {

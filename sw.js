@@ -4,7 +4,7 @@
 // never calls skipWaiting() on its own; the app offers the update and posts
 // "skip-waiting" when the pilot accepts.
 
-const VERSION = '0.0.36';   // the same value as APP_VERSION in src/version.js
+const VERSION = '0.0.37';   // the same value as APP_VERSION in src/version.js
 const CACHE = `wings-${VERSION}`;
 // Hawaii's tiles (about 200 MB) live in a store of their own that no update
 // touches: src/hawaii.js fills it once, and replaces only the sheets that change.
@@ -24,6 +24,7 @@ const FILES = [
   './src/field.js',
   './src/hawaii.js',
   './src/hud.js',
+  './src/map.js',
   './src/readouts.js',
   './src/input/look.js',
   './src/input/tilt.js',
