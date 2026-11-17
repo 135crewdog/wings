@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.43
+
+- Peaks and ridges are their real height from as far away as you can see them: they no longer grow as you close in. The far ground is drawn on finer grids, so the phone works harder on the ground's shape.
+
 ## 0.0.42
 
 - The speedbrakes pitch the nose down about half as much as in 0.0.35 to 0.0.41, as gently as before their drag was doubled, and still slow the jet as hard.
