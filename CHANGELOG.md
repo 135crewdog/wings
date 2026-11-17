@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.38
+
+- Tap the map on the pause screen to zoom in round the jet, about 80 km across, from sharper photographs; tap again to see the whole chain. Every pause opens on the whole chain.
+
 ## 0.0.37
 
 - A map on the pause screen: the menu moves to the right, and the left shows the islands as the photographs you fly over, north up, with a magenta dot on every airport and a green F-4C where the jet is, pointing the way it's heading.
