@@ -8,6 +8,7 @@ import { createTilt } from './input/tilt.js';
 import { createThrottle } from './ui/throttle.js';
 import { readouts } from './readouts.js';
 import { createHud } from './hud.js';
+import { createMap } from './map.js';
 
 const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.version')) el.textContent = APP_VERSION;
@@ -96,15 +97,26 @@ const showDev = (r) => {
 
 // ---- the flight ----
 let mode = 'start';   // start, flying, paused or crashed
-const flight = startFlight($('view'), await prepareHawaii(), {
+let heading = 0;      // true, degrees: for the map
+const hawaii = await prepareHawaii();
+const flight = startFlight($('view'), hawaii, {
   controls: () => ({ ...pilot, elevator: tilt.stick.pitch, aileron: tilt.stick.roll }),
   onCrash() { mode = 'crashed'; letSleep(); show('crashed'); checkForUpdate(); },
   onReadout(reading, project, looking) {
     const text = readouts(reading.knots, reading.feet, reading.aboveGround);
     hud.draw({ ...reading, airspeed: text.airspeed, altitude: text.radar || text.altitude }, project, looking, hudOn);
     if (devOn) showDev(reading);
+    heading = reading.heading;
   },
 });
+
+// ---- the map on the pause screen ----
+const map = createMap($('map'), hawaii, flight.silhouette);
+flight.ready.then(() => map.prepare());   // the photographs, made while the pilot is still on the start screen
+const showMap = () => {
+  const [north, east] = flight.sim.state.x;
+  map.draw({ north, east, heading });
+};
 flight.ready.then(() => { $('fly').disabled = false; });
 
 // The crash override: on, nothing ends a flight but the pilot. It is on until
@@ -184,6 +196,7 @@ const pause = () => {
   letSleep();
   flight.hold();
   show('pause');
+  showMap();
   checkForUpdate();
 };
 
@@ -220,7 +233,7 @@ for (const id of ['restart', 'crash-restart']) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pause(); else checkForUpdate();   // iOS drops the wake lock when the app is hidden; Resume asks again
 });
-window.addEventListener('resize', () => { if (isPortrait()) pause(); });
+window.addEventListener('resize', () => { if (isPortrait()) pause(); else if (mode === 'paused') showMap(); });
 window.addEventListener('orientationchange', pause);
 screen.orientation?.addEventListener('change', pause);
 

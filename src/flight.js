@@ -28,7 +28,7 @@ import { attitudeToThree, toThree } from './render/frames.js';
  * called every frame it draws with what the instruments read: { knots, feet,
  * aboveGround } (feet at the wheels) and the HUD's numbers (see
  * instruments() in src/sim/airdata.js, and `power`, the engine's); `project`
- * turns a north, east, down direction into where it falls on the screen. Returns { ready, fly(), hold(), restart(), redraw(), setCrashes(on) }:
+ * turns a north, east, down direction into where it falls on the screen. Returns { ready, fly(), hold(), restart(), redraw(), setCrashes(on), silhouette() }:
  * fly() lets time run, hold() stops it (the picture stays), restart() puts
  * the airplane back on the runway.
  */
@@ -170,13 +170,16 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   // A new size, a turned phone, or the model arriving all change the picture.
   new ResizeObserver(wake).observe(canvas);
   for (const type of ['resize', 'orientationchange']) window.addEventListener(type, wake);
-  airplane.ready.then(wake);
+  let silhouette = null;   // the airplane from above, for the pause screen's map
+  airplane.ready.then(() => { silhouette = airplane.silhouette(renderer); wake(); });
   run();
   return {
     ready: airplane.ready,
     fly() { flying = true; carry = 0; look.reset(); wake(); },
     hold() { flying = false; look.release(); wake(); },
     restart() { restart(); wake(); },
+    /** The airplane seen from above, nose up, for the map (null until the model has loaded). */
+    silhouette: () => silhouette,
     /** Draw again, though nothing in the flight changed: the HUD was switched. */
     redraw() { wake(); },
     /** Whether a hard arrival ends the flight. False is the crash override. Takes effect at once. */

@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.37
+
+- A map on the pause screen: the menu moves to the right, and the left shows the islands as the photographs you fly over, north up, with a magenta dot on every airport and a green F-4C where the jet is, pointing the way it's heading.
+
 ## 0.0.36
 
 - A developer overlay: a Developer switch on the pause screen, off to start with, shows a small box of raw numbers in the top left (frame rate, the phone's tilt, the stick and throttle, airspeed, g, angle of attack and sideslip, altitude, where the jet is and what ground is loaded round it), for troubleshooting and screen recordings.
