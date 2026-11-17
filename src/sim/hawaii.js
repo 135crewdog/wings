@@ -12,6 +12,25 @@
 
 import { SURFACES } from './ground.js';
 
+/** WGS 84: metres per degree of latitude and of longitude at a latitude (as terrain/make-hawaii.py). */
+function metresPerDegree(lat) {
+  const p = (lat * Math.PI) / 180;
+  return [111132.954 - 559.822 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p), 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p) + 0.118 * Math.cos(5 * p)];
+}
+
+/**
+ * A real place (latitude, longitude, degrees) on one of the island groups,
+ * as [north, east] metres in the game's world: the group's own flat map,
+ * moved where the channels put it (index.groups, from terrain/make-hawaii.py).
+ */
+export function toWorld(index, group, lat, lon) {
+  const g = index.groups[group], [mLat, mLon] = metresPerDegree(g.lat0);
+  return [(lat - g.lat0) * mLat + g.origin[0], (lon - g.lon0) * mLon + g.origin[1]];
+}
+
+/** The Honolulu VORTAC (114.8), on the airport: OurAirports' position and elevation. */
+export const HNL_VORTAC = Object.freeze({ name: 'HNL', group: 'oahu', lat: 21.3083, lon: -157.9300, feet: 10 });
+
 /** A tile's posts, from its height picture's red, green and blue bytes (4 a post, as a canvas gives them, or 3). */
 export function decodeTile(bytes, index, stride = 4) {
   const n = index.tile * index.tile;

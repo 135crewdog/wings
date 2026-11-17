@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.33
+
+- The HNL VORTAC on the HUD, as Rage's steerpoint: a diamond on the station when it's in front of you, and when it isn't, a small circle above the flight path marker with a tail pointing the way to turn. Its distance, in nautical miles, sits lower right: "12.4 > HNL".
+
 ## 0.0.32
 
 - The HUD's heading tape is cleaner, as War Wagon's: the heading sits in the tape's own row under the pointer, and the tape's numbers slide past beneath it as you turn, so the top of the screen is shorter.

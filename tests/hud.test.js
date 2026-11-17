@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { apexFor, headingText, powerText, magnetic, tapeMarks } from '../src/hud.js';
+import { apexFor, headingText, powerText, magnetic, tapeMarks, cueDirection, relativeBearing, steerText } from '../src/hud.js';
 import { instruments } from '../src/sim/airdata.js';
 import { airborne, card, fly } from './fly.js';
 
@@ -29,6 +29,16 @@ test('the heading tape reads magnetic, War Wagon style', () => {
   assert.ok(marks.every((m) => Math.abs(m.x) >= 8 && Math.abs(m.x) <= 190), 'nothing under the pointer, nothing past the tape');
   assert.ok(marks.every((m) => !m.label || Math.abs(m.x) > 30), 'no number under the readout');
   assert.deepEqual(marks.filter((m) => m.label).map((m) => m.label), ['07', '09'], 'the tens either side, the 08 under the readout left out');
+});
+
+test('the steerpoint: which way to turn, and how far', () => {
+  assert.equal(relativeBearing(80, 100), 20);
+  assert.equal(relativeBearing(350, 10), 20, 'across north');
+  assert.equal(relativeBearing(10, 350), -20);
+  assert.deepEqual(cueDirection({ visible: false }, { x: 0, y: 0 }, -90), { x: -1, y: 0 }, 'behind and to the left: the tail points left');
+  const up = cueDirection({ visible: true, x: 100, y: 0 }, { x: 100, y: 100 }, 0);
+  assert.ok(Math.abs(up.y + 1) < 1e-9, 'in view: the tail points at it');
+  assert.equal(steerText(12.44, 'HNL'), '12.4 > HNL');
 });
 
 test('its readings: level flight is 1 g, the nose and the flight path agree, a climb points up', () => {

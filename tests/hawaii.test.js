@@ -7,7 +7,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { decodePng } from '../terrain/png.mjs';
-import { createHawaii, decodeTile } from '../src/sim/hawaii.js';
+import { createHawaii, decodeTile, toWorld, HNL_VORTAC } from '../src/sim/hawaii.js';
 
 const dir = fileURLToPath(new URL('../terrain/hawaii/', import.meta.url));
 const index = JSON.parse(readFileSync(dir + 'index.json', 'utf8'));
@@ -28,14 +28,7 @@ const tileAt = (level, i, j) => {
 const hawaii = createHawaii(index, tileAt);
 
 // The script's flat map for each group of islands, to find real places in the game's world.
-function metresPerDegree(lat) {
-  const p = (lat * Math.PI) / 180;
-  return [111132.954 - 559.822 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p), 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p) + 0.118 * Math.cos(5 * p)];
-}
-const where = (group, lat, lon) => {
-  const g = index.groups[group], [mLat, mLon] = metresPerDegree(g.lat0);
-  return [(lat - g.lat0) * mLat + g.origin[0], (lon - g.lon0) * mLon + g.origin[1]];
-};
+const where = (group, lat, lon) => toWorld(index, group, lat, lon);
 // The highest ground within `reach` metres of a place.
 const highest = ([north, east], reach = 1500) => {
   let top = -Infinity;
@@ -165,4 +158,13 @@ test('the sea is water at sea level, in the channels and beyond the islands', ()
     assert.equal(hawaii.surfaceAt(north, east), 'water', `${north}, ${east} is the sea`);
     assert.equal(hawaii.heightAt(north, east), 0, 'at sea level');
   }
+});
+
+test('the HNL VORTAC stands on the Honolulu airport, near 8R', () => {
+  const [north, east] = where(HNL_VORTAC.group, HNL_VORTAC.lat, HNL_VORTAC.lon);
+  const fromThreshold = Math.hypot(north, east);
+  console.log(`  HNL VORTAC ${Math.round(north)} m north, ${Math.round(east)} m east of 8R's threshold`);
+  assert.ok(fromThreshold < 3000, 'within 3 km of the threshold of 8R');
+  assert.equal(hawaii.surfaceAt(north, east), 'runway', 'on dry land');
+  assert.ok(Math.abs(hawaii.heightAt(north, east) - HNL_VORTAC.feet * FT) < 5, 'at the airport\'s height');
 });
