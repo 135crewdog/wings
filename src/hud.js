@@ -9,8 +9,8 @@
 // camera, so the marker sits on the point the airplane is flying toward and
 // the ladder rolls and scales with the camera. Straight up and straight down
 // get the zenith and nadir symbols when the ladder's window reaches them.
-// Airspeed and altitude are the plain readouts' own text (src/readouts.js),
-// so the two never disagree.
+// Airspeed and altitude are written by src/readouts.js's rules,
+// and with the HUD switched off they are all that is drawn.
 
 const GREEN = '#7cff4f';
 const OUTLINE = 'rgba(0,0,0,0.75)';
@@ -122,7 +122,7 @@ export function apexFor(pitchDeg) {
 }
 
 /**
- * Returns { draw(reading, project, looking), clear() } for a canvas over the
+ * Returns { draw(reading, project, looking, full), clear() } for a canvas over the
  * whole view. `safe()` returns the safe area's rectangle in CSS pixels; the
  * numbers stay inside it.
  */
@@ -182,9 +182,10 @@ export function createHud(canvas, safe) {
    * (deg true), range (nm), name } };
    * project: a north, east, down direction → { x, y, visible } on the
    * screen; looking: true while the view is swung away from the chase
-   * position.
+   * position; full: false draws only the airspeed and altitude, for the HUD
+   * switched off.
    */
-  function draw(reading, project, looking = false) {
+  function draw(reading, project, looking = false, full = true) {
     fit();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -192,6 +193,16 @@ export function createHud(canvas, safe) {
     const cx = w / 2, cy = h / 2;
     // Clear of the throttle on the left and the buttons on the right.
     const left = area.left + 84, right = area.right - 170, top = area.top + 8, bottom = area.bottom - 14;
+
+    // airspeed on the left, altitude on the right, with carets: all that
+    // shows with the HUD switched off
+    const numbers = () => {
+      stroke(() => { ctx.moveTo(left + 46, cy); ctx.lineTo(left + 54, cy - 5); ctx.lineTo(left + 54, cy + 5); ctx.closePath(); });
+      text(reading.airspeed, left + 42, cy, 'right', 20);
+      stroke(() => { ctx.moveTo(right - 46, cy); ctx.lineTo(right - 54, cy - 5); ctx.lineTo(right - 54, cy + 5); ctx.closePath(); });
+      text(reading.altitude, right - 42, cy, 'left', 20);
+    };
+    if (!full) { numbers(); return; }
 
     // heading tape across the top, magnetic, as War Wagon's: the pointer at
     // the top, the readout in the tape's own row under it, and the tape's
@@ -297,11 +308,7 @@ export function createHud(canvas, safe) {
       text(steerText(st.range, st.name), right, bottom, 'right', 14);
     }
 
-    // airspeed on the left, altitude on the right, with carets
-    stroke(() => { ctx.moveTo(left + 46, cy); ctx.lineTo(left + 54, cy - 5); ctx.lineTo(left + 54, cy + 5); ctx.closePath(); });
-    text(reading.airspeed, left + 42, cy, 'right', 20);
-    stroke(() => { ctx.moveTo(right - 46, cy); ctx.lineTo(right - 54, cy - 5); ctx.lineTo(right - 54, cy + 5); ctx.closePath(); });
-    text(reading.altitude, right - 42, cy, 'left', 20);
+    numbers();
 
     // g, angle of attack, Mach and the engine's power, lower left
     const rows = [bottom - 54, bottom - 36, bottom - 18, bottom];
