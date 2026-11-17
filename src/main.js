@@ -73,6 +73,27 @@ async function prepareHawaii() {
   return hawaii;
 }
 
+// ---- the developer overlay ----
+// A small box of raw numbers, for troubleshooting and for screen recordings
+// sent to Claude Code (the Ideas doc, picked 17 Nov 2026). Switched on and
+// off on the pause screen, off until the pilot turns it on.
+let devOn = false, devAt = 0;
+const fixed = (x, n = 1) => (Number.isFinite(x) ? x.toFixed(n) : '-');
+const showDev = (r) => {
+  const now = performance.now();
+  if (now - devAt < 250) return;   // four times a second is plenty to read
+  devAt = now;
+  const s = flight.status(), t = tilt.raw;
+  $('dev').textContent = [
+    `${fixed(s.fps, 0)} fps  ${s.draws} draws  ${mode}  ${APP_VERSION}`,
+    `sensor β ${fixed(t.beta)} γ ${fixed(t.gamma)} screen ${t.screen}  tilt ${fixed(t.pitch)}/${fixed(t.roll)} conf ${fixed(t.confidence, 2)}`,
+    `stick ${fixed(tilt.stick.pitch, 2)}/${fixed(tilt.stick.roll, 2)}  throttle ${fixed(pilot.throttle, 2)}  power ${fixed(r.power, 2)}`,
+    `${fixed(r.knots, 0)} kt  M ${fixed(r.mach, 2)}  g ${fixed(r.g)}  α ${fixed(r.alpha)}  β ${fixed(r.beta)}`,
+    `${Math.round(r.feet)} ft  ${Math.round(r.aboveGround)} above ground  hdg ${fixed(r.heading, 0)}T`,
+    `N ${Math.round(s.north)} E ${Math.round(s.east)} m  levels ${s.levels.join(',') || 'none'}  tiles waiting ${s.queued}`,
+  ].join('\n');
+};
+
 // ---- the flight ----
 let mode = 'start';   // start, flying, paused or crashed
 const flight = startFlight($('view'), await prepareHawaii(), {
@@ -81,6 +102,7 @@ const flight = startFlight($('view'), await prepareHawaii(), {
   onReadout(reading, project, looking) {
     const text = readouts(reading.knots, reading.feet, reading.aboveGround);
     hud.draw({ ...reading, airspeed: text.airspeed, altitude: text.radar || text.altitude }, project, looking, hudOn);
+    if (devOn) showDev(reading);
   },
 });
 flight.ready.then(() => { $('fly').disabled = false; });
@@ -113,6 +135,30 @@ let savedHud = null;
 try { savedHud = localStorage.getItem(HUD_KEY); } catch { /* storage may be blocked */ }
 setHud(savedHud !== 'off');
 hudSwitch.addEventListener('click', () => setHud(hudSwitch.getAttribute('aria-checked') !== 'true'));
+
+// The developer overlay's switch, kept between visits like the others.
+const DEV_KEY = 'wings.dev';
+const devSwitch = $('dev-switch');
+const setDev = (on) => {
+  devOn = on;
+  devSwitch.setAttribute('aria-checked', String(on));
+  $('dev').hidden = !on;
+  flight.redraw();
+  try { localStorage.setItem(DEV_KEY, on ? 'on' : 'off'); } catch { /* storage may be blocked */ }
+};
+let savedDev = null;
+try { savedDev = localStorage.getItem(DEV_KEY); } catch { /* storage may be blocked */ }
+setDev(savedDev === 'on');
+devSwitch.addEventListener('click', () => setDev(devSwitch.getAttribute('aria-checked') !== 'true'));
+
+// A read-only hook for browser tests and troubleshooting (after Rage's window.rage).
+window.wings = Object.freeze({
+  version: APP_VERSION,
+  get mode() { return mode; },
+  get sim() { return flight.sim; },
+  get status() { return flight.status(); },
+  get stick() { return { ...tilt.stick }; },
+});
 parkControls();
 
 const isPortrait = () => window.innerHeight > window.innerWidth;   // read directly: the media query's answer can be stale

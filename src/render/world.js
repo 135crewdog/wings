@@ -143,5 +143,6 @@ export function createWorld(scene, renderer, hawaii) {
       terrain.follow(camera);
     },
     get settled() { return terrain.settled; },
+    terrain,
   };
 }

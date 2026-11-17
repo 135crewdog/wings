@@ -53,10 +53,10 @@ test('its readings: level flight is 1 g, the nose and the flight path agree, a c
   assert.ok(climbing.velocity[2] < -0.05 && climbing.g > 1.5, `pulling up, the flight path climbs and the g builds (${climbing.g.toFixed(1)} g)`);
 });
 
-test('the pause screen has the HUD switch beside crash override, kept as wings.hud', () => {
+test('the pause screen has the HUD and developer switches beside crash override, kept as wings.hud and wings.dev', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   const pause = page.slice(page.indexOf('id="screen-pause"'), page.indexOf('id="screen-crashed"'));
-  assert.ok(pause.includes('id="override"') && pause.includes('id="hud-switch"'), 'both switches are on the pause screen');
-  assert.ok(main.includes("'wings.hud'"), 'the choice is kept under a wings. key');
+  assert.ok(pause.includes('id="override"') && pause.includes('id="hud-switch"') && pause.includes('id="dev-switch"'), 'all three switches are on the pause screen');
+  assert.ok(main.includes("'wings.hud'") && main.includes("'wings.dev'"), 'the choices are kept under wings. keys');
 });

@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.36
+
+- A developer overlay: a Developer switch on the pause screen, off to start with, shows a small box of raw numbers in the top left (frame rate, the phone's tilt, the stick and throttle, airspeed, g, angle of attack and sideslip, altitude, where the jet is and what ground is loaded round it), for troubleshooting and screen recordings.
+
 ## 0.0.35
 
 - The boards bite twice as hard. At idle through 400 knots the jet now slows about 10 knots a second with them out (6 before), 400 to 250 knots in about 22 seconds (35 before), and the nose wants to drop a little more as they open.
