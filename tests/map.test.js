@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { extent, wholeView, toMap, airports, noseOnMap } from '../src/map.js';
+import { extent, wholeView, zoomView, cover, toMap, airports, noseOnMap } from '../src/map.js';
 
 const index = JSON.parse(readFileSync(new URL('../terrain/hawaii/index.json', import.meta.url), 'utf8'));
 const box = extent(index);
@@ -54,4 +54,31 @@ test('the jet points the way it heads', () => {
   assert.ok(near(noseOnMap(90), { x: 1, y: 0 }), 'east: right');
   assert.ok(near(noseOnMap(180), { x: 0, y: 1 }), 'south: down');
   assert.ok(near(noseOnMap(-90), { x: -1, y: 0 }), 'west (the sim\'s heading runs -180 to 180): left');
+});
+
+test('zoomed in, the jet is in the middle, and the map stays on the chain', () => {
+  const [w, h] = sizes[0];
+  // Over Oahu, well inside the chain: the jet in the middle, about 80 km across.
+  const view = zoomView(box, w, h, 10000, -5000), mid = toMap(view, w, h, 10000, -5000);
+  assert.ok(Math.abs(mid.x - w / 2) < 1e-9 && Math.abs(mid.y - h / 2) < 1e-9, 'the jet in the middle');
+  console.log(`  zoomed in: ${(w * view.mpp / 1000).toFixed(0)} km across, ${(view.mpp).toFixed(0)} m a point`);
+  assert.ok(Math.abs(w * view.mpp - 80000) < 1, '80 km across');
+  // Far out past the chain's corner: the view slides back inside it.
+  const far = zoomView(box, w, h, box.north1 + 50000, box.east0 - 50000);
+  const a = toMap(far, w, h, box.north1, box.east0);
+  assert.ok(Math.abs(a.x) < 1e-6 && Math.abs(a.y) < 1e-6, 'the chain\'s corner at the map\'s corner, no emptiness past it');
+  // Airports keep their places relative to the jet, only closer up.
+  const whole = wholeView(box, w, h), honolulu = airports(index).find((f) => f.airport === 'PHNL');
+  const jetW = toMap(whole, w, h, 10000, -5000), hnlW = toMap(whole, w, h, honolulu.north, honolulu.east);
+  const hnlZ = toMap(view, w, h, honolulu.north, honolulu.east), k = whole.mpp / view.mpp;
+  assert.ok(Math.abs((hnlZ.x - mid.x) - (hnlW.x - jetW.x) * k) < 1e-6 && Math.abs((hnlZ.y - mid.y) - (hnlW.y - jetW.y) * k) < 1e-6, 'Honolulu where it was from the jet, scaled');
+});
+
+test('zoomed in, the finer tiles cover all the map shows', () => {
+  const [w, h] = sizes[0], view = zoomView(box, w, h, 0, 0), tiles = cover(index, 3, view, w, h);
+  const a = toMap(view, w, h, tiles.north1, tiles.east0), b = toMap(view, w, h, tiles.north0, tiles.east1);
+  assert.ok(a.x <= 0 && a.y <= 0 && b.x >= w && b.y >= h, 'from corner to corner');
+  const count = ((tiles.north1 - tiles.north0) / tiles.span) * ((tiles.east1 - tiles.east0) / tiles.span);
+  console.log(`  zoomed on Honolulu: ${count} tiles at 80 m a pixel`);
+  assert.ok(count <= 30, 'a handful of tiles, quick to put together');
 });

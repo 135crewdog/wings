@@ -115,7 +115,7 @@ const map = createMap($('map'), hawaii, flight.silhouette);
 flight.ready.then(() => map.prepare());   // the photographs, made while the pilot is still on the start screen
 const showMap = () => {
   const [north, east] = flight.sim.state.x;
-  map.draw({ north, east, heading });
+  map.show({ north, east, heading });
 };
 flight.ready.then(() => { $('fly').disabled = false; });
 
