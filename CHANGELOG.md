@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.34
+
+- With the HUD switched off, the white airspeed and altitude across the top are gone: only the HUD's own airspeed and altitude stay, green, in their places, radar altitude and all.
+
 ## 0.0.33
 
 - The HNL VORTAC on the HUD, as Rage's steerpoint: a diamond on the station when it's in front of you, and when it isn't, a small circle above the flight path marker with a tail pointing the way to turn. Its distance, in nautical miles, sits lower right: "12.4 > HNL".
