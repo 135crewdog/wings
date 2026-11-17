@@ -138,6 +138,20 @@ test('every runway is level, dry, and where its ends are', () => {
       assert.equal(hawaii.surfaceAt(north, east), 'runway', `${way.airport} ${a.ident}/${b.ident} is dry along its middle`);
     }
     assert.ok(worst < 0.5, `${way.airport} ${a.ident}/${b.ident} is level along its length (off by ${worst.toFixed(2)} m)`);
+    // Across: no steeper than a real runway's crown allows (1.5%), edge to edge at its middle.
+    const length = Math.hypot(b.north - a.north, b.east - a.east), side = [-(b.east - a.east) / length, (b.north - a.north) / length];
+    const mn = (a.north + b.north) / 2, me = (a.east + b.east) / 2, half = way.width / 2 - 1;
+    const across = Math.abs(hawaii.heightAt(mn + side[0] * half, me + side[1] * half) - hawaii.heightAt(mn - side[0] * half, me - side[1] * half));
+    assert.ok(across <= 0.015 * way.width, `${way.airport} ${a.ident}/${b.ident} is level across (${across.toFixed(2)} m over ${way.width} m)`);
+    // The surface the app draws the runway on (index.json's) is the ground's, to its edges.
+    const [s0, sn, se] = way.surface;
+    for (const f of [0, 0.5, 1]) {
+      for (const k of [-1, 1]) {
+        const north = a.north + (b.north - a.north) * f + side[0] * half * k, east = a.east + (b.east - a.east) * f + side[1] * half * k;
+        const off = Math.abs(hawaii.heightAt(north, east) - (s0 + sn * north + se * east));
+        assert.ok(off < 0.3, `${way.airport} ${a.ident}/${b.ident}: the drawn runway lies on the ground at its edges (off by ${off.toFixed(2)} m)`);
+      }
+    }
   }
   console.log(`  ${index.runways.length} runways: ${[...new Set(index.runways.map((w) => w.airport))].join(', ')}`);
   const s = index.start;
