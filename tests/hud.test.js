@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { apexFor, headingText, powerText } from '../src/hud.js';
+import { apexFor, headingText, powerText, magnetic, tapeMarks } from '../src/hud.js';
 import { instruments } from '../src/sim/airdata.js';
 import { airborne, card, fly } from './fly.js';
 
@@ -19,6 +19,16 @@ test('the HUD writes heading, power and the apex symbols as a fighter HUD does',
   assert.equal(apexFor(0), null);
   assert.equal(apexFor(80), 'zenith');
   assert.equal(apexFor(-80), 'nadir');
+});
+
+test('the heading tape reads magnetic, War Wagon style', () => {
+  // 8R at Honolulu points 090 true; with Hawaii's 9.6 degrees east it reads 080.
+  assert.equal(headingText(magnetic(90)), '080');
+  assert.equal(headingText(magnetic(5)), '355');
+  const marks = tapeMarks(80.4, 14, 190);
+  assert.ok(marks.every((m) => Math.abs(m.x) >= 8 && Math.abs(m.x) <= 190), 'nothing under the pointer, nothing past the tape');
+  assert.ok(marks.every((m) => !m.label || Math.abs(m.x) > 30), 'no number under the readout');
+  assert.deepEqual(marks.filter((m) => m.label).map((m) => m.label), ['07', '09'], 'the tens either side, the 08 under the readout left out');
 });
 
 test('its readings: level flight is 1 g, the nose and the flight path agree, a climb points up', () => {
