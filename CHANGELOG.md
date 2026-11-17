@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.42
+
+- The speedbrakes pitch the nose down about half as much as in 0.0.35 to 0.0.41, as gently as before their drag was doubled, and still slow the jet as hard.
+
 ## 0.0.41
 
 - Every runway is dead flat: no more bump on the takeoff roll at about 125 knots, and the runway paint lies right on the ground. Each runway sits at the height of the real ground under it that moves the least earth, with a bank like a road embankment where it's raised or dug in. The first launch after the update downloads about 64 MB of new airfield ground.

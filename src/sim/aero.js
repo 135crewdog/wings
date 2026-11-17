@@ -201,9 +201,9 @@ export function wingForces(c, air, rho, sep) {
 
 /**
  * The speedbrakes' drag (body axes, newtons) and its moment about the CG:
- * the panels' drag along the airflow, acting where the panels are
- * (`c.speedbrake.r`, metres), so any pitch change they bring is the
- * physics'. `open` runs 0 (closed) to 1 (fully out); `Vhat` is the airflow's
+ * the panels' drag along the airflow, acting at `c.speedbrake.r` (metres;
+ * halfway to the panels, src/sim/card.js), so any pitch change they bring
+ * is the physics'. `open` runs 0 (closed) to 1 (fully out); `Vhat` is the airflow's
  * direction in body axes. An airplane with no speedbrakes has none.
  */
 export function speedbrakeForce(c, qS, Vhat, open) {
