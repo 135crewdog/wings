@@ -149,19 +149,24 @@ test('every runway is dead flat, dry, and where its ends are', () => {
 });
 
 // The app paints each runway flat at its height (src/render/world.js), with no
-// lift: the ground must be that height right to the paint's edges and ends,
-// or it would show through the paint, or the paint would hang over a bank.
+// lift: the drawn ground must be that height right to the paint's edges and
+// ends, or it would show through the paint, or the paint would hang over a
+// bank. The picture draws the ground as triangles between points up to a
+// square's diagonal (14 m) apart, each read from the ground at that point, so
+// the ground is checked out to a diagonal past the paint all round.
 test('every runway\'s paint lies on its ground, right to its edges and ends', () => {
+  const reach = index.post * Math.SQRT2;
   let worst = { off: 0 };
   for (const way of index.runways) {
-    for (let f = 0; f <= 1; f += 0.01) {
-      for (const k of [-way.width / 2, way.width / 2]) {
+    const [a, b] = way.ends, length = Math.hypot(b.north - a.north, b.east - a.east), out = reach / length;
+    for (let f = -out; f <= 1 + out; f += 0.005) {
+      for (const k of [-way.width / 2 - reach, -way.width / 2, way.width / 2, way.width / 2 + reach]) {
         const off = Math.abs(hawaii.heightAt(...on(way, f, k)) - way.surface[0]);
         if (off > worst.off) worst = { off, where: nameOf(way) };
       }
     }
-    for (const f of [0, 1]) {
-      for (let k = -way.width / 2; k <= way.width / 2; k += 1) {
+    for (const f of [0, 1, -out, 1 + out]) {
+      for (let k = -way.width / 2 - reach; k <= way.width / 2 + reach; k += 1) {
         const off = Math.abs(hawaii.heightAt(...on(way, f, k)) - way.surface[0]);
         if (off > worst.off) worst = { off, where: nameOf(way) };
       }

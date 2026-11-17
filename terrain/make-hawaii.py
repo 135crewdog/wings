@@ -325,7 +325,10 @@ def near_runway(N, E, ways, flat, origin):
 
 BANK = 3.0     # a bank round a raised or dug-out runway: 3 m out for every 1 m up or down (the owner's 1 in 3, 17 Nov 2026)
 PAD = 10       # posts of real ground worked round each tile, so the banks agree at the tiles' seams: 100 m, more than any bank needs
-FLAT = POST * math.sqrt(2)   # m past the paint that is flat too: every post round a square the paint touches
+# m past the paint that is flat too. The picture draws the ground as triangles between points up to a
+# square's diagonal from the paint, each point's height read from the posts round it, up to another
+# diagonal away; so every post within two diagonals is flat, and the paint lies on flat ground to its edge.
+FLAT = 2 * POST * math.sqrt(2)
 
 
 def runway_frame(r, flat, origin):
@@ -339,7 +342,7 @@ def runway_frame(r, flat, origin):
 
 
 def under(r, N, E, flat, origin):
-    """The posts under a runway: its paint and the first posts past its edges and ends."""
+    """The posts under a runway: its paint and FLAT past its edges and ends."""
     a, u, v, L = runway_frame(r, flat, origin)
     along = (N - a[0]) * u[0] + (E - a[1]) * u[1]
     across = (N - a[0]) * v[0] + (E - a[1]) * v[1]
@@ -365,8 +368,10 @@ def spread(change, keep):
 
 def flatten_runways(h, water, N, E, ways, flat, origin):
     """Each runway dead flat at its height (level_runways) on the posts under
-    it, and round it a bank no steeper than 1 in BANK down or up to the real
-    ground, which is left as it is beyond. `h`, `water`, `N` and `E` are a
+    it, and round it a bank down or up to the real ground, which is left as it
+    is beyond: the change fades by 1 m for every BANK m, so the bank adds no
+    more than 1 in BANK to the ground's own slope (the owner's choice, 17 Nov
+    2026: where the real ground falls away, the two add up, and nothing natural is reshaped). `h`, `water`, `N` and `E` are a
     tile's posts with PAD more round it; the tile is cut out of them after.
     Under a runway, and wherever a bank raises the ground, is dry land."""
     target = np.full(h.shape, np.nan)
@@ -387,6 +392,7 @@ def flatten_runways(h, water, N, E, ways, flat, origin):
     made = np.maximum(least, np.minimum(0.0, most))
     out = np.where(flatten, target, h + made)
     # The check: outside the runways, the levelling's change never climbs or falls faster than 1 in BANK.
+    # (The ground's own slope adds to it: a bank beside a gully is steeper than the bank alone.)
     made = np.where(flatten, np.nan, made)
     for axis in (0, 1):
         slope = np.abs(np.diff(made, axis=axis)) / POST
