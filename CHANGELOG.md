@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.40
+
+- A Settings button on the start screen opens the pause screen (the map and the switches) before you fly; there, the top button says Fly.
+- Fewer credits: only the photographs' credit stays, in small print along the foot of the map. The version shows on the start screen only.
+
 ## 0.0.39
 
 - The pause screen's map no longer comes back squashed after turning the phone to portrait and back.
