@@ -1,4 +1,4 @@
-// A small PNG reader and writer for the island's height map: 8-bit RGB only.
+// A small PNG reader and writer, 8-bit RGB only: the tests read Hawaii's height tiles with it.
 // Node only (it uses zlib); the app reads the same file through the browser.
 import { deflateSync, inflateSync } from 'node:zlib';
 
