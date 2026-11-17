@@ -74,6 +74,29 @@ export function tapeMarks(heading, pxDeg, reach) {
   return marks;
 }
 
+// Which way the tadpole's tail points: toward the station's place on the
+// screen when it is in front of the camera, else straight left or right by
+// the relative bearing (degrees, -180..180). A unit screen vector. (Rage's.)
+export function cueDirection(screen, from, relativeBearingDeg) {
+  if (screen && screen.visible) {
+    const dx = screen.x - from.x, dy = screen.y - from.y, m = Math.hypot(dx, dy);
+    if (m > 1) return { x: dx / m, y: dy / m };
+  }
+  return { x: relativeBearingDeg < 0 ? -1 : 1, y: 0 };
+}
+
+/** A bearing relative to a heading, -180..180, negative to the left. (Rage's.) */
+export function relativeBearing(headingDeg, bearingDeg) {
+  let r = (bearingDeg - headingDeg) % 360;
+  if (r > 180) r -= 360; else if (r < -180) r += 360;
+  return r;
+}
+
+/** The steerpoint's line, lower right: range in nautical miles, then its name: "12.4 > HNL". */
+export function steerText(rangeNm, name) {
+  return `${rangeNm.toFixed(1)} > ${name}`;
+}
+
 /**
  * The engine's power, as the HUD writes it: IDLE, a percentage of MIL in dry
  * power, MIL, or AB with how much of the afterburner is lit. `power` is the
@@ -154,7 +177,9 @@ export function createHud(canvas, safe) {
 
   /**
    * reading: { airspeed, altitude (text), heading, pitch (deg), g, alpha
-   * (deg), mach, power (0..2), velocity, nose (unit north, east, down) };
+   * (deg), mach, power (0..2), velocity, nose (unit north, east, down), and
+   * steer, the steerpoint: { dir (unit north, east, down to it), bearing
+   * (deg true), range (nm), name } };
    * project: a north, east, down direction → { x, y, visible } on the
    * screen; looking: true while the view is swung away from the chase
    * position.
@@ -239,8 +264,10 @@ export function createHud(canvas, safe) {
     const within = (p) => p.visible && p.x >= frame.left && p.x <= frame.right && p.y >= frame.top && p.y <= frame.bottom;
     const f = project(reading.velocity);
     const inFrame = within(f);
+    let fpm = null;
     if (f.visible && (inFrame || !looking)) {
       const fx = Math.max(frame.left, Math.min(frame.right, f.x)), fy = Math.max(frame.top, Math.min(frame.bottom, f.y));
+      fpm = { x: fx, y: fy };
       dashed(!inFrame);
       stroke(() => {
         ctx.arc(fx, fy, 7, 0, Math.PI * 2);
@@ -249,6 +276,25 @@ export function createHud(canvas, safe) {
         ctx.moveTo(fx, fy - 7); ctx.lineTo(fx, fy - 15);
       });
       dashed(false);
+    }
+
+    // the steerpoint (the HNL VORTAC), as Rage's: the diamond on the station
+    // when it is in the HUD's frame; otherwise the tadpole, a small circle
+    // above the flight path marker with a tail pointing the way to turn
+    if (reading.steer) {
+      const st = reading.steer, sp = project(st.dir);
+      if (within(sp)) {
+        stroke(() => { ctx.moveTo(sp.x, sp.y - 9); ctx.lineTo(sp.x + 9, sp.y); ctx.lineTo(sp.x, sp.y + 9); ctx.lineTo(sp.x - 9, sp.y); ctx.closePath(); });
+      } else {
+        const from = fpm ?? { x: cx, y: cy };
+        const u = cueDirection(sp, from, relativeBearing(hdg, st.bearing));
+        const tx = from.x, ty = from.y - 34;
+        stroke(() => {
+          ctx.moveTo(tx + 5, ty); ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+          ctx.moveTo(tx + u.x * 5, ty + u.y * 5); ctx.lineTo(tx + u.x * 18, ty + u.y * 18);
+        });
+      }
+      text(steerText(st.range, st.name), right, bottom, 'right', 14);
     }
 
     // airspeed on the left, altitude on the right, with carets

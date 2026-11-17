@@ -12,6 +12,7 @@ import { atmosphere } from './sim/atmosphere.js';
 import { elevatorTravel } from './sim/aero.js';
 import { calibratedAirspeed, instruments } from './sim/airdata.js';
 import { PARKED, runwayField, startState } from './field.js';
+import { toWorld, HNL_VORTAC } from './sim/hawaii.js';
 import { createAircraft } from './render/aircraft.js';
 import { createChaseCamera } from './render/camera.js';
 import { attachLook, createLook } from './input/look.js';
@@ -61,6 +62,15 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   };
   restart();
   attachLook(canvas, look, () => flying);
+
+  // The HUD's steerpoint, the HNL VORTAC: the way to it from the airplane,
+  // its true bearing, and its range in nautical miles (slant, as DME reads).
+  const vortac = [...toWorld(index, HNL_VORTAC.group, HNL_VORTAC.lat, HNL_VORTAC.lon), -HNL_VORTAC.feet * FT];
+  const NM = 1852;
+  const steerpoint = () => {
+    const d = vortac.map((v, k) => v - sim.state.x[k]), range = Math.hypot(...d) || 1;
+    return { dir: d.map((v) => v / range), bearing: ((Math.atan2(d[1], d[0]) * 180) / Math.PI + 360) % 360, range: range / NM, name: HNL_VORTAC.name };
+  };
 
   // Where a north, east, down direction falls on the screen, as the camera
   // sees it: for the HUD's conformal symbols.
@@ -136,6 +146,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
       aboveGround: (height - ground.heightAt(sim.state.x[0], sim.state.x[1])) / FT,
       power: sim.power,
       ...instruments(sim, seen),
+      steer: steerpoint(),
     }, project, look.active);
     settle = flying || !world.settled ? SETTLE : settle - 1;   // at rest, draw on until all the ground round the camera is in
     waiting = settle > 0 ? requestAnimationFrame(draw) : null;
