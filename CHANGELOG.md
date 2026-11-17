@@ -2,6 +2,13 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.31
+
+- Hawaii. The invented island is gone; the world is the real Hawaiian Islands, all eight, from survey heights and satellite photographs a point every 10 metres. Every island is its real size and shape and height, Mauna Kea 13,800 ft and all; only the channels between them are cut to 15 km, about a minute at 500 knots.
+- Every flight starts on the numbers of runway 8R at Honolulu, the reef runway, pointed east at Diamond Head. Every paved runway of 3,000 ft or more on the islands is drawn with its numbers and can be landed on: 26 runways at 19 airfields.
+- Rage's water and sky: a deep blue sea with the sun's glint on it, soft cumulus, haze toward the horizon.
+- The first time, the start screen downloads Hawaii, about 175 MB, and says how far it has got. Then it stays on the phone, for flying with no signal; an app update never downloads it again.
+
 ## 0.0.30
 
 - Afterburner plumes, one behind each engine, after Rage's but made to look like the F-4's J79s from photographs of Phantoms climbing out in burner: the nozzles glow orange-yellow inside, with a short yellow-white core and a salmon-orange flame behind each. They grow with how much afterburner the engines give, about one and a half metres at the least and four and a half at full, and show the engine, not the throttle: they light a moment after the throttle goes into the burner range and are gone at MIL.
