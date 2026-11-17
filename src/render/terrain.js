@@ -240,10 +240,12 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
   // Puts a tile's picture (an ImageBitmap, or the sea's bytes) into its place in a level's layer.
   const put = (texture, layer, x, y, source) => {
     renderer.state.bindTexture(gl.TEXTURE_2D_ARRAY, renderer.properties.get(texture).__webglTexture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    // Through three.js's own record of these settings, so its next upload (a runway's paint) is set as it expects.
+    const { state } = renderer;
+    state.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    state.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    state.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    state.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, x, y, layer, TILE, TILE, 1, gl.RGBA, gl.UNSIGNED_BYTE, source);
   };
   // The open sea, for a tile that isn't in the index.
@@ -284,6 +286,17 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
     if (--w.waiting === 0) setHeld(l, w.i0, w.j0, w.i0 + WINDOW - 1, w.j0 + WINDOW - 1);
     return true;
   };
+
+  // If the phone takes the GPU's memory away and gives it back, three.js
+  // starts the layers again as open sea: every level holds nothing until
+  // its window is filled again, which the next frame starts.
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    queue.length = 0;
+    for (let l = 0; l < LEVELS; l++) {
+      windows[l] = { i0: null, j0: null, waiting: 0, loaded: new Set() };
+      held[l].set(0, 0, 0, 0);
+    }
+  });
 
   return {
     /** Puts every mesh level under the camera and brings the tiles round it. */
