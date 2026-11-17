@@ -53,7 +53,7 @@ Rage's sky, which Wings already has: a dome fading to a pale horizon, a mid-afte
 
 ## The runways
 
-Every real paved runway in the main islands 3,000 ft or longer is levelled, drawn with its numbers and markings, and can be landed on. Twenty-six runways at nineteen airfields:
+Every real paved runway in the main islands 3,000 ft or longer is levelled, drawn with its numbers and markings, and can be landed on. Twenty-seven runways at eighteen airfields:
 
 | Island | Airfield | Runways |
 |---|---|---|
@@ -76,7 +76,7 @@ Every real paved runway in the main islands 3,000 ft or longer is levelled, draw
 | | Upolu | 7/25 |
 | | Bradshaw | 9/27 |
 
-Each airfield's runways lie on one flat surface fitted to the survey's heights at their ends, so runways that cross meet at one height, with the ground eased into them round their edges. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
+Every runway is dead flat (0%), and each airfield's runways share one height: the average of the survey's heights at their ends and middles, set to a height the tiles hold exactly, so the saved runway has no steps (the owner's choice, 17 Nov 2026: real slopes don't matter, a smooth roll does). Round each runway the ground eases back to its own height, no steeper than 1 in 10, so an airfield on a slope sits on a bank at one end and in a cutting at the other: about 17 m (57 ft) at Bradshaw, 11 m at Lihue and Princeville, a few metres or less elsewhere. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
 
 ## North
 

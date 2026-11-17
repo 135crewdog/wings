@@ -120,37 +120,82 @@ test('every channel between the groups is 15 km, coast to coast', () => {
   }
 });
 
-test('every runway is level, dry, and where its ends are', () => {
+// Along a runway: where a point `f` of the way from its first end to its
+// second, `k` metres to the right of its centre line, is.
+const on = (way, f, k = 0) => {
+  const [a, b] = way.ends, length = Math.hypot(b.north - a.north, b.east - a.east);
+  const side = [-(b.east - a.east) / length, (b.north - a.north) / length];
+  return [a.north + (b.north - a.north) * f + side[0] * k, a.east + (b.east - a.east) * f + side[1] * k];
+};
+const nameOf = (way) => `${way.airport} ${way.ends[0].ident}/${way.ends[1].ident}`;
+
+test('every runway is dead flat, dry, and where its ends are', () => {
   for (const way of index.runways) {
-    const [a, b] = way.ends;
+    const [a, b] = way.ends, [s0, sn, se] = way.surface, half = way.width / 2 - 1;
+    assert.ok(sn === 0 && se === 0 && a.height === s0 && b.height === s0, `${nameOf(way)} is level: one height, end to end`);
+    // The ground under it, across its whole width, is the drawn surface's height (the app paints the runway on it).
     let worst = 0;
     for (let f = 0; f <= 1; f += 0.02) {
-      const north = a.north + (b.north - a.north) * f, east = a.east + (b.east - a.east) * f;
-      const want = a.height + (b.height - a.height) * f;
-      worst = Math.max(worst, Math.abs(hawaii.heightAt(north, east) - want));
-      assert.equal(hawaii.surfaceAt(north, east), 'runway', `${way.airport} ${a.ident}/${b.ident} is dry along its middle`);
+      for (const k of [-half, 0, half]) worst = Math.max(worst, Math.abs(hawaii.heightAt(...on(way, f, k)) - s0));
+      assert.equal(hawaii.surfaceAt(...on(way, f)), 'runway', `${nameOf(way)} is dry along its middle`);
     }
-    assert.ok(worst < 0.5, `${way.airport} ${a.ident}/${b.ident} is level along its length (off by ${worst.toFixed(2)} m)`);
-    // Across: no steeper than a real runway's crown allows (1.5%), edge to edge at its middle.
-    const length = Math.hypot(b.north - a.north, b.east - a.east), side = [-(b.east - a.east) / length, (b.north - a.north) / length];
-    const mn = (a.north + b.north) / 2, me = (a.east + b.east) / 2, half = way.width / 2 - 1;
-    const across = Math.abs(hawaii.heightAt(mn + side[0] * half, me + side[1] * half) - hawaii.heightAt(mn - side[0] * half, me - side[1] * half));
-    assert.ok(across <= 0.015 * way.width, `${way.airport} ${a.ident}/${b.ident} is level across (${across.toFixed(2)} m over ${way.width} m)`);
-    // The surface the app draws the runway on (index.json's) is the ground's, to its edges.
-    const [s0, sn, se] = way.surface;
-    for (const f of [0, 0.5, 1]) {
-      for (const k of [-1, 1]) {
-        const north = a.north + (b.north - a.north) * f + side[0] * half * k, east = a.east + (b.east - a.east) * f + side[1] * half * k;
-        const off = Math.abs(hawaii.heightAt(north, east) - (s0 + sn * north + se * east));
-        assert.ok(off < 0.3, `${way.airport} ${a.ident}/${b.ident}: the drawn runway lies on the ground at its edges (off by ${off.toFixed(2)} m)`);
-      }
-    }
+    assert.ok(worst < 0.01, `${nameOf(way)}: the ground under it is the runway's height, edge to edge (off by ${worst.toFixed(3)} m)`);
   }
   console.log(`  ${index.runways.length} runways: ${[...new Set(index.runways.map((w) => w.airport))].join(', ')}`);
   const s = index.start;
   assert.deepEqual([s.airport, s.runway], ['PHNL', '08R'], 'every flight starts on 8R at Honolulu');
   assert.ok(Math.hypot(s.north, s.east) < 0.01, 'at its threshold, the world\'s origin');
   assert.ok(Math.abs(hawaii.heightAt(0, 0) - s.height) < 0.3, 'on the runway\'s surface');
+});
+
+// A wheel feels a step, not a slope: neighbouring samples a metre apart along
+// the centre line and both main-gear tracks (the F-4C's are 2.7 m either side).
+test('every runway is smooth: no step a wheel can feel', () => {
+  let worst = { step: 0 };
+  for (const way of index.runways) {
+    const [a, b] = way.ends, length = Math.hypot(b.north - a.north, b.east - a.east);
+    for (const k of [-2.7, 0, 2.7]) {
+      let before = hawaii.heightAt(...on(way, 0, k));
+      for (let s = 1; s <= length; s++) {
+        const here = hawaii.heightAt(...on(way, s / length, k)), step = Math.abs(here - before);
+        if (step > worst.step) worst = { step, where: `${nameOf(way)}, ${Math.round(s / 0.3048)} ft from ${a.ident}'s threshold` };
+        before = here;
+      }
+    }
+  }
+  console.log(`  the biggest step on any runway: ${(worst.step * 100).toFixed(1)} cm${worst.where ? ` (${worst.where})` : ''}`);
+  assert.ok(worst.step <= 0.01, `no step over 1 cm (${(worst.step * 100).toFixed(1)} cm at ${worst.where})`);
+});
+
+// Round each runway the ground eases back to its own height: from the runway's
+// edges and ends outward, over the easing and a little beyond, it never climbs
+// or falls steeper than 1 in 10 (each runway's 'ease', from the script).
+test('the ground eases into every runway: no cliffs', () => {
+  const report = new Map();
+  for (const way of index.runways) {
+    const [a, b] = way.ends, length = Math.hypot(b.north - a.north, b.east - a.east);
+    const u = [(b.north - a.north) / length, (b.east - a.east) / length], v = [-u[1], u[0]];
+    const out = 30 + (way.ease ?? 0);   // the flat shoulders, then the easing
+    // Four lines outward: from the middle of each edge, and from each end along the centre line.
+    const lines = [
+      [on(way, 0.5, way.width / 2), v], [on(way, 0.5, -way.width / 2), [-v[0], -v[1]]],
+      [on(way, 0), [-u[0], -u[1]]], [on(way, 1), u],
+    ];
+    let steepest = 0;
+    for (const [[n0, e0], d] of lines) {
+      let before = hawaii.heightAt(n0, e0);
+      for (let s = 10; s <= out; s += 10) {
+        const n = n0 + d[0] * s, e = e0 + d[1] * s;
+        if (hawaii.surfaceAt(n, e) === 'water') break;   // the sea is at sea level: no runway's business
+        const here = hawaii.heightAt(n, e);
+        steepest = Math.max(steepest, Math.abs(here - before) / 10);
+        before = here;
+      }
+    }
+    report.set(way.airport, Math.max(report.get(way.airport) ?? 0, steepest));
+  }
+  console.log(`  steepest ground round each airfield: ${[...report].map(([k, s]) => `${k} 1 in ${(1 / Math.max(s, 1e-9)).toFixed(0)}`).join(', ')}`);
+  for (const [airport, s] of report) assert.ok(s <= 0.1 + 1e-6, `${airport}: no steeper than 1 in 10 round it (1 in ${(1 / s).toFixed(1)})`);
 });
 
 test('the sea is water at sea level, in the channels and beyond the islands', () => {

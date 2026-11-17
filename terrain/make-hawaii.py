@@ -315,12 +315,15 @@ def near_runway(N, E, ways, flat, origin):
     return False
 
 
-SHOULDER = 150.0   # m over which the ground eases into a runway's level, round its edges
+SHOULDER = 150.0   # m over which the ground eases into a runway's level, round its edges, at the least
+EASE = 15.0        # and at least this many metres for each metre the level is off the real ground there:
+                   # the easing is an S-curve whose steepest is 1.5 times its average, so never steeper than 1 in 10
 
 
 def flatten_runways(h, water, N, E, ways, flat, origin, h_src, h_tr):
-    """Each runway on its airfield's surface (level_airfields), with the
-    ground eased into that surface round its edges. Under a runway, and for 60 m round it, is never water."""
+    """Each runway at its airfield's level (level_airfields), exactly, with the
+    ground eased into that level round its edges and ends: the farther the level
+    is from the real ground, the longer the easing. Under a runway, and for 60 m round it, is never water."""
     for r in ways:
         (la1, lo1), (la2, lo2) = r['ends']
         a = np.array(flat.to_ne(la1, lo1)) + origin
@@ -334,10 +337,10 @@ def flatten_runways(h, water, N, E, ways, flat, origin, h_src, h_tr):
         out = np.maximum(np.maximum(-along, along - L), 0)
         side = np.maximum(np.abs(across) - half, 0)
         d = np.hypot(out, side)
-        if (d > SHOULDER).all():
+        if (d > r['ease']).all():
             continue
-        level = r['plane'][0] + r['plane'][1] * N + r['plane'][2] * E   # the airfield's surface, right here
-        w = np.clip(1 - d / SHOULDER, 0, 1)
+        level = r['plane'][0]   # the airfield's level: dead flat
+        w = np.clip(1 - d / r['ease'], 0, 1)
         w = w * w * (3 - 2 * w)
         h[:] = h * (1 - w) + level * w
         water[d < 60] = False   # the runway and a margin round it are dry land, even where it ends at the water
@@ -345,23 +348,22 @@ def flatten_runways(h, water, N, E, ways, flat, origin, h_src, h_tr):
 
 
 def level_airfields(ways, flat, origin, h_src, h_tr):
-    """Each airfield's runways lie on one flat surface, tilted to fit the
-    survey's heights at all their ends (the best fit, as a plane): so where
-    runways cross, they meet at one height, as real ones do."""
-    for airport in {r['airport'] for r in ways}:
+    """Each airfield's runways dead flat, all at one height (the owner's
+    choice, 17 Nov 2026: real slopes don't matter, a smooth roll does): the
+    average of the survey's heights at their ends and middles, moved to the
+    nearest height the tiles hold exactly (MIN + k·STEP), so the saved runway
+    has no steps. Where runways cross, they meet at that height."""
+    for airport in sorted({r['airport'] for r in ways}):
         mine = [r for r in ways if r['airport'] == airport]
-        ends = [(np.array(flat.to_ne(la, lo)) + origin, end_height(h_src, h_tr, la, lo)) for r in mine for la, lo in r['ends']]
-        # Measured from the airfield's middle, so where the ends can't say how
-        # the surface tilts across (one runway), the fit leaves it level across
-        # rather than tilting it toward wherever the world's origin happens to be.
-        mid = np.mean([ne for ne, _ in ends], axis=0)
-        A = np.array([[1.0, ne[0] - mid[0], ne[1] - mid[1]] for ne, _ in ends])
-        z = np.array([h for _, h in ends])
-        c, sn, se = np.linalg.lstsq(A, z, rcond=None)[0]
-        plane = np.array([c - sn * mid[0] - se * mid[1], sn, se])
+        spots = [p for r in mine for p in (r['ends'][0], ((r['ends'][0][0] + r['ends'][1][0]) / 2, (r['ends'][0][1] + r['ends'][1][1]) / 2), r['ends'][1])]
+        z = np.array([end_height(h_src, h_tr, la, lo) for la, lo in spots])
+        level = (MIN + round((z.mean() * HEIGHT_SCALE - MIN) / STEP) * STEP) / HEIGHT_SCALE
+        off = float(np.abs(z - level).max())   # the most the level is above or below the real ground at the runways
+        log(f'    {airport}: level at {level:.2f} m ({level / 0.3048:.0f} ft), up to {off:.1f} m ({off / 0.3048:.0f} ft) off the real ground')
         for r in mine:
-            r['plane'] = plane
-            r['level'] = [float(plane @ np.array([1.0, *(np.array(flat.to_ne(la, lo)) + origin)])) for la, lo in r['ends']]
+            r['plane'] = np.array([level, 0.0, 0.0])
+            r['level'] = [level, level]
+            r['ease'] = max(SHOULDER, EASE * off)
 
 
 def end_height(src, tr, lat, lon):
@@ -486,7 +488,8 @@ def main():
             ends.append({'ident': ident, 'north': round(float(n), 2), 'east': round(float(e), 2), 'height': round(lvl * HEIGHT_SCALE, 2)})
         # The airfield's surface, height = a + b·north + c·east in the world, for drawing the runway on it.
         plane = [float(r['plane'][0]) * HEIGHT_SCALE, float(r['plane'][1]) * HEIGHT_SCALE, float(r['plane'][2]) * HEIGHT_SCALE]
-        out_ways.append({'airport': r['airport'], 'name': r['name'], 'width': round(r['width'], 1), 'ends': ends, 'surface': [round(x, 9) for x in plane]})
+        out_ways.append({'airport': r['airport'], 'name': r['name'], 'width': round(r['width'], 1), 'ends': ends, 'surface': [round(x, 9) for x in plane],
+                         'ease': round(r['ease'])})   # m beyond the shoulders over which the ground eases back to its own
     # The start is 8R at Honolulu; a trial build of other islands alone has none.
     start = next((w for w in out_ways if w['airport'] == 'PHNL' and w['ends'][0]['ident'] == '08R'), None)
     groups_info = {g: {'origin': [round(float(x), 1) for x in origins[g]], 'lat0': flats[g].lat0, 'lon0': flats[g].lon0} for g in ORDER}
