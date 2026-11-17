@@ -121,6 +121,10 @@ export function deriveCard(pilot) {
     flapLift: (2 * W) / (RHO0 * S * (pilot.stall_landing_kt * KT) ** 2) - CLmax,
     flapDrag: feel(0.02, 0.08, pilot.flap_drag),
     gearDrag: feel(0.01, 0.04, pilot.gear_drag),
+    // Speedbrakes: their drag, and where it acts, at the panels as the model
+    // has them open. Real fighters' boards add about as much drag as the
+    // whole clean airplane at low lift; the feel number sets how much.
+    speedbrake: pilot.speedbrake_ft ? { drag: feel(0.015, 0.045, pilot.speedbrake_drag ?? 0.5), r: pilot.speedbrake_ft.map((x) => x * FT) } : null,
     // Ground contact: where the airplane can touch, as measured from its 3D model.
     contacts: contactPoints(W, m, pilot),
     // Only a hard arrival ends a flight: the airplane coming down faster than

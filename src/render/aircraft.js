@@ -14,7 +14,8 @@ export const MOTIONS = ['gear', 'flaps', 'elevator', 'aileron', 'rudder'];
  * `ready` resolves with the group when it has. `set({ gear, flaps, elevator,
  * aileron, rudder })` puts each motion at a position from 0 to 1: gear and
  * flaps from up to down; the controls from full forward or left, through
- * neutral at 0.5, to full back or right. Motions left out stay where they are.
+ * neutral at 0.5, to full back or right; any other motion the model carries,
+ * such as `speedbrake`, from 0 s (closed) to 1. Motions left out stay where they are.
  */
 export function createAircraft() {
   const airplane = new THREE.Group();

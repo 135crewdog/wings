@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.28
+
+- Speedbrakes. A fourth button, Boards, opens the two panels under the wings in a second and a half; tap again to close them. They are real drag, acting where the panels are: at idle through 400 knots the jet slows about twice as fast with them out, and the nose drops a touch as they open.
+
 ## 0.0.27
 
 - The owner's F-4C, revised: the windscreen is rounded at the front, as on the real jet, with other small fixes to its looks. It flies exactly as before; its wheels and every point that can touch the ground are where they were.

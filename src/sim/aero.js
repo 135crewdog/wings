@@ -200,6 +200,20 @@ export function wingForces(c, air, rho, sep) {
 }
 
 /**
+ * The speedbrakes' drag (body axes, newtons) and its moment about the CG:
+ * the panels' drag along the airflow, acting where the panels are
+ * (`c.speedbrake.r`, metres), so any pitch change they bring is the
+ * physics'. `open` runs 0 (closed) to 1 (fully out); `Vhat` is the airflow's
+ * direction in body axes. An airplane with no speedbrakes has none.
+ */
+export function speedbrakeForce(c, qS, Vhat, open) {
+  if (!c.speedbrake || !(open > 0)) return { F: [0, 0, 0], M: [0, 0, 0] };
+  const D = qS * c.speedbrake.drag * open, [x, y, z] = c.speedbrake.r;
+  const F = [-D * Vhat[0], -D * Vhat[1], -D * Vhat[2]];
+  return { F, M: [y * F[2] - z * F[1], z * F[0] - x * F[2], x * F[1] - y * F[0]] };
+}
+
+/**
  * Air data for body-axis velocity v (still air, so ground velocity is airflow),
  * body rates omega, and the local atmosphere { rho, a }. Carries the lift
  * slope and stall angle at this Mach number.
@@ -262,11 +276,12 @@ export function aeroForces(c, air, ctl, sep = [0, 0]) {
 
   // Gear and flaps (air.gear, air.flaps: 0 up to 1 down) add their own drag.
   const cd0 = zeroLiftDrag(c, air.mach) + (air.gear ?? 0) * c.gearDrag + (air.flaps ?? 0) * c.flapDrag;
+  const boards = speedbrakeForce(c, qS, Vhat, air.speedbrake ?? 0);
   const F = [
-    wing.F[0] - qS * cd0 * Vhat[0],
-    qS * (CY - cd0 * Vhat[1]),
-    wing.F[2] - qS * cd0 * Vhat[2],
+    wing.F[0] - qS * cd0 * Vhat[0] + boards.F[0],
+    qS * (CY - cd0 * Vhat[1]) + boards.F[1],
+    wing.F[2] - qS * cd0 * Vhat[2] + boards.F[2],
   ];
-  const M = [wing.Mx + qS * c.b * Cl, qS * c.cbar * Cm, wing.Mz + qS * c.b * Cn];
+  const M = [wing.Mx + qS * c.b * Cl + boards.M[0], qS * c.cbar * Cm + boards.M[1], wing.Mz + qS * c.b * Cn + boards.M[2]];
   return { F, M, coef: { CL: wing.CL, sigma: wing.sigma, sigmas: wing.sigmas, buffet: buffet(c, alpha, wing.sigma, air.alphaStall) } };
 }

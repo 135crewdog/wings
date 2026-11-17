@@ -40,7 +40,25 @@ export function contactPoints(glb) {
   // touches first then, that the tyres and the airframe points don't already cover.
   const known = [...airframe, ...corners];
   const gear = firstToTouch(all(down), known).filter((p) => !known.includes(p));
-  return { wheels, tyres, airframe: airframe.map(feet), gear: gear.map(feet) };
+  return { wheels, tyres, airframe: airframe.map(feet), gear: gear.map(feet), speedbrake: speedbrakeAt(glb) };
+}
+
+/**
+ * Where the speedbrakes' drag acts: the middle of every part the
+ * `speedbrake` motion moves, with them fully open, on the centreline (the
+ * panels come in pairs, so their side forces cancel). Feet from the centre
+ * of gravity, body axes. Null for a model with no speedbrakes.
+ */
+export function speedbrakeAt(glb) {
+  const { json } = glb;
+  const motion = json.animations?.find((a) => a.name === 'speedbrake');
+  if (!motion) return null;
+  const open = worldMatrices(json, poseOf(glb, { speedbrake: 1 }));
+  const parts = [...new Set(motion.channels.map((c) => c.target.node))];
+  const points = parts.flatMap((part) => verticesUnder(glb, part, open));
+  const mean = [0, 1, 2].map((k) => points.reduce((sum, p) => sum + p[k], 0) / points.length);
+  const [x, , z] = body(mean);
+  return [x, 0, z];
 }
 
 const feet = (p) => p.map((v) => Math.round((v / FT) * 100) / 100);

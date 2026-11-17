@@ -42,7 +42,7 @@ test('the model has the five motions, each one second long, each moving its own 
   for (const motion of MOTIONS) assert.ok(names.includes(motion), `it has the ${motion} motion`);
   assert.equal(new Set(names).size, names.length, 'no motion is there twice');
   const extra = names.filter((name) => !MOTIONS.includes(name));
-  if (extra.length) console.log(`  also carries, unused by the app and left at 0 s: ${extra.join(', ')}`);
+  if (extra.length) console.log(`  also carries: ${extra.join(', ')}`);
   const owner = new Map();
   for (const animation of json.animations) {
     for (const channel of animation.channels) {
@@ -127,6 +127,20 @@ test('each surface travels as far as the real one', () => {
   }
 });
 
+test('the speedbrakes open down into the airflow, and close flush', () => {
+  // docs/models.md: an optional motion; 0 s is closed, 1 s fully open, trailing edges down.
+  const motion = json.animations.find((a) => a.name === 'speedbrake');
+  if (!motion) return;
+  const parts = [...new Set(motion.channels.map((c) => c.target.node))];
+  const lowest = (t) => Math.min(...parts.map((part) => bounds(verticesUnder(glb, part, world({ speedbrake: t }))).min[1]));
+  const degrees = (a, b) => (2 * Math.acos(Math.min(1, Math.abs(a.reduce((sum, x, k) => sum + x * b[k], 0)))) * 180) / Math.PI;
+  const swing = motion.channels.filter((c) => c.target.path === 'rotation').map((c) => degrees(poseAt(glb, 'speedbrake', 0)[c.target.node].rotation, poseAt(glb, 'speedbrake', 1)[c.target.node].rotation));
+  console.log(`  speedbrakes: ${parts.length} panels, open ${swing.map((d) => d.toFixed(0)).join(' and ')} deg, hanging ${((lowest(0) - lowest(1)) / FT).toFixed(1)} ft lower open than shut`);
+  assert.ok(lowest(1) < lowest(0) - 0.2, 'open, the panels hang well below where they sit shut');
+  const sides = parts.map((part) => Math.sign(bounds(verticesUnder(glb, part, world({}))).max[0] + bounds(verticesUnder(glb, part, world({}))).min[0]));
+  assert.ok(sides.includes(-1) && sides.includes(1), 'one each side, so they slow it without turning it');
+});
+
 test('the model is inside its budget', () => {
   const bytes = statSync(path).size;
   const triangles = json.meshes.flatMap((m) => m.primitives).reduce((sum, p) => sum + json.accessors[p.indices ?? p.attributes.POSITION].count / 3, 0);
@@ -147,6 +161,8 @@ test('the card\'s wheels and airframe are where the model\'s are', () => {
   model.airframe.forEach((at, i) => close(at, F4C.airframe_ft[i], `airframe point ${i + 1}`));
   assert.equal(F4C.gear_ft.length, model.gear.length, 'the same number of gear points');
   model.gear.forEach((at, i) => close(at, F4C.gear_ft[i], `gear point ${i + 1}`));
+  if (model.speedbrake) close(model.speedbrake, F4C.speedbrake_ft, 'speedbrakes');
+  else assert.equal(F4C.speedbrake_ft, undefined, 'no speedbrakes on the model, none on the card');
   const { nose, left, right } = model.wheels;
   console.log(`  wheelbase ${(nose[0] - left[0]).toFixed(1)} ft, track ${(right[1] - left[1]).toFixed(1)} ft, mains ${(-left[0]).toFixed(1)} ft behind the centre of gravity, which sits ${nose[2].toFixed(1)} ft above the runway`);
   assert.ok(left[0] < 0 && nose[0] > 0, 'the mains are behind the centre of gravity and the nose wheel ahead');

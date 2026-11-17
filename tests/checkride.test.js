@@ -499,6 +499,45 @@ test('GRADED: landing stall speed, and what gear and flaps do', () => {
   assert.ok(dirty.elevator < clean.elevator, 'flaps carry the weight at less angle of attack');
 });
 
+test('the speedbrakes: how hard they slow it, and what they do to the nose', () => {
+  const c = card();
+  const ft = 10000, tas = (kias) => kias * Math.sqrt(atmosphere(0).rho / atmosphere(ft * FT).rho);
+  // Engine at idle, held level at 10,000 ft from just over 400 kt, boards in or out the whole way.
+  const slowDown = (speedbrake) => {
+    const sim = airborne(c, { ft, kt: tas(410), level: true });
+    const hold = holdAltitude(ft, sim.trim.elevator);
+    const log = fly(sim, 90, (r) => (r.kias < 245 ? null : { ...hold(r), speedbrake }), 0.05);
+    const at = (kias) => log.find((r) => r.kias <= kias);
+    const a = at(405), b = at(395);
+    return { rate: (a.kias - b.kias) / (b.t - a.t), seconds: at(250).t - at(400).t };
+  };
+  const shut = slowDown(false), open = slowDown(true);
+  // Level at 350 kt: the tilt it takes with the boards in and out.
+  const level = (speedbrake) => trimLevel(c, tas(350) * KT, ft * FT, { speedbrake });
+  const before = level(false), after = level(true);
+  // How long they take to open.
+  const moving = airborne(c, { ft, kt: tas(350), level: true });
+  let out = null;
+  fly(moving, 3, (r) => {
+    if (out === null && moving.speedbrake >= 1) out = r.t;
+    return { elevator: moving.trim.elevator, speedbrake: true };
+  }, 0.05);
+  const pct = (x) => `${round(Math.abs(x) * 100)}% ${x >= 0 ? 'back' : 'forward'}`;
+  table('Speedbrakes, engine at idle, level at 10,000 ft', [
+    ['slowing through 400 kt, boards in', `${round(shut.rate, 1)} kt/s`],
+    ['  boards out', `${round(open.rate, 1)} kt/s`, `speedbrake drag ${c.pilot.speedbrake_drag} (feel)`],
+    ['400 to 250 kt, boards in', `${round(shut.seconds, 1)} s`],
+    ['  boards out', `${round(open.seconds, 1)} s`],
+    ['tilt for level at 350 kt, boards in', pct(before.elevator)],
+    ['  boards out', pct(after.elevator)],
+    ['throttle for level at 350 kt, in / out', `${round(before.throttle * 100)}% / ${round(after.throttle * 100)}%`],
+    ['time to open', `${round(out, 1)} s`],
+  ]);
+  assert.ok(open.rate > 1.5 * shut.rate, 'out, the boards slow it at least half again as fast through 400 kt');
+  assert.ok(open.seconds < shut.seconds, 'and get it down to 250 kt sooner');
+  assert.ok(after.throttle > before.throttle, 'holding speed with them out takes more power');
+});
+
 test('on the ground: it sits, rolls, steers, stops and takes off', () => {
   const c = card();
   const down = { gear: true };

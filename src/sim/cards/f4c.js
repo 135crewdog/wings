@@ -57,6 +57,9 @@ export const F4C = {
     [-28.04, -8.2, 0.66],
     [-28.04, 8.2, 0.66],
   ],
+  // Where the speedbrakes' drag acts: the middle of the two panels, fully
+  // open, on the centreline. Measured from the model too, and checked.
+  speedbrake_ft: [-5.99, 0, 2.49],
 
   // Tuned by feel on the phone. The 0..1 ones start in the middle.
   neutral_speed_kt: 350,
@@ -65,4 +68,5 @@ export const F4C = {
   spin_tendency: 0.5,
   gear_drag: 0.5,
   flap_drag: 0.5,
+  speedbrake_drag: 0.5,
 };

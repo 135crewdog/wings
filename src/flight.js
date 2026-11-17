@@ -98,13 +98,13 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
     shown.quaternion.slerpQuaternions(before.quaternion, now.quaternion, fraction);
     airplane.position.copy(shown.position);
     airplane.quaternion.copy(shown.quaternion);
-    // The model's parts: gear and flaps where the simulation has them, the
+    // The model's parts: gear, flaps and speedbrakes where the simulation has them, the
     // stabilator where the stick puts it at this speed (it moves less the
     // faster the airplane goes), the ailerons with the stick, and the rudder
     // where the automatic feet have it.
     const stick = normalizeControls(flown), seen = sim.observe(flown), air = seen.air;
     airplane.set({
-      gear: sim.gear, flaps: sim.flaps,
+      gear: sim.gear, flaps: sim.flaps, speedbrake: sim.speedbrake,
       elevator: 0.5 + 0.5 * elevatorTravel(card, air, stick.elevator), aileron: 0.5 + 0.5 * stick.aileron,
       rudder: 0.5 + 0.5 * coordinate(card, stick, air),
     });
