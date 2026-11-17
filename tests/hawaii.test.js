@@ -145,7 +145,30 @@ test('every runway is dead flat, dry, and where its ends are', () => {
   const s = index.start;
   assert.deepEqual([s.airport, s.runway], ['PHNL', '08R'], 'every flight starts on 8R at Honolulu');
   assert.ok(Math.hypot(s.north, s.east) < 0.01, 'at its threshold, the world\'s origin');
-  assert.ok(Math.abs(hawaii.heightAt(0, 0) - s.height) < 0.3, 'on the runway\'s surface');
+  assert.ok(Math.abs(hawaii.heightAt(0, 0) - s.height) < 0.01, 'on the runway\'s surface');
+});
+
+// The app paints each runway flat at its height (src/render/world.js), with no
+// lift: the ground must be that height right to the paint's edges and ends,
+// or it would show through the paint, or the paint would hang over a bank.
+test('every runway\'s paint lies on its ground, right to its edges and ends', () => {
+  let worst = { off: 0 };
+  for (const way of index.runways) {
+    for (let f = 0; f <= 1; f += 0.01) {
+      for (const k of [-way.width / 2, way.width / 2]) {
+        const off = Math.abs(hawaii.heightAt(...on(way, f, k)) - way.surface[0]);
+        if (off > worst.off) worst = { off, where: nameOf(way) };
+      }
+    }
+    for (const f of [0, 1]) {
+      for (let k = -way.width / 2; k <= way.width / 2; k += 1) {
+        const off = Math.abs(hawaii.heightAt(...on(way, f, k)) - way.surface[0]);
+        if (off > worst.off) worst = { off, where: nameOf(way) };
+      }
+    }
+  }
+  console.log(`  the paint's edges and ends: the ground at most ${(worst.off * 100).toFixed(1)} cm off${worst.where ? ` (${worst.where})` : ''}`);
+  assert.ok(worst.off < 0.01, `within 1 cm everywhere (${(worst.off * 100).toFixed(1)} cm at ${worst.where})`);
 });
 
 // A wheel feels a step, not a slope: neighbouring samples a metre apart along

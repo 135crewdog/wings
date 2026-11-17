@@ -76,7 +76,7 @@ Every real paved runway in the main islands 3,000 ft or longer is levelled, draw
 | | Upolu | 7/25 |
 | | Bradshaw | 9/27 |
 
-Every runway is dead flat (0%), and each airfield's runways share one height: the average of the survey's heights at their ends and middles, set to a height the tiles hold exactly, so the saved runway has no steps (the owner's choice, 17 Nov 2026: real slopes don't matter, a smooth roll does). Round each runway the ground eases back to its own height, no steeper than 1 in 10, so an airfield on a slope sits on a bank at one end and in a cutting at the other: about 17 m (57 ft) at Bradshaw, 11 m at Lihue and Princeville, a few metres or less elsewhere. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
+Every runway is dead flat (0%), on the real ground as much as can be (the owner's choice, 17 Nov 2026: real slopes don't matter, a smooth roll does, and fewer edits mean fewer mistakes). Each runway's height is the middle value of the real ground under it, which moves the least ground, set to a height the tiles hold exactly so the saved runway has no steps; runways that cross or touch share one height, so they meet. The ground is flat under the paint, to the first post past its edges and ends (up to 14 m), and from there a bank no steeper than 1 in 3, like a road embankment, slopes down or up to the real ground, which beyond it is left as it is. Under a runway, and wherever a bank raises the ground, is dry land. Taxiways, ramps and buildings are only in the photographs. All dry land is as firm as a runway, as before.
 
 ## North
 
