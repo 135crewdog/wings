@@ -1,19 +1,43 @@
-// What is outside the airplane: the sky, the haze, the light, the island and
-// the air base's runway. The runway's paint is after 135crewdog/wings-v1,
-// src/render/world.js; the sky and lights after 135crewdog/rage,
-// src/render/world.js: a sun, and fair-weather clouds painted on the sky, far
-// away and still, so nothing is ever flown through. Rage's clouds are soft;
-// these have clean edges and two flat tones, to match the painted airplane.
+// What is outside the airplane: the sky, the haze, the light, Hawaii and its
+// runways. The sky is 135crewdog/rage's (src/render/world.js): a dome fading
+// from a pale horizon to blue overhead, a mid-afternoon sun, and soft
+// fair-weather cumulus painted on the dome, infinitely far, so nothing is
+// ever flown through. The runways' paint is after 135crewdog/wings-v1.
 
 import * as THREE from 'three';
-import { createTerrain } from './terrain.js';
-import { createTrees } from './trees.js';
-import { createLandmarks } from './landmarks.js';
-import { createStrip } from './strip.js';
+import { createTerrain, NOISE_GLSL } from './terrain.js';
 
-const HORIZON = 0xcfe6f7, ZENITH = 0x1f5fb8;   // the app's sky colours, as in style.css
-const SUN = new THREE.Vector3(-3, 6, 4).normalize();   // the way to the sun: high in the south-west (x east, y up, z south)
-const FAR = 30000;                              // m: the haze has hidden everything by here
+const HORIZON = 0xb9c7d6, ZENITH = 0x3f78c8;          // Rage's
+const SUN = new THREE.Vector3(-3, 6, 4).normalize();  // the way to the sun: high in the south-west (x east, y up, z south)
+const FAR = 30000;                                     // m: the haze has hidden everything by here
+const LIFT = 0.15;                                     // m: a runway's paint above the ground under it
+
+const skyFragment = `
+  uniform vec3 horizon, zenith, sun;
+  varying vec3 dir;
+  ${NOISE_GLSL}
+  // four octaves of noise: the cloud field
+  float fbm(vec2 p) { return 0.5 * noise(p) + 0.25 * noise(p * 2.03 + 7.1) + 0.125 * noise(p * 4.11 + 3.7) + 0.0625 * noise(p * 8.07 + 1.3); }
+  void main() {
+    vec3 d = normalize(dir);
+    float t = clamp(d.y * 2.2, 0.0, 1.0); t = t * t * (3.0 - 2.0 * t);
+    vec3 sky = mix(horizon, zenith, t);
+    // the sun: a disc, and a glow that also brightens the sky round it
+    float s = max(dot(d, sun), 0.0);
+    sky += vec3(1.0, 0.95, 0.85) * (0.35 * pow(s, 24.0) + 0.25 * pow(s, 200.0));
+    sky = mix(sky, vec3(1.0, 0.98, 0.92), smoothstep(0.9993, 0.9997, s));
+    // cumulus: the dome's direction laid onto a flat deck above, so the field
+    // crowds toward the horizon the way a real deck does
+    if (d.y > 0.0) {
+      float n = fbm(d.xz / (d.y + 0.06) * 2.4);
+      float cover = smoothstep(0.52, 0.68, n);                      // broken, mostly clear overhead
+      float body = smoothstep(0.52, 0.85, n);                       // thicker where the cloud is deeper
+      vec3 colour = mix(vec3(1.0, 0.99, 0.97), vec3(0.78, 0.80, 0.84), body);   // bright edges, shaded cores
+      colour += vec3(0.08, 0.06, 0.03) * s * s;                     // warmer toward the sun
+      sky = mix(sky, colour, cover * smoothstep(0.015, 0.10, d.y)); // fading into the haze at the horizon
+    }
+    gl_FragColor = vec4(sky, 1.0);
+  }`;
 
 function canvas(width, height) {
   const c = document.createElement('canvas');
@@ -21,8 +45,8 @@ function canvas(width, height) {
   return [c, c.getContext('2d')];
 }
 
-// The runway from above, the end a takeoff starts from at the bottom:
-// asphalt, edge lines, threshold bars, numbers and a dashed centreline.
+// A runway from above, its first end at the bottom: asphalt, edge lines,
+// threshold bars, numbers and a dashed centreline.
 function runwayTexture(renderer, runway) {
   const across = 256, along = 4096, [c, g] = canvas(across, along);
   const px = across / runway.width, py = along / runway.length;   // pixels per metre each way
@@ -58,80 +82,66 @@ function runwayTexture(renderer, runway) {
   return texture;
 }
 
+// A runway lying on the ground from one end to the other, sloping as the
+// ground does between them. Drawn nudged toward the eye, so the two don't shimmer.
+function runwayMesh(renderer, way) {
+  const [a, b] = way.ends;
+  const length = Math.hypot(b.north - a.north, b.east - a.east);
+  const along = [(b.east - a.east) / length, -(b.north - a.north) / length];   // three.js x, z
+  const right = [-along[1], along[0]];
+  const half = way.width / 2;
+  // On the airfield's surface (height = a + b·north + c·east), which can slope across a runway as well as
+  // along it, and a little above: the ground's heights come in quarter-metre steps, so up close it could peep through.
+  const [a0, bn, ce] = way.surface;
+  const corner = (end, side) => {
+    const east = end.east + right[0] * half * side, north = end.north - right[1] * half * side;
+    return [east, a0 + bn * north + ce * east + LIFT, -north];
+  };
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([...corner(a, -1), ...corner(a, 1), ...corner(b, -1), ...corner(b, 1)], 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 1], 2));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+  geometry.setIndex([0, 1, 2, 2, 1, 3]);
+  const texture = runwayTexture(renderer, { width: way.width, length, numbers: way.ends.map((e) => e.ident) });
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: texture, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide }));
+  mesh.renderOrder = 1;   // after the land
+  return mesh;
+}
+
 /**
- * Builds the world into a scene. `field` is the air base (src/field.js's
- * baseField), `land` the island's files ({ region, image } from src/land.js)
- * and `island` its land (src/sim/island.js).
- * Returns { ready, follow(camera) }: call it each frame, so the sky and the land
- * stay round the camera.
+ * Builds the world into a scene: the sky, Hawaii (src/hawaii.js's) and every
+ * runway in it. Returns { follow(camera), settled }: call follow each frame,
+ * so the sky and the land stay round the camera; settled is true once all
+ * the ground round the camera is in the picture.
  */
-export function createWorld(scene, renderer, field, land, island) {
+export function createWorld(scene, renderer, hawaii) {
   scene.background = new THREE.Color(HORIZON);
-  scene.fog = new THREE.Fog(HORIZON, 3000, FAR * 0.8);
+  scene.fog = new THREE.Fog(HORIZON, 4000, 24000);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a70, 2.4));
   const sun = new THREE.DirectionalLight(0xffffff, 2.4);
   sun.position.copy(SUN);
   scene.add(sun);
 
-  // The sky: a dome that fades from the haze at the horizon to blue overhead.
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(FAR * 0.95, 32, 16),
+    new THREE.SphereGeometry(FAR * 0.95, 48, 24),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { horizon: { value: new THREE.Color(HORIZON) }, zenith: { value: new THREE.Color(ZENITH) }, sun: { value: SUN } },
       vertexShader: 'varying vec3 dir; void main() { dir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform vec3 horizon, zenith, sun; varying vec3 dir;
-        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        float noise(vec2 p) {
-          vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-        }
-        float field(vec2 p) { return 0.5 * noise(p) + 0.25 * noise(p * 2.03 + 7.1) + 0.125 * noise(p * 4.11 + 3.7) + 0.0625 * noise(p * 8.07 + 1.3); }
-        void main() {
-          vec3 d = normalize(dir);
-          float up = max(d.y, 0.0);
-          vec3 sky = mix(horizon, zenith, pow(up, 0.55));
-          // The sun: a glow that brightens the sky round it, and a disc.
-          float s = max(dot(d, sun), 0.0);
-          sky += vec3(1.0, 0.95, 0.85) * 0.3 * pow(s, 24.0);
-          sky = mix(sky, vec3(1.0, 0.98, 0.9), smoothstep(0.9990, 0.9993, s));
-          // Clouds: the direction laid onto a flat deck overhead, so they crowd toward the horizon as a real
-          // deck does. A clean edge, a white top and a flat grey base.
-          if (d.y > 0.0) {
-            float n = field(d.xz / (d.y + 0.06) * 1.7);
-            vec3 cloud = mix(vec3(1.0, 0.99, 0.97), vec3(0.80, 0.84, 0.90), step(0.68, n));
-            sky = mix(sky, cloud, smoothstep(0.585, 0.595, n) * smoothstep(0.015, 0.10, d.y));
-          }
-          gl_FragColor = vec4(sky, 1.0);
-          #include <colorspace_fragment>
-        }`,
+      fragmentShader: skyFragment,
     }),
   );
   sky.renderOrder = -4;
   scene.add(sky);
 
-  const terrain = createTerrain(scene, land, SUN, scene.fog);
-  const trees = createTrees(scene, island, land.region);
-  const ready = createLandmarks(scene, land.landmarks);
-  createStrip(scene, renderer, land.region.sites.strip);
-
-  // The runway lies in the land's own plane, so it is drawn nudged toward
-  // the eye: otherwise the two shimmer.
-  const runway = new THREE.Mesh(
-    new THREE.PlaneGeometry(field.runway.width, field.runway.length),
-    new THREE.MeshLambertMaterial({ map: runwayTexture(renderer, field.runway), depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
-  );
-  runway.rotation.set(-Math.PI / 2, (-field.heading * Math.PI) / 180, 0, 'YXZ');   // flat, then turned so its "up" edge lies along the takeoff heading
-  runway.position.set(field.east, field.height, -field.north);
-  runway.renderOrder = 1;   // after the land
-  scene.add(runway);
+  const terrain = createTerrain(scene, renderer, hawaii, SUN, scene.fog);
+  for (const way of hawaii.index.runways) scene.add(runwayMesh(renderer, way));
 
   return {
-    ready,   // resolves when the landmarks' models are in the picture
     follow(camera) {
       sky.position.copy(camera.position);
       terrain.follow(camera);
-      trees.follow(camera);
     },
+    get settled() { return terrain.settled; },
   };
 }

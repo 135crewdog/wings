@@ -1,260 +1,158 @@
-// The island, drawn: the land's height map as a geometry clipmap, the usual
-// way to put a big landscape on a small device. Nested square grids with the
-// same number of cells but doubling in size follow the camera, each snapped
-// to its own grid so nothing swims, each with a hole where the finer one
-// sits. Toward its outer edge each level eases into the shape of the coarser
-// one round it, so the land never jumps as the levels pass over it. The
-// vertex shader lifts each vertex to the height read from the map,
-// the same reading src/sim/island.js makes for the flight model, so what is
-// seen is what is hit. The grids are placed relative to the camera, so the
-// picture stays sharp far from the island's middle.
+// Hawaii, drawn. The ground is a geometry clipmap, the usual way to put a big
+// landscape on a small device (from 135crewdog/rage, src/render/terrain.js):
+// nested square grids with the same number of cells, doubling in size, follow
+// the camera, each snapped to its own grid so nothing swims, each with a hole
+// where the finer one sits, easing into the coarser one toward its edge so
+// nothing jumps or cracks. The grids are placed relative to the camera, so the
+// picture stays sharp far from the origin.
 //
-// The clipmap is 135crewdog/rage's (src/render/terrain.js). The paint is new:
-// Rage colours its ground from satellite photographs; this island is painted
-// by rule, flat-shaded, to match the airplane (docs/island.md).
-// Metres; x east, y up, z south.
+// What's new is where the heights and colours come from. Hawaii is far too
+// big to hold whole, so each level of the tile pyramid (terrain/hawaii/) has a
+// window of WINDOW × WINDOW tiles round the camera on the GPU, in one layer of
+// a texture array, and tiles stream into it as the camera moves: a tile always
+// lands in the same place in its layer, wrapping round, so moving the window
+// one tile only fills one row or column. Each level says which part of the
+// world it holds whole; everything else is read from a coarser level, and
+// beyond the islands it is the sea. The posts are read one by one and joined
+// in straight lines, exactly as src/sim/hawaii.js joins them for the flight
+// model, so what is seen is what is hit.
+//
+// The paint is Rage's: the satellite picture, a light grain up close, a
+// gentle sun (the picture already carries the satellite's shading), Rage's
+// water wherever the tiles say water, and haze.
+// Metres; three.js axes: x east, y up, z south.
 
 import * as THREE from 'three';
-import { DRAWN_CELLS_PER_POST } from '../sim/island.js';
 
-const LEVELS = 8;      // with 5.5 m cells at the finest: 0.5, 1.1, 2.1, 4.2, 8.4, 17, 34 and 68 km across
-const N = 96;          // cells along each side of every level
+const MESH_LEVELS = 7;   // with 10 m cells at the finest: 0.96, 1.9, 3.8, 7.7, 15, 31 and 61 km across
+const N = 96;            // cells along each side of every mesh level
+const WINDOW = 4;        // tiles along each side of a level's window
+const UPLOADS = 6;       // tiles put on the GPU each frame at most
 
-// Reading the height map, as src/sim/island.js does: 16-bit posts in red and
-// green, the treetops over them in blue (or the river's mark), straight lines
-// between posts, open sea beyond the map's edge. And what stands on the land:
-// the sea at zero, the loch and the lava lake at their levels inside their
-// boxes, the river on its bed. A wood is drawn as it is flown: the ground
-// stands taller there by the height of the trees.
-const LAND_GLSL = `
-  uniform sampler2D heightMap;
-  uniform vec4 grid;       // the north-west post's x and z, metres between posts, posts along a side
-  uniform vec3 range;      // the lowest height, metres per step, and metres per step of treetops
-  uniform vec4 lochBox, lavaBox;    // west, north edge's z, east, south edge's z
-  uniform float lochLevel, lavaLevel;
-  // A post: the land's height, the treetops' height over it, and whether it is in the river (1 or 0).
-  vec3 post(vec2 ij) {
-    vec4 t = texture2D(heightMap, (ij + 0.5) / grid.w);
-    float river = step(0.998, t.b);
-    return vec3(range.x + (t.r * 65280.0 + t.g * 255.0) * range.y, (1.0 - river) * t.b * 255.0 * range.z, river);
-  }
-  vec3 ground(vec2 xz) {
-    vec2 p = (xz - grid.xy) / grid.z;
-    if (p.x < 0.0 || p.y < 0.0 || p.x > grid.w - 1.0 || p.y > grid.w - 1.0) return vec3(range.x, 0.0, 0.0);
-    vec2 i = min(floor(p), grid.w - 2.0), f = p - i;
-    return mix(mix(post(i), post(i + vec2(1.0, 0.0)), f.x), mix(post(i + vec2(0.0, 1.0)), post(i + vec2(1.0, 1.0)), f.x), f.y);
-  }
-  bool within(vec2 xz, vec4 box) { return xz.x > box.x && xz.x < box.z && xz.y > box.y && xz.y < box.w; }
-  // The level of the loch, the lava lake or the sea standing over ground of height h at xz; far below everything on dry land.
-  float pool(vec2 xz, float h) {
-    if (within(xz, lochBox) && h < lochLevel) return lochLevel;
-    if (within(xz, lavaBox) && h < lavaLevel) return lavaLevel;
-    return h < 0.0 ? 0.0 : -1.0e5;
-  }
-  float surface(vec2 xz) { vec3 g = ground(xz); return max(g.x + g.y, pool(xz, g.x)); }`;
+// Value noise (Rage's), for the ground's grain, the water's ripple and the sky's clouds.
+export const NOISE_GLSL = `
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }`;
 
-const vertexShader = `${LAND_GLSL}
-  uniform vec2 rel;       // the level's middle, from the camera
+const SAMPLE_GLSL = `
+  uniform highp sampler2DArray heights;   // red and green: the height; blue: water
+  uniform highp sampler2DArray colours;
+  uniform vec4 held[LEVELS];             // what each level holds whole: west, north edge's z, east, south edge's z (all off: 0, 0, 0, 0)
+  uniform vec3 code;                      // the height code: lowest height, metres a step, metres between level-0 posts
+  const float SIZE = float(WINDOW * TILE);
+  float postSpacing(int l) { return code.z * exp2(float(l)); }
+  bool holds(int l, vec2 xz, float margin) {
+    vec4 b = held[l];
+    return xz.x > b.x + margin && xz.x < b.z - margin && xz.y > b.y + margin && xz.y < b.w - margin;
+  }
+  // A post's height and water at level l. Column counts east, row south, as in src/sim/hawaii.js.
+  vec2 post(int l, vec2 cr) {
+    vec4 t = texelFetch(heights, ivec3(int(mod(cr.x, SIZE)), int(mod(cr.y, SIZE)), l), 0);
+    return vec2(code.x + (t.r * 65280.0 + t.g * 255.0) * code.y, t.b);
+  }
+  // Height and water at a point from level l, in straight lines between posts.
+  vec2 groundAt(int l, vec2 xz) {
+    float p = postSpacing(l);
+    vec2 q = vec2(xz.x, xz.y) / p - 0.5;   // xz.y is south, so this is (column, row)
+    vec2 i = floor(q), f = q - i;
+    return mix(mix(post(l, i), post(l, i + vec2(1.0, 0.0)), f.x), mix(post(l, i + vec2(0.0, 1.0)), post(l, i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  // The finest level from l up that holds the point; -1 is the open sea.
+  int levelFor(int l, vec2 xz) {
+    for (int k = 0; k < LEVELS; k++) if (k >= l && holds(k, xz, 2.0 * postSpacing(k))) return k;
+    return -1;
+  }
+  float heightFrom(int l, vec2 xz) {
+    int k = levelFor(l, xz);
+    return k < 0 ? 0.0 : groundAt(k, xz).x;
+  }`;
+
+const vertexShader = `${SAMPLE_GLSL}
+  uniform vec2 rel;       // the mesh level's middle, from the camera
   uniform float spacing;
+  uniform int level;      // which level of the pyramid this mesh level reads
   varying vec3 wp;        // where in the world
   varying vec3 rp;        // where from the camera
   void main() {
     vec2 r = rel + position.xz * spacing;
     vec2 xz = cameraPosition.xz + r;
-    float h = surface(xz);
-    // Easing into the coarser level. Every other vertex of this level is one of the coarser level's too. The
-    // ones between lie on an edge of one of its triangles, half way between two of its vertices; "as the
-    // coarser level has it" is the average of those two. From two-thirds of the way out, a vertex moves from
-    // its own height toward that, and is there before the level's edge: no jump as the levels pass, no cracks
-    // where they meet.
+    float h = heightFrom(level, xz);
+    // Easing into the coarser mesh level toward the edge: there every vertex
+    // goes to where the coarser level has the ground, read from the coarser
+    // level of the pyramid as that mesh level reads it. Every other vertex is
+    // one of the coarser level's; the ones between lie half way along an edge
+    // of its triangles, so they go to the average of its two ends.
     float ease = clamp((max(abs(r.x), abs(r.y)) / spacing - EASE_FROM) / (EASE_TO - EASE_FROM), 0.0, 1.0);
-    vec2 odd = mod(position.xz, 2.0);
-    if (ease > 0.0 && odd.x + odd.y > 0.5) {
-      vec2 o = odd.x * odd.y > 0.5 ? vec2(spacing, -spacing) : odd * spacing;   // in the middle of a coarse square: along the diagonal its two triangles share
-      h = mix(h, 0.5 * (surface(xz - o) + surface(xz + o)), ease);
+    if (ease > 0.0) {
+      vec2 odd = mod(position.xz, 2.0);
+      float coarse;
+      if (odd.x + odd.y > 0.5) {
+        vec2 o = odd.x * odd.y > 0.5 ? vec2(spacing, -spacing) : odd * spacing;
+        coarse = 0.5 * (heightFrom(level + 1, xz - o) + heightFrom(level + 1, xz + o));
+      } else {
+        coarse = heightFrom(level + 1, xz);
+      }
+      h = mix(h, coarse, ease);
     }
     wp = vec3(xz.x, h, xz.y);
     rp = vec3(r.x, h - cameraPosition.y, r.y);
     gl_Position = projectionMatrix * mat4(mat3(viewMatrix)) * vec4(rp, 1.0);
   }`;
 
-const fragmentShader = `${LAND_GLSL}
-  uniform vec3 sun, haze; uniform float hazeNear, hazeFar;
-  uniform float clock;            // seconds, for what moves: the water and the lava
-  uniform vec2 flows[FLOW_POINTS];   // each lava flow's course (x, z), one after the other, FLOW_LEGS legs each
-  uniform float flowHalf;
-  uniform sampler2D countryMap;   // desert in red, lava in green, farmland in blue
-  uniform vec3 cove;      // the cove's middle (x, z), and how far its chalk reaches
-  uniform vec4 airfield;  // the runway's middle (x, z) and the way it runs (x, z)
+const fragmentShader = `${SAMPLE_GLSL}
+  uniform vec3 sun, fogColor; uniform float fogNear, fogFar;
   varying vec3 wp, rp;
-  // The same sum as src/fields.js's rand, whole number for whole number, so the plots painted here are the
-  // plots the woods and the trees stand in.
-  float rand(vec2 p, float s) {
-    uint h = uint(int(p.x)) * 374761393u + uint(int(p.y)) * 668265263u + uint(int(s)) * 2147483647u;
-    h = (h ^ (h >> 13u)) * 1274126177u;
-    return float(h ^ (h >> 16u)) / 4294967296.0;
-  }
-  float bend(vec2 p, float s) {
-    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-    return 2.0 * mix(mix(rand(i, s), rand(i + vec2(1.0, 0.0), s), f.x), mix(rand(i + vec2(0.0, 1.0), s), rand(i + vec2(1.0, 1.0), s), f.x), f.y) - 1.0;
-  }
-  vec3 crop(float pick) {   // one of seven, as src/fields.js counts them
-    int k = int(pick * 7.0);
-    if (k == 0) return vec3(0.376, 0.588, 0.275);
-    if (k == 1) return vec3(0.478, 0.659, 0.306);
-    if (k == 2) return vec3(0.588, 0.675, 0.329);
-    if (k == 3) return vec3(0.690, 0.698, 0.376);
-    if (k == 4) return vec3(0.549, 0.486, 0.298);
-    if (k == 5) return vec3(0.329, 0.533, 0.259);
-    return vec3(0.643, 0.588, 0.345);
-  }
-  // Farmland: plots with four sides, more or less. The land is cut into long strips of uneven width, each strip
-  // is cut across at uneven spacings and its own slant, and the whole pattern bends gently, so few plots are true
-  // rectangles. Each plot is one flat colour with faint crop rows; a track runs between plots; a few are woods.
-  // n and e are metres north and east; far is how far off, to fade the fine lines before they shimmer.
-  vec3 fields(float n, float e, float far) {
-    const float STRIP = 520.0;
-    float u = n * 0.94 + e * 0.34 + 260.0 * bend(vec2(n, e) / 2600.0, 6.0), v = -n * 0.34 + e * 0.94 + 260.0 * bend(vec2(n, e) / 2600.0, 7.0);
-    float i = floor(u / STRIP);
-    float lo = (i + 0.35 * (rand(vec2(i, 0.0), 8.0) - 0.5)) * STRIP;
-    if (u < lo) { i -= 1.0; lo = (i + 0.35 * (rand(vec2(i, 0.0), 8.0) - 0.5)) * STRIP; }
-    float hi = (i + 1.0 + 0.35 * (rand(vec2(i + 1.0, 0.0), 8.0) - 0.5)) * STRIP;
-    if (u >= hi) { i += 1.0; lo = hi; hi = (i + 1.0 + 0.35 * (rand(vec2(i + 1.0, 0.0), 8.0) - 0.5)) * STRIP; }
-    float len = 420.0 + 520.0 * rand(vec2(i, 1.0), 9.0);
-    float w = v + (rand(vec2(i, 2.0), 9.0) - 0.5) * 0.5 * (u - lo) + rand(vec2(i, 3.0), 9.0) * len;
-    float j = floor(w / len);
-    float a = (j + 0.4 * (rand(vec2(i, j), 10.0) - 0.5)) * len;
-    if (w < a) { j -= 1.0; a = (j + 0.4 * (rand(vec2(i, j), 10.0) - 0.5)) * len; }
-    float b = (j + 1.0 + 0.4 * (rand(vec2(i, j + 1.0), 10.0) - 0.5)) * len;
-    if (w >= b) { j += 1.0; a = b; b = (j + 1.0 + 0.4 * (rand(vec2(i, j + 1.0), 10.0) - 0.5)) * len; }
-    vec2 plot = vec2(i, j);
-    vec3 c = rand(plot, 3.0) < 0.07 ? vec3(0.204, 0.361, 0.188) : crop(rand(plot, 5.0));
-    float rows = rand(plot, 4.0) < 0.5 ? u : w;
-    c *= mix(sin(rows * 1.3) > 0.0 ? 1.0 : 0.95, 0.975, smoothstep(150.0, 700.0, far));          // crop rows, close up
-    float side = min(min(u - lo, hi - u), min(w - a, b - w));
-    float track = 4.5 + far * 0.0012;                                                              // the track keeps a little width far off
-    return mix(vec3(0.659, 0.549, 0.376), c, smoothstep(track, track + 0.5 + far * 0.0012, side));
-  }
-  // Water: the base colour with the things that tell a pilot how high he is. Patches of swell and small flecks,
-  // each a fixed size on the water, so they grow as he comes down; the sun's glitter toward the sun; and the
-  // sky's own colour in the water at a low angle. All of it drifts.
-  vec3 wet(vec3 base, float far) {
-    vec2 drift = clock * vec2(1.6, 0.7);
-    float swell = bend((wp.xz + 5.0 * drift) / 85.0, 41.0), chop = bend((wp.xz - drift) / 11.0, 42.0);
-    float mid = 1.0 - smoothstep(2500.0, 10000.0, far), near = 1.0 - smoothstep(500.0, 2600.0, far);
-    vec3 c = base * (1.0 + mid * (step(0.1, swell) * 0.13 - 0.05));
-    c = mix(c, base * 1.45 + 0.04, near * 0.55 * step(0.5, chop));
-    vec3 v = normalize(-rp);
-    float flash = pow(max(normalize(v + sun).y, 0.0), 90.0) * step(0.15, bend((wp.xz + 3.0 * drift) / 6.0, 43.0));
-    c += vec3(1.0, 0.96, 0.82) * flash;
-    return mix(c, haze, 0.4 * pow(1.0 - max(v.y, 0.0), 5.0));
-  }
-  // A forest, made of trees. From above, its top is a field of round crowns, each its own green, with dark gaps
-  // between; on its steep sides, the edge of the wood, trunks stand in the shade under the crowns. "tall" is
-  // how tall the trees are here, "up" how high this point is above the ground, "slope" how steep the face is.
-  vec3 forest(float tall, float up, float slope, float far) {
-    float size = tall > 40.0 ? 24.0 : 11.0;                   // a crown's width: redwoods are big trees
-    vec2 cell = floor(wp.xz / size), best = vec2(9.0, 0.0);
-    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
-      vec2 k = cell + vec2(float(i), float(j));
-      float d = distance(wp.xz / size, k + 0.5 + 0.7 * (vec2(rand(k, 51.0), rand(k, 52.0)) - 0.5));
-      if (d < best.x) best = vec2(d, rand(k, 53.0));
-    }
-    vec3 dark = tall > 40.0 ? vec3(0.071, 0.196, 0.118) : vec3(0.110, 0.243, 0.125);
-    vec3 crown = mix(dark * 1.9, dark * 2.9 + vec3(0.02, 0.04, 0.0), best.y);          // each tree its own green
-    crown *= 1.0 - 0.35 * smoothstep(0.15, 0.55, best.x);                                // rounder: darker toward its rim
-    vec3 top = mix(dark, crown, 1.0 - smoothstep(0.5, 0.62, best.x));                    // dark between the crowns
-    top = mix(top, dark * 2.1, smoothstep(2500.0, 9000.0, far));                         // far off, one even green
-    if (slope < 0.7) return top;
-    // The side of the wood: trunks below, the crowns' skirt above.
-    float along = dot(wp.xz, vec2(0.71, 0.71)) / (size * 0.42), trunk = step(0.62, fract(along + 0.3 * rand(vec2(floor(along), 0.0), 54.0)));
-    vec3 bole = tall > 40.0 ? vec3(0.416, 0.243, 0.169) : vec3(0.290, 0.227, 0.165);
-    vec3 under = mix(vec3(0.035, 0.07, 0.045), bole, trunk * (1.0 - smoothstep(1200.0, 5000.0, far)));
-    return mix(under, top, smoothstep(0.5, 0.68, up / tall));
-  }
-  // Running lava: how far the point is from the nearest flow's middle, and how far down that flow it is.
-  vec2 toFlow(vec2 xz) {
-    float best = 1.0e9, along = 0.0;
-    for (int k = 0; k < FLOW_COUNT; k++) {
-      float run = 0.0;
-      for (int i = 0; i < FLOW_LEGS; i++) {
-        vec2 a = flows[k * (FLOW_LEGS + 1) + i], b = flows[k * (FLOW_LEGS + 1) + i + 1], ab = b - a;
-        float t = clamp(dot(xz - a, ab) / dot(ab, ab), 0.0, 1.0), d = distance(xz, a + t * ab), leg = length(ab);
-        if (d < best) { best = d; along = run + t * leg; }
-        run += leg;
-      }
-    }
-    return vec2(best, along);
+  ${NOISE_GLSL}
+  vec3 colourAt(int l, vec2 xz) {
+    vec2 q = xz / postSpacing(l);   // the colour is a picture: the GPU joins its pixels itself
+    return texture(colours, vec3(q / SIZE, float(l))).rgb;
   }
   void main() {
-    float far = length(rp);
-    vec3 here = ground(wp.xz);
-    float h = here.x, level = pool(wp.xz, h);
-    vec3 c;
-    float glow = 0.0;
-    if (level > h && level == lavaLevel && within(wp.xz, lavaBox)) {
-      // The lava lake: bright, with a dark crust in plates. It shines through the haze.
-      float crust = smoothstep(0.42, 0.5, 0.5 + 0.3 * bend(wp.xz / 90.0, 31.0) + 0.2 * bend(wp.xz / 23.0, 32.0));
-      c = mix(vec3(1.0, 0.56, 0.1), vec3(0.42, 0.1, 0.04), crust);
-      glow = 0.75;
-    } else if (level > h) {
-      // Water: the sea paler in the shallows, the loch dark.
-      c = wet(level > 0.0 ? vec3(0.204, 0.361, 0.502) : mix(vec3(0.275, 0.510, 0.667), vec3(0.157, 0.353, 0.549), clamp(-h / 25.0, 0.0, 1.0)), far);
-    } else if (here.z > 0.5) {
-      c = wet(vec3(0.235, 0.431, 0.549), far);   // the river
-    } else {
-      // Flat shading: each triangle of the height map's own grid is lit as one face, whatever the distance.
-      vec2 p = clamp((wp.xz - grid.xy) / grid.z, vec2(0.0), vec2(grid.w - 1.001));
-      vec2 i = floor(p), f = p - i;
-      vec3 g00 = post(i), g10 = post(i + vec2(1.0, 0.0)), g01 = post(i + vec2(0.0, 1.0)), g11 = post(i + vec2(1.0, 1.0));
-      float h00 = g00.x + g00.y, h10 = g10.x + g10.y, h01 = g01.x + g01.y, h11 = g11.x + g11.y;   // lit as the treetops lie, where there are trees
-      vec3 n = normalize(f.x + f.y < 1.0 ? vec3(h00 - h10, grid.z, h00 - h01) : vec3(h01 - h11, grid.z, h10 - h11));
-      float slope = length(n.xz) / n.y;
-      vec3 kind = texture2D(countryMap, (wp.xz - grid.xy) / ((grid.w - 1.0) * grid.z)).rgb;
-      // The paint, by rule. Green country first: grass, farmland where the map says so on low flat ground, moor on
-      // the hills, rock high up and on steep faces.
-      c = vec3(0.439, 0.588, 0.322);
-      vec2 fromBase = wp.xz - airfield.xy;
-      bool mown = abs(dot(fromBase, airfield.zw)) < 2100.0 && abs(dot(fromBase, vec2(-airfield.w, airfield.z))) < 450.0;   // the airfield's own grass
-      vec2 lie = (f.x + f.y < 1.0 ? vec2(g00.x - g10.x, g00.x - g01.x) : vec2(g01.x - g11.x, g10.x - g11.x)) / grid.z;   // the land's own slope, under any trees
-      if (kind.b > 0.5 && h < 60.0 && length(lie) < 0.12 && !mown) c = fields(-wp.z, wp.x, far);
-      c = mix(c, vec3(0.502, 0.463, 0.345), clamp((h - 150.0) / 500.0, 0.0, 1.0));
-      c = mix(c, vec3(0.471, 0.455, 0.439), clamp(max((h - 1100.0) / 700.0, (slope - 0.45) / 0.3), 0.0, 1.0));
-      // Desert: tan flats, and red rock in bands on the slopes, as strata.
-      vec3 strata = mod(floor(h / 55.0), 2.0) > 0.5 ? vec3(0.769, 0.471, 0.306) : vec3(0.839, 0.588, 0.376);
-      c = mix(c, mix(vec3(0.871, 0.722, 0.518), strata, clamp((slope - 0.12) / 0.2, 0.0, 1.0)), kind.r);
-      // Lava: black, with rust on the steeps.
-      c = mix(c, mix(vec3(0.149, 0.141, 0.149), vec3(0.275, 0.204, 0.180), clamp((slope - 0.2) / 0.5, 0.0, 1.0)), kind.g);
-      // Chalk on the cliffs round the cove; sand at the shore, wide on the desert's coast.
-      if (distance(wp.xz, cove.xy) < cove.z && slope > 0.5 && h < 160.0) c = vec3(0.910, 0.902, 0.863);
-      if (h < 3.0 + 9.0 * kind.r) c = mix(vec3(0.910, 0.847, 0.675), c, clamp((h - 1.5 - 5.0 * kind.r) / 3.0, 0.0, 1.0));
-      if (here.y > 1.0) c = forest(max(max(g00.y, g10.y), max(g01.y, g11.y)), here.y, slope, far);   // a wood or the redwoods: how tall the trees are, and how far up them this point is
-      c *= 0.68 + 0.5 * max(dot(n, sun), 0.0);
-      // Running lava, down each flow from the crater to the sea: a bright stream between dark banks, its crust
-      // breaking into plates that ride downhill.
-      if (kind.g > 0.2) {
-        vec2 flow = toFlow(wp.xz);
-        if (flow.x < flowHalf * 1.7) {
-          float plates = smoothstep(0.38, 0.5, 0.5 + 0.32 * bend(vec2(flow.y - 9.0 * clock, flow.x * 2.0) / 38.0, 33.0) + 0.18 * bend(vec2(flow.y - 9.0 * clock, flow.x) / 9.0, 34.0));
-          vec3 stream = mix(vec3(1.0, 0.6, 0.12), vec3(0.5, 0.12, 0.04), plates);
-          float inStream = 1.0 - smoothstep(flowHalf * 0.75, flowHalf, flow.x);
-          c = mix(vec3(0.09, 0.08, 0.08), stream, inStream);      // dark banks, then the stream
-          glow = 0.7 * inStream;
-        }
-      }
+    // The level to paint from: about one post to a pixel, as a picture's
+    // smaller copies would be chosen, and between two levels a blend.
+    float footprint = max(length(dFdx(wp.xz)), length(dFdy(wp.xz)));
+    float want = clamp(log2(max(footprint, 1e-3) / code.z), 0.0, float(LEVELS - 1));
+    int l = levelFor(int(floor(want)), wp.xz);
+    vec3 c = vec3(0.0); float water = 1.0; vec3 n = vec3(0.0, 1.0, 0.0);
+    if (l >= 0) {
+      int l2 = levelFor(l + 1, wp.xz);
+      float blend = l2 > l ? clamp(want - float(l), 0.0, 1.0) : 0.0;
+      c = colourAt(l, wp.xz);
+      if (blend > 0.0) c = mix(c, colourAt(l2, wp.xz), blend);
+      // The slope from the posts on either side, at the level painted from.
+      float p = postSpacing(l);
+      float hx = groundAt(l, wp.xz + vec2(p, 0.0)).x - groundAt(l, wp.xz - vec2(p, 0.0)).x;
+      float hz = groundAt(l, wp.xz + vec2(0.0, p)).x - groundAt(l, wp.xz - vec2(0.0, p)).x;
+      n = normalize(vec3(-hx, 2.0 * p, -hz));
+      water = smoothstep(0.35, 0.65, groundAt(l, wp.xz).y);
     }
-    gl_FragColor = vec4(mix(c, haze, smoothstep(hazeNear, hazeFar, far) * (1.0 - glow)), 1.0);
+    float dist = length(rp);
+    // A light grain at two scales so the ground reads as moving at low level, fading before it shimmers.
+    float grain = 0.6 * noise(wp.xz / 50.0) + 0.4 * noise(wp.xz / 7.0);
+    c *= mix(0.9 + 0.1 * grain, 0.95, smoothstep(1500.0, 6000.0, dist));
+    // Lit by the sun, gently: the pictures carry the satellite's own shading.
+    c *= max(dot(n, sun), 0.0) * 0.45 + 0.72;
+    if (water > 0.0) {
+      // Rage's water: deep blue, the sky in it at a low angle, the sun's glint, a faint ripple.
+      vec2 rip = (vec2(noise(wp.xz / 9.0 + 3.0), noise(wp.xz / 9.0 + 11.0)) - 0.5) * (1.0 - smoothstep(500.0, 3000.0, dist));   // gone before it makes rings in the distance
+      vec3 nw = normalize(vec3(rip.x * 0.06, 1.0, rip.y * 0.06));
+      vec3 v = normalize(-rp);
+      float grazing = pow(1.0 - max(dot(nw, v), 0.0), 3.0);
+      vec3 cw = mix(vec3(0.07, 0.22, 0.30), fogColor, 0.15 + 0.55 * grazing);
+      cw += vec3(1.0, 0.95, 0.85) * 0.7 * pow(max(dot(nw, normalize(v + sun)), 0.0), 90.0);
+      c = mix(c, cw, water);
+    }
+    gl_FragColor = vec4(mix(c, fogColor, smoothstep(fogNear, fogFar, dist)), 1.0);
   }`;
 
-// One level's grid: (N+1) by (N+1) vertices in cell units, and four index
-// sets for the four places the finer level's hole can sit.
+// One mesh level's grid: (N+1) by (N+1) vertices in cell units, and four
+// index sets for the four places the finer level's hole can sit.
 function levelGeometry(withHole) {
   const positions = [];
-  for (let j = 0; j <= N; j++) {
-    for (let i = 0; i <= N; i++) {
-      positions.push(i - N / 2, 0, j - N / 2);
-    }
-  }
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) positions.push(i - N / 2, 0, j - N / 2);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   const variants = [];
@@ -275,68 +173,160 @@ function levelGeometry(withHole) {
   return { geometry, variants };
 }
 
+const mod = (a, n) => ((a % n) + n) % n;
+
 /**
- * Draws the island into a scene. `land` is { region, image, countryImage } from
- * src/land.js; `sun` is the way to the sun; `fog` the scene's haze.
- * Returns { follow(camera) }: call it each frame.
+ * Draws Hawaii into a scene. `hawaii` is src/hawaii.js's; `sun` the way to
+ * the sun; `fog` the scene's haze. Returns { follow(camera) }: call it each
+ * frame before drawing.
  */
-export function createTerrain(scene, land, sun, fog) {
-  const { region } = land;
-  const texture = (image, filter) => {
-    const t = new THREE.Texture(image);
+export function createTerrain(scene, renderer, hawaii, sun, fog) {
+  const { index } = hawaii;
+  const LEVELS = index.levels, TILE = index.tile, SIZE = WINDOW * TILE;
+  const gl = renderer.getContext();
+  // One layer a level, for the heights and for the colours. To start with
+  // every texel is the open sea, so a level holds nothing until it is filled.
+  const sea = new Uint8Array(SIZE * SIZE * LEVELS * 4), seaColour = new Uint8Array(SIZE * SIZE * LEVELS * 4);
+  const seaCode = Math.round((0 - index.min) / index.step);
+  for (let k = 0; k < SIZE * SIZE * LEVELS; k++) {
+    sea.set([seaCode >> 8, seaCode & 255, 255, 255], k * 4);
+    seaColour.set([16, 40, 70, 255], k * 4);
+  }
+  const array = (data, filter) => {
+    const t = new THREE.DataArrayTexture(data, SIZE, SIZE, LEVELS);
     t.magFilter = t.minFilter = filter;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.generateMipmaps = false;
-    t.flipY = false;                 // row 0 is the north edge
     t.colorSpace = THREE.NoColorSpace;
     t.needsUpdate = true;
     return t;
   };
-  const map = texture(land.image, THREE.NearestFilter);   // the posts are read one by one and joined in the shader
-  const box = (l) => new THREE.Vector4(l.west, -l.north, l.east, -l.south);
-  const loch = region.lochs.find((l) => l.kind === 'water'), lava = region.lochs.find((l) => l.kind === 'lava');
-  const legs = region.flows[0].length - 1, flowPoints = region.flows.flat().map(([north, east]) => new THREE.Vector2(east, -north));
-  // A level's edge is N/2 cells from its middle, and its middle is up to 2 cells from the camera: so it has
-  // eased all the way by N/2 - 4 cells out, and starts well clear of the finer level's hole at N/4 + 3.
-  const defines = { FLOW_COUNT: region.flows.length, FLOW_LEGS: legs, FLOW_POINTS: flowPoints.length, EASE_FROM: (N / 3).toFixed(1), EASE_TO: (N / 2 - 4).toFixed(1) };
-  const clock = { value: 0 };
-  const { base, cove } = region.sites;
-  // The finest cells are a whole fraction of a post, and every level snaps to whole cells from the island's
-  // middle, where the posts' lines also fall: so the fine levels' edges lie along the land's creases.
-  const SPACING = region.post / DRAWN_CELLS_PER_POST;
+  const heights = array(sea, THREE.NearestFilter), colours = array(seaColour, THREE.LinearFilter);
+  const held = Array.from({ length: LEVELS }, () => new THREE.Vector4(0, 0, 0, 0));
   const shared = {
-    heightMap: { value: map },
-    grid: { value: new THREE.Vector4(region.east0, -region.north0, region.post, region.size) },
-    range: { value: new THREE.Vector3(region.min, region.step, region.canopyStep) },
-    lochBox: { value: box(loch) }, lochLevel: { value: loch.level }, lavaBox: { value: box(lava) }, lavaLevel: { value: lava.level },
-    countryMap: { value: texture(land.countryImage, THREE.LinearFilter) },
-    cove: { value: new THREE.Vector3(cove.east, -cove.north, 5000) },
-    airfield: { value: new THREE.Vector4(base.east, -base.north, Math.sin((base.heading * Math.PI) / 180), -Math.cos((base.heading * Math.PI) / 180)) },
-    flows: { value: flowPoints }, flowHalf: { value: region.flowHalf }, clock,
+    heights: { value: heights }, colours: { value: colours }, held: { value: held },
+    code: { value: new THREE.Vector3(index.min, index.step, index.post) },
     sun: { value: sun.clone().normalize() },
-    haze: { value: fog.color.clone().convertLinearToSRGB() }, hazeNear: { value: fog.near }, hazeFar: { value: fog.far },   // the paint above is in screen colours
+    fogColor: { value: fog.color.clone().convertLinearToSRGB() }, fogNear: { value: fog.near }, fogFar: { value: fog.far },
   };
-  const levels = [];
-  for (let l = 0; l < LEVELS; l++) {
-    const { geometry, variants } = levelGeometry(l > 0);
-    const material = new THREE.ShaderMaterial({ defines, uniforms: { ...shared, rel: { value: new THREE.Vector2() }, spacing: { value: SPACING * 2 ** l } }, vertexShader, fragmentShader });
+  // A mesh level eases into the coarser one from a third of the way out, and has arrived by 4 cells from its edge.
+  const defines = { LEVELS, TILE, WINDOW, EASE_FROM: (N / 3).toFixed(1), EASE_TO: (N / 2 - 4).toFixed(1) };
+  const meshes = [];
+  for (let m = 0; m < MESH_LEVELS; m++) {
+    const { geometry, variants } = levelGeometry(m > 0);
+    const spacing = index.post * 2 ** m;
+    const material = new THREE.ShaderMaterial({
+      defines, uniforms: { ...shared, rel: { value: new THREE.Vector2() }, spacing: { value: spacing }, level: { value: Math.min(m, LEVELS - 1) } },
+      vertexShader, fragmentShader,
+    });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;   // the levels always surround the camera
     scene.add(mesh);
-    levels.push({ mesh, variants, spacing: SPACING * 2 ** l });
+    meshes.push({ mesh, variants, spacing });
   }
+
+  // ---- the windows: which tiles each level has on the GPU ----
+  // A level's window is WINDOW tiles each way from (i0, j0), its south-west
+  // tile. While tiles of a new window arrive, it holds only what the old and
+  // the new have in common.
+  const windows = Array.from({ length: LEVELS }, () => ({ i0: null, j0: null, waiting: 0, loaded: new Set() }));
+  const span = (l) => TILE * index.post * 2 ** l;
+  const setHeld = (l, i0, j0, i1, j1) => {
+    // Tiles i0..i1 north, j0..j1 east: west, north edge's z, east, south edge's z.
+    if (i1 < i0 || j1 < j0) held[l].set(0, 0, 0, 0);
+    else held[l].set(j0 * span(l), -(i1 + 1) * span(l), (j1 + 1) * span(l), -i0 * span(l));
+  };
+  const queue = [];
+  // Puts a tile's picture (an ImageBitmap, or the sea's bytes) into its place in a level's layer.
+  const put = (texture, layer, x, y, source) => {
+    renderer.state.bindTexture(gl.TEXTURE_2D_ARRAY, renderer.properties.get(texture).__webglTexture);
+    // Through three.js's own record of these settings, so its next upload (a runway's paint) is set as it expects.
+    const { state } = renderer;
+    state.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    state.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    state.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    state.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, x, y, layer, TILE, TILE, 1, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  };
+  // The open sea, for a tile that isn't in the index.
+  const seaTile = { height: sea.subarray(0, TILE * TILE * 4), colour: seaColour.subarray(0, TILE * TILE * 4) };
+
+  const move = (l, i0, j0) => {
+    const w = windows[l];
+    const fresh = [];
+    for (let i = i0; i < i0 + WINDOW; i++) for (let j = j0; j < j0 + WINDOW; j++) fresh.push([i, j]);
+    // What stays: the tiles both windows share.
+    const keep = new Set(fresh.filter(([i, j]) => w.loaded.has(`${i}/${j}`)).map(([i, j]) => `${i}/${j}`));
+    w.loaded = keep;
+    w.i0 = i0; w.j0 = j0;
+    const both = [...keep].map((k) => k.split('/').map(Number));
+    if (both.length) {
+      const is = both.map((t) => t[0]), js = both.map((t) => t[1]);
+      setHeld(l, Math.min(...is), Math.min(...js), Math.max(...is), Math.max(...js));
+    } else setHeld(l, 1, 1, 0, 0);
+    const wanted = fresh.filter(([i, j]) => !keep.has(`${i}/${j}`));
+    w.waiting = wanted.length;
+    for (const [i, j] of wanted) {
+      const ticket = { l, i, j, i0, j0, pictures: hawaii.has(l, i, j) ? null : seaTile };
+      queue.push(ticket);
+      if (!ticket.pictures) hawaii.pictures(l, i, j).then((p) => { ticket.pictures = p ?? seaTile; }, () => { ticket.pictures = seaTile; });
+    }
+  };
+
+  const place = (ticket) => {
+    const { l, i, j } = ticket, w = windows[l];
+    if (ticket.i0 !== w.i0 || ticket.j0 !== w.j0) return true;   // the window moved on: drop it
+    if (!renderer.properties.get(heights).__webglTexture || !renderer.properties.get(colours).__webglTexture) return false;
+    const x = mod(j, WINDOW) * TILE, y = mod(-(i + 1), WINDOW) * TILE;
+    const p = ticket.pictures;
+    put(heights, l, x, y, p.height);
+    put(colours, l, x, y, p.colour);
+    if (p !== seaTile) { p.height.close(); p.colour.close(); }
+    w.loaded.add(`${i}/${j}`);
+    if (--w.waiting === 0) setHeld(l, w.i0, w.j0, w.i0 + WINDOW - 1, w.j0 + WINDOW - 1);
+    return true;
+  };
+
+  // If the phone takes the GPU's memory away and gives it back, three.js
+  // starts the layers again as open sea: every level holds nothing until
+  // its window is filled again, which the next frame starts.
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    queue.length = 0;
+    for (let l = 0; l < LEVELS; l++) {
+      windows[l] = { i0: null, j0: null, waiting: 0, loaded: new Set() };
+      held[l].set(0, 0, 0, 0);
+    }
+  });
+
   return {
-    // Put every level under the camera. Each snaps to twice its spacing, so
-    // the finer level inside it lands on its grid, one cell over or not.
+    /** Puts every mesh level under the camera and brings the tiles round it. */
     follow(camera) {
-      clock.value = (performance.now() / 1000) % 3600;   // kept small, so the drift stays smooth
+      const north = -camera.position.z, east = camera.position.x;
+      // The coarsest levels first, so there is always something to draw.
+      for (let l = LEVELS - 1; l >= 0; l--) {
+        const s = span(l);
+        const i0 = Math.round(north / s) - WINDOW / 2, j0 = Math.round(east / s) - WINDOW / 2;
+        const w = windows[l];
+        if (w.i0 !== i0 || w.j0 !== j0) move(l, i0, j0);
+      }
+      let placed = 0;
+      for (let k = 0; k < queue.length && placed < UPLOADS; ) {
+        const ticket = queue[k];
+        if (!ticket.pictures) { k++; continue; }
+        if (!place(ticket)) break;   // the textures aren't on the GPU yet: the first frame draws them
+        queue.splice(k, 1);
+        placed++;
+      }
       let finer = null;
-      for (const level of levels) {
-        const step = 2 * level.spacing;
+      for (const m of meshes) {
+        const step = 2 * m.spacing;
         const cx = Math.floor(camera.position.x / step) * step, cz = Math.floor(camera.position.z / step) * step;
-        level.mesh.material.uniforms.rel.value.set(cx - camera.position.x, cz - camera.position.z);
-        if (finer) level.mesh.geometry.setIndex(level.variants[Math.round((finer.z - cz) / level.spacing) * 2 + Math.round((finer.x - cx) / level.spacing)]);
+        m.mesh.material.uniforms.rel.value.set(cx - camera.position.x, cz - camera.position.z);
+        if (finer) m.mesh.geometry.setIndex(m.variants[Math.round((finer.z - cz) / m.spacing) * 2 + Math.round((finer.x - cx) / m.spacing)]);
         finer = { x: cx, z: cz };
       }
     },
+    /** Whether every level has its window filled: the picture is complete. */
+    get settled() { return queue.length === 0; },
   };
 }

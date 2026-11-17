@@ -26,6 +26,21 @@ export function baseField(region, island) {
   return { height: island.heightAt(north, east), north, east, heading, runway: { length: 9200 * FT, width: 150 * FT, numbers: ['28', '10'] }, startBack: 200 * FT };
 }
 
+/**
+ * A runway of Hawaii's (an entry of terrain/hawaii/index.json's runways),
+ * taking off from its first end: the start of every flight is runway 8R at
+ * Honolulu (docs/hawaii.md). Its height is the middle of its two ends'.
+ */
+export function runwayField(way) {
+  const [a, b] = way.ends;
+  const length = Math.hypot(b.north - a.north, b.east - a.east);
+  const heading = ((Math.atan2(b.east - a.east, b.north - a.north) / DEG) + 360) % 360;
+  return {
+    height: (a.height + b.height) / 2, north: (a.north + b.north) / 2, east: (a.east + b.east) / 2, heading,
+    runway: { length, width: way.width, numbers: [a.ident, b.ident] }, startBack: 200 * FT,
+  };
+}
+
 /** The field's ground, for the simulation. */
 export const fieldGround = () => flatGround(FIELD.height);
 

@@ -3,7 +3,7 @@
 import { APP_VERSION } from './version.js';
 import { PARKED } from './field.js';
 import { startFlight } from './flight.js';
-import { loadLand } from './land.js';
+import { openHawaii } from './hawaii.js';
 import { createTilt } from './input/tilt.js';
 import { createThrottle } from './ui/throttle.js';
 import { readouts } from './readouts.js';
@@ -51,9 +51,31 @@ const parkControls = () => {
 const hud = createHud($('hud'), () => $('safe').getBoundingClientRect());
 let hudOn = true;
 
+// ---- Hawaii: downloaded once, then always on the phone ----
+// The start screen says how far the download has got; Fly waits for it all.
+// If it stops (no signal), it carries on when the phone is back online.
+async function prepareHawaii() {
+  const line = $('download'), mb = (bytes) => Math.round(bytes / 1e6);
+  const hawaii = await openHawaii();
+  for (;;) {
+    try {
+      if (await hawaii.missing() === 0) break;
+      line.hidden = false;
+      await hawaii.download((done, total) => { line.textContent = `Hawaii: ${mb(done)} of ${mb(total)} MB`; });
+      break;
+    } catch {
+      line.textContent = 'Hawaii’s download stopped. It carries on when the phone is back online.';
+      await new Promise((resolve) => { window.addEventListener('online', resolve, { once: true }); setTimeout(resolve, 15000); });
+    }
+  }
+  line.hidden = true;
+  await hawaii.near(hawaii.index.start.north, hawaii.index.start.east);   // the ground under the start, ready for the flight model
+  return hawaii;
+}
+
 // ---- the flight ----
 let mode = 'start';   // start, flying, paused or crashed
-const flight = startFlight($('view'), await loadLand(), {
+const flight = startFlight($('view'), await prepareHawaii(), {
   controls: () => ({ ...pilot, elevator: tilt.stick.pitch, aileron: tilt.stick.roll }),
   onCrash() { mode = 'crashed'; letSleep(); show('crashed'); checkForUpdate(); },
   onReadout(reading, project, looking) {

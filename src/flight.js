@@ -11,9 +11,7 @@ import { FT, KT } from './sim/card.js';
 import { atmosphere } from './sim/atmosphere.js';
 import { elevatorTravel } from './sim/aero.js';
 import { calibratedAirspeed, instruments } from './sim/airdata.js';
-import { PARKED, baseField, startState } from './field.js';
-import { createIsland, islandGround } from './sim/island.js';
-import { createSolids, hotelSolids } from './sim/solids.js';
+import { PARKED, runwayField, startState } from './field.js';
 import { createAircraft } from './render/aircraft.js';
 import { createChaseCamera } from './render/camera.js';
 import { attachLook, createLook } from './input/look.js';
@@ -22,7 +20,8 @@ import { attitudeToThree, toThree } from './render/frames.js';
 
 /**
  * Puts the flight on a canvas, parked on the runway and holding still.
- * `land` is the island ({ region, heights, canopy, image } from src/land.js).
+ * `hawaii` is the islands (src/hawaii.js), with every flight starting on
+ * their `start` runway.
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
  * when a flight ends in a crash; `onReadout(reading, project, looking)` is
  * called every frame it draws with what the instruments read: { knots, feet,
@@ -32,18 +31,18 @@ import { attitudeToThree, toThree } from './render/frames.js';
  * fly() lets time run, hold() stops it (the picture stays), restart() puts
  * the airplane back on the runway.
  */
-export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
+export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   const scene = new THREE.Scene();
-  const island = createIsland(land.region, land.heights, land.canopy, land.country), field = baseField(land.region, island);
-  const world = createWorld(scene, renderer, field, land, island);
+  const { index, ground } = hawaii;
+  const field = runwayField(index.runways.find((w) => w.airport === index.start.airport && w.ends[0].ident === index.start.runway));
+  const world = createWorld(scene, renderer, hawaii);
   const card = deriveCard(F4C);
   const airplane = createAircraft(F4C);
   scene.add(airplane);
   const chase = createChaseCamera();
   const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
 
-  const ground = islandGround(island, createSolids([...Object.values(land.landmarks).flatMap((l) => l.solids), ...hotelSolids(land.region.sites.strip)]));
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
   const wheels = Math.max(...card.contacts.filter((p) => p.wheel).map((p) => p.r[2] - p.sag));   // where the wheels rest, not where the struts hang to
   const BUFFET_FULL = 2000;   // Pa of dynamic pressure: below this (about 110 knots) the buffet shake is weaker
@@ -122,6 +121,7 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
     });
     airplane.burner(Math.min(1, Math.max(0, sim.power - 1)), flying ? elapsed : 0);   // the plumes show the engine, not the throttle
     fit();   // every frame: iOS can report the new size late after a rotation
+    hawaii.near(sim.state.x[0], sim.state.x[1]);   // the ground round the airplane, decoded ahead of it
     const height = -sim.state.x[2] - wheels;
     const buffet = (seen.coef?.buffet ?? 0) * Math.min(1, air.qbar / BUFFET_FULL);
     look.update(elapsed);
@@ -137,7 +137,7 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
       power: sim.power,
       ...instruments(sim, seen),
     }, project, look.active);
-    settle = flying ? SETTLE : settle - 1;
+    settle = flying || !world.settled ? SETTLE : settle - 1;   // at rest, draw on until all the ground round the camera is in
     waiting = settle > 0 ? requestAnimationFrame(draw) : null;
     if (waiting === null) last = null;   // resting: the next frame starts the clock afresh
   };
@@ -157,7 +157,6 @@ export function startFlight(canvas, land, { controls, onCrash, onReadout }) {
   new ResizeObserver(wake).observe(canvas);
   for (const type of ['resize', 'orientationchange']) window.addEventListener(type, wake);
   airplane.ready.then(wake);
-  world.ready.then(wake);
   run();
   return {
     ready: airplane.ready,
