@@ -19,9 +19,10 @@ const SHAKE = 0.14;                // m: how far buffet moves the camera at its 
  * near the stall. The shake is after Rage's: a few fast sine waves, so it
  * looks rough but is the same on every phone. `look` is the look-around:
  * { yaw, pitch } in degrees, positive left and up, in the airplane's frame.
+ * `far` is how far it sees (metres): as far as the haze lets it.
  */
-export function createChaseCamera() {
-  const camera = new THREE.PerspectiveCamera(55, 1, 1, 30000);
+export function createChaseCamera(far) {
+  const camera = new THREE.PerspectiveCamera(55, 1, 1, far);
   const q = new THREE.Quaternion(), offset = new THREE.Vector3(), aim = new THREE.Vector3(), shake = new THREE.Vector3();
   const turned = new THREE.Quaternion(), swing = new THREE.Quaternion(), euler = new THREE.Euler();
   let first = true, t = 0;
