@@ -13,7 +13,10 @@
 // more than a few pixels short at any distance (tests/hawaii.test.js). Each
 // grid's triangles are stored in order round the camera, so only the slice of
 // it the camera faces is drawn (the textbook's other half): the ground behind
-// and beside the camera costs nothing.
+// and beside the camera costs nothing. High above the ground, the finest
+// grids are left out (as Losasso and Hoppe do): a grid whose whole width is
+// less than twice the camera's height above the ground would be drawn only
+// where its cells are too small to see, and the next coarser grid fills in.
 //
 // What's new is where the heights and colours come from. Hawaii is far too
 // big to hold whole, so each level of the tile pyramid (terrain/hawaii/) has a
@@ -296,12 +299,11 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
     mesh.frustumCulled = false;   // the levels always surround the camera
     scene.add(mesh);
     meshes.push({ mesh, spacing });
-    if (m === 0) {
-      const middle = new THREE.Mesh(core, material);   // the finest ring's hole, read and placed as that ring is
-      middle.frustumCulled = false;
-      scene.add(middle);
-    }
   }
+  // The finest ring drawn has its hole filled by the core, read and placed as that ring is.
+  const middle = new THREE.Mesh(core, meshes[0].mesh.material);
+  middle.frustumCulled = false;
+  scene.add(middle);
 
   // ---- the windows: which tiles each level has on the GPU ----
   // A level's window is WINDOW tiles each way from (i0, j0), its south-west
@@ -398,8 +400,13 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
       const view = sectorsInView(camera);
       // How far the camera can see: its far limit is a depth straight ahead, so toward a corner of the screen it sees farther.
       const ty = Math.tan((camera.fov * Math.PI) / 360) / camera.zoom, reach = camera.far * Math.hypot(1, ty * camera.aspect, ty);
+      // The finest ring drawn: the first as wide as twice the camera's height above the ground under it.
+      const above = camera.position.y - hawaii.ground.heightAt(-camera.position.z, camera.position.x);
+      const wide = meshes.findIndex((m) => (N / 2) * m.spacing >= above), finest = wide < 0 ? meshes.length - 1 : wide;
+      middle.material = meshes[finest].mesh.material;
       let finer = null;
-      for (const m of meshes) {
+      for (const [k, m] of meshes.entries()) {
+        if (k < finest) { m.mesh.visible = false; continue; }
         const step = 2 * m.spacing;
         const cx = Math.floor(camera.position.x / step) * step, cz = Math.floor(camera.position.z / step) * step;
         m.mesh.material.uniforms.rel.value.set(cx - camera.position.x, cz - camera.position.z);
