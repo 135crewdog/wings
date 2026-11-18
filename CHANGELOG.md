@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.46
+
+- The haze is pushed back: it starts 9 nm out instead of 2 and hides everything only by 43 nm instead of 13, so the next island across a channel is in plain view. The sky just above the horizon is paler, the colour of the haze, so the sea and the sky meet with no line.
+
 ## 0.0.45
 
 - A smoother frame rate high up: above about 5,000 ft the finest ground detail, too small to see from there, is left out.

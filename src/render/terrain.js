@@ -121,16 +121,21 @@ const fragmentShader = `${SAMPLE_GLSL}
   ${NOISE_GLSL}
   vec3 colourAt(int l, vec2 xz) {
     vec2 q = xz / postSpacing(l);   // the colour is a picture: the GPU joins its pixels itself
-    return texture(colours, vec3(q / SIZE, float(l))).rgb;
+    return textureLod(colours, vec3(q / SIZE, float(l)), 0.0).rgb;   // the layers have no smaller copies
   }
   void main() {
     // The level to paint from: about one post to a pixel, as a picture's
     // smaller copies would be chosen, and between two levels a blend.
     float footprint = max(length(dFdx(wp.xz)), length(dFdy(wp.xz)));
     float want = clamp(log2(max(footprint, 1e-3) / code.z), 0.0, float(LEVELS - 1));
+    // Ground the haze hides entirely is the haze's colour: none of the painting below is needed.
+    float dist = length(rp);
+    if (dist >= fogFar) { gl_FragColor = vec4(fogColor, 1.0); return; }
     int l = levelFor(int(floor(want)), wp.xz);
     vec3 c = vec3(0.0); float water = 1.0; vec3 n = vec3(0.0, 1.0, 0.0);
-    if (l >= 0) {
+    if (l >= 0) water = smoothstep(0.35, 0.65, groundAt(l, wp.xz).y);
+    // Where the water is solid it covers the land entirely: none of the land's painting is needed.
+    if (l >= 0 && water < 1.0) {
       int l2 = levelFor(l + 1, wp.xz);
       float blend = l2 > l ? clamp(want - float(l), 0.0, 1.0) : 0.0;
       c = colourAt(l, wp.xz);
@@ -140,17 +145,16 @@ const fragmentShader = `${SAMPLE_GLSL}
       float hx = groundAt(l, wp.xz + vec2(p, 0.0)).x - groundAt(l, wp.xz - vec2(p, 0.0)).x;
       float hz = groundAt(l, wp.xz + vec2(0.0, p)).x - groundAt(l, wp.xz - vec2(0.0, p)).x;
       n = normalize(vec3(-hx, 2.0 * p, -hz));
-      water = smoothstep(0.35, 0.65, groundAt(l, wp.xz).y);
+      // A light grain at two scales so the ground reads as moving at low level, fading before it shimmers (and not worked out once it has).
+      float faded = smoothstep(1500.0, 6000.0, dist);
+      c *= faded < 1.0 ? mix(0.9 + 0.1 * (0.6 * noise(wp.xz / 50.0) + 0.4 * noise(wp.xz / 7.0)), 0.95, faded) : 0.95;
+      // Lit by the sun, gently: the pictures carry the satellite's own shading.
+      c *= max(dot(n, sun), 0.0) * 0.45 + 0.72;
     }
-    float dist = length(rp);
-    // A light grain at two scales so the ground reads as moving at low level, fading before it shimmers.
-    float grain = 0.6 * noise(wp.xz / 50.0) + 0.4 * noise(wp.xz / 7.0);
-    c *= mix(0.9 + 0.1 * grain, 0.95, smoothstep(1500.0, 6000.0, dist));
-    // Lit by the sun, gently: the pictures carry the satellite's own shading.
-    c *= max(dot(n, sun), 0.0) * 0.45 + 0.72;
     if (water > 0.0) {
       // Rage's water: deep blue, the sky in it at a low angle, the sun's glint, a faint ripple.
-      vec2 rip = (vec2(noise(wp.xz / 9.0 + 3.0), noise(wp.xz / 9.0 + 11.0)) - 0.5) * (1.0 - smoothstep(500.0, 3000.0, dist));   // gone before it makes rings in the distance
+      float ripple = 1.0 - smoothstep(500.0, 3000.0, dist);   // the ripple is gone before it makes rings in the distance
+      vec2 rip = ripple > 0.0 ? (vec2(noise(wp.xz / 9.0 + 3.0), noise(wp.xz / 9.0 + 11.0)) - 0.5) * ripple : vec2(0.0);
       vec3 nw = normalize(vec3(rip.x * 0.06, 1.0, rip.y * 0.06));
       vec3 v = normalize(-rp);
       float grazing = pow(1.0 - max(dot(nw, v), 0.0), 3.0);

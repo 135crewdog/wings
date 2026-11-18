@@ -49,7 +49,7 @@ Beyond the data the sea goes on for ever.
 
 ## The sky
 
-Rage's sky, which Wings already has: a dome fading to a pale horizon, a mid-afternoon sun, fair-weather cumulus painted on the dome, and haze that hides the far edge. Always a standard day: no wind, weather or turbulence.
+Rage's sky, which Wings already has: a dome fading to a pale horizon, a mid-afternoon sun, fair-weather cumulus painted on the dome, and haze that thickens from 16 km (9 nm) out and hides everything by 80 km (43 nm): the next island across a channel is clear, and from the middle of Oahu Molokai and Kauai show through it. Always a standard day: no wind, weather or turbulence.
 
 ## The runways
 

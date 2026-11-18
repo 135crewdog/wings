@@ -9,7 +9,7 @@ import { createTerrain, NOISE_GLSL } from './terrain.js';
 
 const HORIZON = 0xb9c7d6, ZENITH = 0x3f78c8;          // Rage's
 const SUN = new THREE.Vector3(-3, 6, 4).normalize();  // the way to the sun: high in the south-west (x east, y up, z south)
-const FAR = 30000;                                     // m: the haze has hidden everything by here
+const HAZE = 80000;                                    // m (43 nm): the haze has hidden everything by here; it starts a fifth of the way out
 
 const skyFragment = `
   uniform vec3 horizon, zenith, sun;
@@ -109,23 +109,25 @@ function runwayMesh(renderer, way) {
 
 /**
  * Builds the world into a scene: the sky, Hawaii (src/hawaii.js's) and every
- * runway in it. Returns { follow(camera), settled }: call follow each frame,
+ * runway in it. Returns { follow(camera), settled, far }: call follow each frame,
  * so the sky and the land stay round the camera; settled is true once all
  * the ground round the camera is in the picture.
  */
 export function createWorld(scene, renderer, hawaii) {
   scene.background = new THREE.Color(HORIZON);
-  scene.fog = new THREE.Fog(HORIZON, 4000, 24000);
+  scene.fog = new THREE.Fog(HORIZON, HAZE / 5, HAZE);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a70, 2.4));
   const sun = new THREE.DirectionalLight(0xffffff, 2.4);
   sun.position.copy(SUN);
   scene.add(sun);
 
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(FAR * 0.95, 48, 24),
+    new THREE.SphereGeometry(HAZE * 0.95, 48, 24),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { horizon: { value: new THREE.Color(HORIZON) }, zenith: { value: new THREE.Color(ZENITH) }, sun: { value: SUN } },
+      // The horizon in screen colours, as the haze on the ground is (src/render/terrain.js), so the
+      // two meet with no line: the sky low down and the farthest ground are one colour.
+      uniforms: { horizon: { value: new THREE.Color(HORIZON).convertLinearToSRGB() }, zenith: { value: new THREE.Color(ZENITH) }, sun: { value: SUN } },
       vertexShader: 'varying vec3 dir; void main() { dir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: skyFragment,
     }),
@@ -142,6 +144,7 @@ export function createWorld(scene, renderer, hawaii) {
       terrain.follow(camera);
     },
     get settled() { return terrain.settled; },
+    far: HAZE,   // the camera need see no farther
     terrain,
   };
 }

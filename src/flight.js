@@ -41,7 +41,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   const card = deriveCard(F4C);
   const airplane = createAircraft(F4C);
   scene.add(airplane);
-  const chase = createChaseCamera();
+  const chase = createChaseCamera(world.far);
   const look = createLook();   // a finger dragged across the view looks around; let go and the view comes back
 
   // Heights are read at the wheels, so the jet standing on the runway reads the runway's height.
