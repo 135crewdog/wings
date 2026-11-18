@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.45
+
+- A smoother frame rate high up: above about 5,000 ft the finest ground detail, too small to see from there, is left out.
+
 ## 0.0.44
 
 - A smoother frame rate: the ground behind and beside you, and beyond what the camera can reach, is no longer drawn. Nothing on screen changes.
