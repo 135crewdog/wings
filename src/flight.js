@@ -99,7 +99,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   // coming back never starts a second loop beside it.
   const SETTLE = 30;   // frames drawn after a change: the camera eases in, and iOS can report a new size late
   let last = null, waiting = null, settle = SETTLE;
-  let frames = 0, fpsAt = performance.now(), fps = 0;   // frames a second, for the developer overlay
+  let frames = 0, fpsAt = performance.now(), fps = 0;   // frames a second, for the debug overlay
   const draw = (time) => {
     const elapsed = last === null ? 0 : Math.min((time - last) / 1000, 0.25);
     last = time;
@@ -185,7 +185,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
     /** Whether a hard arrival ends the flight. False is the crash override. Takes effect at once. */
     setCrashes(on) { crashes = on; sim.crashes = on; },
     get sim() { return sim; },
-    /** For the developer overlay: frame rate, draw calls, where the airplane is, and the ground's state round it. */
+    /** For the debug overlay: frame rate, draw calls, where the airplane is, and the ground's state round it. */
     status() {
       const [north, east] = sim.state.x;
       return { fps, draws: renderer.info.render.calls, north, east, levels: world.terrain.levelsAt(north, east), queued: world.terrain.queued };

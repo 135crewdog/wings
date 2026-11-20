@@ -427,7 +427,7 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
     },
     /** Whether every level has its window filled: the picture is complete. */
     get settled() { return queue.length === 0; },
-    /** For the developer overlay: tiles waiting to go on the GPU, and the levels that hold a point (north, east) whole. */
+    /** For the debug overlay: tiles waiting to go on the GPU, and the levels that hold a point (north, east) whole. */
     get queued() { return queue.length; },
     levelsAt(north, east) {
       const x = east, z = -north;

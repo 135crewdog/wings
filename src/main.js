@@ -34,7 +34,7 @@ const tilt = createTilt({
   },
 });
 const throttle = createThrottle($('throttle'), (value) => { pilot.throttle = value; });
-const toggles = [['gear', 'Gear', 'down', 'up'], ['flaps', 'Flaps', 'down', 'up'], ['speedbrake', 'Boards', 'out', 'in'], ['brake', 'Brakes', 'on', 'off']];
+const toggles = [['gear', 'Gear', 'Down', 'Up'], ['flaps', 'Flaps', 'Down', 'Up'], ['speedbrake', 'Boards', 'Out', 'In'], ['brake', 'Brakes', 'On', 'Off']];
 const showToggles = () => {
   for (const [key, name, on, off] of toggles) {
     $(key).textContent = `${name} ${pilot[key] ? on : off}`;
@@ -74,7 +74,7 @@ async function prepareHawaii() {
   return hawaii;
 }
 
-// ---- the developer overlay ----
+// ---- the debug overlay ----
 // A small box of raw numbers, for troubleshooting and for screen recordings
 // sent to Claude Code (the Ideas doc, picked 17 Nov 2026). Switched on and
 // off on the pause screen, off until the pilot turns it on.
@@ -148,7 +148,7 @@ try { savedHud = localStorage.getItem(HUD_KEY); } catch { /* storage may be bloc
 setHud(savedHud !== 'off');
 hudSwitch.addEventListener('click', () => setHud(hudSwitch.getAttribute('aria-checked') !== 'true'));
 
-// The developer overlay's switch, kept between visits like the others.
+// The debug overlay's switch, kept between visits like the others.
 const DEV_KEY = 'wings.dev';
 const devSwitch = $('dev-switch');
 const setDev = (on) => {

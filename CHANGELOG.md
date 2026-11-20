@@ -2,6 +2,12 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.47
+
+- The throttle is a knob in a groove: the groove is as wide as the knob, in the buttons' see-through dark, and fills up to the knob, white when dry and orange in afterburner. Small ticks on either side mark MIL, and the knob stays inside the groove at idle and at full burner.
+- The buttons on the right read in title case: Gear Down, Flaps Up, Boards In, Brakes On.
+- On the pause screen, the Developer switch is now Debug overlay.
+
 ## 0.0.46
 
 - The haze is pushed back: it starts 9 nm out instead of 2 and hides everything only by 43 nm instead of 13, so the next island across a channel is in plain view. The sky just above the horizon is paler, the colour of the haze, so the sea and the sky meet with no line.
