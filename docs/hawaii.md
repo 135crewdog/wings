@@ -43,6 +43,8 @@ The photographs carry the satellite's own light and shadow, so the game's sun is
 
 The sea is Rage's water: deep blue, paler toward the horizon where it reflects the sky, with the sun's glint on it and a faint ripple. No waves breaking, no reefs drawn under it. Lakes, reservoirs and fishponds are water too.
 
+**Water lies level.** The land-cover map's coastline can sit a post or two off the survey of heights, and on a sea cliff that is hundreds of feet up the face. So the map's water counts as water only where the ground round it is level: where the four posts round a point climb more than 3 in 10 (about 17 degrees), it is land, in the flight model and in the picture alike (`STEEP` in `src/sim/hawaii.js`). The tiles are unchanged. The picture also reads the water from the finest copy of the map it holds, and paints it only where the ground as drawn is the map's own height, so the shoreline doesn't ride up a cliff drawn from a coarser copy far off.
+
 As before, **any touch of water ends the flight,** unless the crash override is on.
 
 Beyond the data the sea goes on for ever.

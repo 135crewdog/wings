@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.48
+
+- The sea no longer climbs the cliffs. On sheer coasts (Makapuu, the Na Pali coast, Molokai's north shore) the map marked parts of the cliff face as water, hundreds of feet up, and far off the picture smeared the shoreline up the face besides. Now water is only where the ground lies level, at every distance, and the flight model follows the same rule: a cliff face is a cliff, not the sea. Lakes are still lakes.
+
 ## 0.0.47
 
 - The throttle is a knob in a groove: the groove is as wide as the knob, in the buttons' see-through dark, and fills up to the knob, white when dry and orange in afterburner. Small ticks on either side mark MIL, and the knob stays inside the groove at idle and at full burner.

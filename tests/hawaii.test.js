@@ -266,6 +266,45 @@ test('the sea is water at sea level, in the channels and beyond the islands', ()
   }
 });
 
+test('water lies level: none stands on a sea cliff, and a lake is still a lake', () => {
+  // What the map itself says, post by post: its coastline can sit a post or two up a cliff face.
+  const flagged = (north, east) => {
+    const R = Math.round(-north / index.post - 0.5), C = Math.round(east / index.post - 0.5);
+    const i = -Math.floor(R / index.tile) - 1, j = Math.floor(C / index.tile), t = tileAt(0, i, j);
+    return t ? t.water[(R + (i + 1) * index.tile) * index.tile + C - j * index.tile] === 1 : true;
+  };
+  // Hectares within `reach` of a place that the map calls water, and that the flight model does, standing `feet` or more above the sea.
+  const standing = ([north, east], reach, feet) => {
+    let map = 0, sim = 0, top = 0;
+    for (let n = north - reach + 2.5; n < north + reach; n += 5) {
+      for (let e = east - reach + 2.5; e < east + reach; e += 5) {
+        if (!flagged(n, e)) continue;
+        const h = hawaii.heightAt(n, e);
+        if (h < feet * FT) continue;
+        map++;
+        if (hawaii.surfaceAt(n, e) === 'water') { sim++; top = Math.max(top, h); }
+      }
+    }
+    return { map: map * 25 / 1e4, sim: sim * 25 / 1e4, top: top / FT };
+  };
+  const cliffs = [
+    ['Makapuu Head', where('oahu', 21.3100, -157.6498), 1500],
+    ['the Na Pali coast', where('kauai', 22.175, -159.65), 6000],
+    ['Molokai\'s north shore', where('mauinui', 21.17, -156.88), 6000],
+  ];
+  for (const [name, at, reach] of cliffs) {
+    const { map, sim, top } = standing(at, reach, 50);
+    console.log(`  ${name}: the map has ${map.toFixed(1)} ha of water 50 ft or more up; the flight model ${sim.toFixed(1)} ha${sim ? `, none above ${Math.ceil(top)} ft` : ''}`);
+    assert.ok(map > 1, 'the map does put water up this cliff');
+    assert.ok(sim < 0.1 * map, `${name}: nearly none of it is water (${sim.toFixed(1)} of ${map.toFixed(1)} ha)`);
+  }
+  // Lake Wilson at Wahiawa, 800 ft up in a gulch, and Lake Waiau, 13,000 ft up Mauna Kea.
+  const wilson = standing(where('oahu', 21.495, -158.045), 2500, 500);
+  console.log(`  Lake Wilson: ${wilson.map.toFixed(1)} ha on the map, ${wilson.sim.toFixed(1)} ha in the flight model`);
+  assert.ok(wilson.sim > 0.9 * wilson.map, 'Lake Wilson is still a lake');
+  assert.equal(hawaii.surfaceAt(...where('hawaii', 19.8113, -155.4775)), 'water', 'Lake Waiau is still a lake');
+});
+
 test('the HNL VORTAC stands on the Honolulu airport, near 8R', () => {
   const [north, east] = where(HNL_VORTAC.group, HNL_VORTAC.lat, HNL_VORTAC.lon);
   const fromThreshold = Math.hypot(north, east);
