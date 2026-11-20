@@ -74,7 +74,7 @@ export function smooth(previous, value, dtSeconds, tau = MAPPING.filterTau) {
  * motion access and must be called first thing inside a tap; it resolves to
  * whether access was given. recenter() makes the phone's attitude at the next
  * reading the neutral, then calls onNeutral. `raw` is the last reading as the
- * sensor gave it and as tilt, for the developer overlay.
+ * sensor gave it and as tilt, for the debug overlay.
  */
 export function createTilt({ onNeutral = () => {} } = {}) {
   const stick = { pitch: 0, roll: 0 };

@@ -1,4 +1,4 @@
-// The throttle: a slim slider on the left edge. It stays where it is left.
+// The throttle: a knob in a groove on the left edge. It stays where it is left.
 // After 135crewdog/rage, src/ui/throttle.js, with its detent at MIL: a finger
 // anywhere in a band around the mark gives exactly MIL, so reaching for MIL
 // gets MIL, and the band has to be crossed to light the afterburner.
@@ -27,18 +27,20 @@ export function positionFromThrottle(throttle) {
 
 /** Makes the slider work. onChange(throttle) is called on every change; returns { set(throttle) }. */
 export function createThrottle(root, onChange) {
-  const track = root.querySelector('.track'), thumb = root.querySelector('.thumb');
+  const rail = root.querySelector('.rail'), thumb = root.querySelector('.thumb'), fill = root.querySelector('.fill');
   root.querySelector('.mil').style.top = `${(1 - MARK) * 100}%`;
   let finger = null;
   const set = (throttle) => {
     const value = Math.max(0, Math.min(1, throttle));
-    thumb.style.top = `${(1 - positionFromThrottle(value)) * 100}%`;
+    const place = positionFromThrottle(value);
+    thumb.style.top = `${(1 - place) * 100}%`;
+    fill.style.height = `calc(16px + ${place} * (100% - 32px))`;   // up to the middle of the knob
     root.classList.toggle('burner', value > MIL_THROTTLE);
     root.setAttribute('aria-valuenow', String(Math.round(value * 100)));
     onChange(value);
   };
   const follow = (event) => {
-    const r = track.getBoundingClientRect();
+    const r = rail.getBoundingClientRect();
     set(throttleFromPosition(1 - (event.clientY - r.top) / r.height));
   };
   root.addEventListener('pointerdown', (event) => {
