@@ -12,6 +12,14 @@
 
 import { SURFACES } from './ground.js';
 
+// Water lies level. The map's water comes from a survey of land cover whose
+// coastline can sit a post or two off the survey of heights, and on a sea
+// cliff that is hundreds of feet up the face. So where the four posts round a
+// point climb more than this (their spread in height over their spacing:
+// about 17 degrees), the ground there is land whatever the map says. The
+// picture has the same rule (src/render/terrain.js).
+export const STEEP = 0.3;
+
 /** WGS 84: metres per degree of latitude and of longitude at a latitude (as terrain/make-hawaii.py). */
 function metresPerDegree(lat) {
   const p = (lat * Math.PI) / 180;
@@ -68,14 +76,14 @@ export function createHawaii(index, tileAt) {
       if (t === undefined) return null;
       out.push(t === null ? { h: 0, w: 1 } : { h: t.height[row * tile + col], w: t.water[row * tile + col] });
     }
-    return { posts: out, fx, fy };
+    return { posts: out, fx, fy, p };
   };
   const finest = (north, east) => {
     for (let level = 0; level < levels; level++) {
       const a = around(level, north, east);
       if (a) return a;
     }
-    return { posts: [{ h: 0, w: 1 }, { h: 0, w: 1 }, { h: 0, w: 1 }, { h: 0, w: 1 }], fx: 0, fy: 0 };
+    return { posts: [{ h: 0, w: 1 }, { h: 0, w: 1 }, { h: 0, w: 1 }, { h: 0, w: 1 }], fx: 0, fy: 0, p: post };
   };
   const mix = (a, b, f) => a + (b - a) * f;
   return {
@@ -84,10 +92,12 @@ export function createHawaii(index, tileAt) {
       const { posts: [a, b, c, d], fx, fy } = finest(north, east);
       return mix(mix(a.h, b.h, fx), mix(c.h, d.h, fx), fy);
     },
-    /** Water where the nearest post is water, else firm ground. */
+    /** Water where the nearest post is water and the ground round the point lies level, else firm ground. */
     surfaceAt(north, east) {
-      const { posts, fx, fy } = finest(north, east);
-      return posts[(fy < 0.5 ? 0 : 2) + (fx < 0.5 ? 0 : 1)].w ? 'water' : 'runway';
+      const { posts, fx, fy, p } = finest(north, east);
+      const heights = posts.map((q) => q.h);
+      const level = Math.max(...heights) - Math.min(...heights) <= STEEP * p;
+      return level && posts[(fy < 0.5 ? 0 : 2) + (fx < 0.5 ? 0 : 1)].w ? 'water' : 'runway';
     },
     surfaces: SURFACES,
   };

@@ -31,10 +31,11 @@
 //
 // The paint is Rage's: the satellite picture, a light grain up close, a
 // gentle sun (the picture already carries the satellite's shading), Rage's
-// water wherever the tiles say water, and haze.
+// water wherever the tiles say water and the ground lies level, and haze.
 // Metres; three.js axes: x east, y up, z south.
 
 import * as THREE from 'three';
+import { STEEP } from '../sim/hawaii.js';
 
 const MESH_LEVELS = 7;   // with 10 m cells at the finest: 3.2, 6.4, 13, 26, 51, 102 and 205 km across
 const N = 320;           // cells along each side of every mesh level: enough to keep every summit within 5 pixels
@@ -123,6 +124,14 @@ const fragmentShader = `${SAMPLE_GLSL}
     vec2 q = xz / postSpacing(l);   // the colour is a picture: the GPU joins its pixels itself
     return textureLod(colours, vec3(q / SIZE, float(l)), 0.0).rgb;   // the layers have no smaller copies
   }
+  // Height and water at a point from level l, as groundAt, and whether the four posts round it are level.
+  vec3 waterAt(int l, vec2 xz) {
+    float p = postSpacing(l);
+    vec2 q = xz / p - 0.5, i = floor(q), f = q - i;
+    vec2 a = post(l, i), b = post(l, i + vec2(1.0, 0.0)), c = post(l, i + vec2(0.0, 1.0)), d = post(l, i + vec2(1.0, 1.0));
+    float spread = max(max(a.x, b.x), max(c.x, d.x)) - min(min(a.x, b.x), min(c.x, d.x));
+    return vec3(mix(mix(a, b, f.x), mix(c, d, f.x), f.y), spread <= STEEP * p ? 1.0 : 0.0);
+  }
   void main() {
     // The level to paint from: about one post to a pixel, as a picture's
     // smaller copies would be chosen, and between two levels a blend.
@@ -133,7 +142,16 @@ const fragmentShader = `${SAMPLE_GLSL}
     if (dist >= fogFar) { gl_FragColor = vec4(fogColor, 1.0); return; }
     int l = levelFor(int(floor(want)), wp.xz);
     vec3 c = vec3(0.0); float water = 1.0; vec3 n = vec3(0.0, 1.0, 0.0);
-    if (l >= 0) water = smoothstep(0.35, 0.65, groundAt(l, wp.xz).y);
+    // The water is read from the finest copy of the map there is here, however small on the screen: the
+    // coarse copies' shoreline wanders tens of metres, and on a cliff that is a long way up. Water lies
+    // level, so it is painted only where the map's four posts round the point are level (as the flight
+    // model has it, src/sim/hawaii.js), and only where the ground as drawn is the map's own height:
+    // far off, the drawn ground climbs from the last post in the sea to the first on the cliff.
+    int lw = levelFor(0, wp.xz);
+    if (lw >= 0) {
+      vec3 g = waterAt(lw, wp.xz);
+      water = smoothstep(0.35, 0.65, g.y) * g.z * (1.0 - smoothstep(g.x + 2.0, g.x + 4.0, wp.y));
+    }
     // Where the water is solid it covers the land entirely: none of the land's painting is needed.
     if (l >= 0 && water < 1.0) {
       int l2 = levelFor(l + 1, wp.xz);
@@ -283,7 +301,7 @@ export function createTerrain(scene, renderer, hawaii, sun, fog) {
     fogColor: { value: fog.color.clone().convertLinearToSRGB() }, fogNear: { value: fog.near }, fogFar: { value: fog.far },
   };
   // A mesh level eases into the coarser one from a third of the way out, and has arrived by 4 cells from its edge.
-  const defines = { LEVELS, TILE, WINDOW, EASE_FROM: (N / 3).toFixed(1), EASE_TO: (N / 2 - 4).toFixed(1) };
+  const defines = { STEEP: STEEP.toFixed(2), LEVELS, TILE, WINDOW, EASE_FROM: (N / 3).toFixed(1), EASE_TO: (N / 2 - 4).toFixed(1) };
   const meshes = [];
   for (let m = 0; m < MESH_LEVELS; m++) {
     const geometry = new THREE.BufferGeometry();
