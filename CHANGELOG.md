@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.52
+
+- The flight pauses when Control Center (or its screen-recording button), a call or Siri covers it, as it already did when you left the app. It resumes only from the pause screen, so after starting a screen recording from Control Center, tap Resume to fly on.
+
 ## 0.0.51
 
 - "Device" instead of "phone" wherever a player reads it: the rotate screen, the motion-access screen, the start screen, the Hawaii download line and the app's description on the home screen.
