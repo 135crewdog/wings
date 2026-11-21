@@ -22,7 +22,9 @@ const BAR_HALF = 64;         // px, half-length of a pitch bar; the bars are sym
 const BAR_GAP = 22;          // px, half the gap in the middle of a bar
 const NUMBER_GAP = 42;       // px, from the HUD's edge to the inner edge of the airspeed or altitude
 const HORIZON_SHORT = 14;    // px, how far short of the airspeed and altitude the horizon line stops
-export const BANK_TICKS = [-45, -30, -20, -10, 0, 10, 20, 30, 45];   // deg, the bank scale's ticks; 0, 30 and 45 long (War Wagon's)
+export const BANK_TICKS = [-90, -60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60, 90];   // deg, the bank scale's ticks: War Wagon's, and 60 and 90
+/** Whether a bank tick is a long one: all but 10 and 20. */
+export const longBankTick = (deg) => Math.abs(deg) !== 10 && Math.abs(deg) !== 20;
 
 // A unit north, east, down direction at heading ψ and pitch θ (degrees).
 function direction(headingDeg, pitchDeg) {
@@ -303,13 +305,14 @@ export function createHud(canvas, safe) {
     // ticks is centred on the waterline, so it stays in front of the jet
     // whatever the view, and turns with the horizon (from the same
     // projection as the pitch ladder; from the bank alone when the horizon
-    // can't be projected), 0, 30 and 45 long and unnumbered, as on the
-    // attitude indicator; the pointer belongs to the jet, so it points along
-    // the jet's own up as the view sees it. Drawn only while the nose is in
-    // view. The radius is what fits under the heading tape in the plain
-    // chase view.
+    // can't be projected), long at 0, 30, 45, 60 and 90 and unnumbered, as
+    // on the attitude indicator; the pointer, the heading pointer's
+    // triangle, belongs to the jet, so it points along the jet's own up as
+    // the view sees it. Drawn only while the nose is in view. The radius
+    // brings the long ticks to 8 px under the heading readout in the plain
+    // chase view, where the waterline sits 9 px above the middle.
     if (n.visible) {
-      const bx = n.x, by = n.y, br = Math.min(120, cy - top - 62);
+      const bx = n.x, by = n.y, br = Math.min(140, cy - top - 60);
       let horizonDeg = -reading.roll, jetDeg = 0;
       const hc = project(direction(hdg, reading.pitch)), hr = project(rightOf(hdg, reading.pitch));
       if (hc.visible && hr.visible) horizonDeg = Math.atan2(hr.y - hc.y, hr.x - hc.x) / D2R;
@@ -318,16 +321,15 @@ export function createHud(canvas, safe) {
       if (u.visible) jetDeg = Math.atan2(u.x - n.x, -(u.y - n.y)) / D2R;                           // clockwise from screen-up
       for (const t of BANK_TICKS) {
         const a = (bankTickAngle(t, horizonDeg) - 90) * D2R;   // from straight up, positive clockwise
-        const long = t === 0 || Math.abs(t) === 30 || Math.abs(t) === 45;
-        const r0 = br, r1 = br + (long ? 12 : 6);
+        const r0 = br, r1 = br + (longBankTick(t) ? 12 : 6);
         stroke(() => { ctx.moveTo(bx + r0 * Math.cos(a), by + r0 * Math.sin(a)); ctx.lineTo(bx + r1 * Math.cos(a), by + r1 * Math.sin(a)); });
       }
       const pa = (jetDeg - 90) * D2R, tx = -Math.sin(pa), ty = Math.cos(pa);   // the pointer's direction, and along the arc
       const px = bx + br * Math.cos(pa), py = by + br * Math.sin(pa);
       stroke(() => {
         ctx.moveTo(px, py);
-        ctx.lineTo(px - 14 * Math.cos(pa) - 6 * tx, py - 14 * Math.sin(pa) - 6 * ty);
-        ctx.lineTo(px - 14 * Math.cos(pa) + 6 * tx, py - 14 * Math.sin(pa) + 6 * ty);
+        ctx.lineTo(px - 9 * Math.cos(pa) - 5 * tx, py - 9 * Math.sin(pa) - 5 * ty);
+        ctx.lineTo(px - 9 * Math.cos(pa) + 5 * tx, py - 9 * Math.sin(pa) + 5 * ty);
         ctx.closePath();
       });
     }

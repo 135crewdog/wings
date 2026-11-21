@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { apexFor, headingText, powerText, magnetic, tapeMarks, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS } from '../src/hud.js';
+import { apexFor, headingText, powerText, magnetic, tapeMarks, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
 import { instruments } from '../src/sim/airdata.js';
 import { airborne, card, fly } from './fly.js';
 
@@ -47,7 +47,8 @@ test('the airspeed and altitude mirror each other, and the horizon line stops sh
 });
 
 test('the bank scale reads the Boeing way, on the banked side', () => {
-  assert.deepEqual(BANK_TICKS, [-45, -30, -20, -10, 0, 10, 20, 30, 45], '0, 10, 20, 30 and 45 each side');
+  assert.deepEqual(BANK_TICKS, [-90, -60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60, 90], '0, 10, 20, 30, 45, 60 and 90 each side');
+  assert.deepEqual(BANK_TICKS.filter(longBankTick), [-90, -60, -45, -30, 0, 30, 45, 60, 90], 'long at 0, 30, 45, 60 and 90; short at 10 and 20');
   assert.equal(bankTickAngle(0, 0), 0, 'level: the zero tick under the pointer');
   // In a 30-degree right bank the horizon turns 30 degrees anticlockwise on
   // the glass, and so does the arc: the right-hand 30 tick comes under the
