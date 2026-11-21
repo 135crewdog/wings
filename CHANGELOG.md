@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.49
+
+- Words for any phone, not just the iPhone. The rotate screen says to turn the phone sideways and check the screen's rotation lock, and the motion-access screen says how to allow motion access on any phone and browser.
+
 ## 0.0.48
 
 - The sea no longer climbs the cliffs. On sheer coasts (Makapuu, the Na Pali coast, Molokai's north shore) the map marked parts of the cliff face as water, hundreds of feet up, and far off the picture smeared the shoreline up the face besides. Now water is only where the ground lies level, at every distance, and the flight model follows the same rule: a cliff face is a cliff, not the sea. Lakes are still lakes.
