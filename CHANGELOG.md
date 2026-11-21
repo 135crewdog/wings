@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.50
+
+- A new look for the throttle: a narrow groove, half as wide as before, in the buttons' see-through dark, with yellow and black caution stripes from MIL to the top. The fill and the MIL ticks are gone. The knob, its colours and the stickiness at MIL are unchanged.
+
 ## 0.0.49
 
 - Words for any phone, not just the iPhone. The rotate screen says to turn the phone sideways and check the screen's rotation lock, and the motion-access screen says how to allow motion access on any phone and browser.
