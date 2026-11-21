@@ -4,7 +4,7 @@ What changed in each version a player can see, newest first.
 
 ## 0.0.54
 
-- The motion-access screen says it in fewer words: "Reopen Wings, tap Fly and allow motion. If it doesn't ask, allow motion in your browser's settings."
+- Fewer words on two screens. Motion access: "Reopen Wings, tap Fly and allow motion. If it doesn't ask, allow motion in your browser's settings." Rotate your device: "If it won't turn, turn off rotation lock."
 
 ## 0.0.53
 
