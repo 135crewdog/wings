@@ -6,8 +6,8 @@
 import { MIL_THROTTLE } from '../sim/engine.js';
 
 // Places along the track, 0 at the bottom, 1 at the top.
-const DRY = 0.66;    // idle to MIL fills the track up to here
-const MARK = 0.72;   // the MIL mark, where the thumb sits at MIL
+const DRY = 0.66;    // idle to MIL runs up to here
+const MARK = 0.72;   // where the thumb sits at MIL, and where the caution stripes start
 const BURNER = 0.8;  // the afterburner starts here and is full at the top
 
 /** A finger's place along the track (0 bottom, 1 top) to a throttle position 0..1. */
@@ -27,14 +27,14 @@ export function positionFromThrottle(throttle) {
 
 /** Makes the slider work. onChange(throttle) is called on every change; returns { set(throttle) }. */
 export function createThrottle(root, onChange) {
-  const rail = root.querySelector('.rail'), thumb = root.querySelector('.thumb'), fill = root.querySelector('.fill');
-  root.querySelector('.mil').style.top = `${(1 - MARK) * 100}%`;
+  const rail = root.querySelector('.rail'), thumb = root.querySelector('.thumb');
+  // The caution stripes run from the knob's place at MIL to the top of the groove.
+  root.querySelector('.ab').style.bottom = `calc(16px + ${MARK} * (100% - 32px))`;
   let finger = null;
   const set = (throttle) => {
     const value = Math.max(0, Math.min(1, throttle));
     const place = positionFromThrottle(value);
     thumb.style.top = `${(1 - place) * 100}%`;
-    fill.style.height = `calc(16px + ${place} * (100% - 32px))`;   // up to the middle of the knob
     root.classList.toggle('burner', value > MIL_THROTTLE);
     root.setAttribute('aria-valuenow', String(Math.round(value * 100)));
     onChange(value);

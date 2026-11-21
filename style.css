@@ -25,26 +25,24 @@ body { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 button { font: inherit; color: inherit; border: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button:active { opacity: 0.6; }
 
-/* the throttle: the left edge (after Rage's), a knob in a groove (the owner's pick of five mockups, 18 Nov 2026) */
+/* the throttle: the left edge (after Rage's), a knob in a narrow groove (the owner's pick, 1b, 21 Nov 2026) */
 .throttle {
   position: absolute; left: calc(env(safe-area-inset-left, 0px) + 10px); width: 44px;
   top: calc(env(safe-area-inset-top, 0px) + 28px); bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
   pointer-events: auto; touch-action: none;
 }
-/* the groove: as wide as the knob, in the buttons' see-through dark, filling up to the knob */
+/* the groove: 14 px, rounded ends, in the buttons' see-through dark */
 .throttle .track {
-  position: absolute; left: 50%; top: 0; bottom: 0; width: 32px; margin-left: -16px; border-radius: 16px;
+  position: absolute; left: 50%; top: 0; bottom: 0; width: 14px; margin-left: -7px; border-radius: 7px;
   background: rgba(0, 0, 0, 0.3); overflow: hidden;
 }
-.throttle .fill { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.28); }
-.throttle.burner .fill { background: rgba(255, 159, 10, 0.45); }
+/* above MIL: see-through yellow and black caution stripes, from the knob's MIL spot to the top (the script places its foot) */
+.throttle .ab {
+  position: absolute; left: 0; right: 0; top: 0;
+  background: repeating-linear-gradient(-45deg, rgba(255, 204, 0, 0.6) 0 4px, rgba(0, 0, 0, 0.5) 4px 8px);
+}
 /* the knob's travel: a knob's radius short of each end, so it never leaves the groove */
 .throttle .rail { position: absolute; left: 0; right: 0; top: 16px; bottom: 16px; }
-/* MIL: a short tick on each side, just outside the groove */
-.throttle .mil { position: absolute; left: -1px; right: -1px; height: 2px; margin-top: -1px; }
-.throttle .mil::before, .throttle .mil::after { content: ""; position: absolute; top: 0; width: 6px; height: 2px; background: rgba(255, 255, 255, 0.85); }
-.throttle .mil::before { left: 0; }
-.throttle .mil::after { right: 0; }
 .throttle .thumb {
   position: absolute; left: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 15px;
   background: rgba(255, 255, 255, 0.9); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
