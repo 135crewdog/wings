@@ -65,7 +65,7 @@ async function prepareHawaii() {
       await hawaii.download((done, total) => { line.textContent = `Hawaii: ${mb(done)} of ${mb(total)} MB`; });
       break;
     } catch {
-      line.textContent = 'Hawaii’s download stopped. It carries on when the phone is back online.';
+      line.textContent = 'Hawaii’s download stopped. It carries on when the device is back online.';
       await new Promise((resolve) => { window.addEventListener('online', resolve, { once: true }); setTimeout(resolve, 15000); });
     }
   }

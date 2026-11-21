@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Wings",
   "short_name": "Wings",
-  "description": "A flight sim flown by tilting the phone.",
+  "description": "A flight sim flown by tilting the device.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
