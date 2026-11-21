@@ -105,7 +105,7 @@ The invented island that came before, with its landmarks, left the app in versio
   - Draw only while something is moving: every frame in flight, and otherwise a few frames after a change, then rest.
   - The app is full screen, `display: standalone` with `viewport-fit=cover`. Controls and text stay inside the safe area.
   - No scrolling, zooming or selecting.
-  - Pause automatically when the app is hidden; resume only from the pause screen.
+  - Pause automatically when the app is hidden or loses focus (Control Center and its screen-recording button only take focus); resume only from the pause screen.
   - The origin `135crewdog.github.io` is shared with the owner's other apps. Prefix every cache with `wings-` and every storage key with `wings.`, and only ever delete caches that start with `wings-`. Every path is relative (`./`).
   - The service worker never calls `skipWaiting()` on its own. New versions are offered on the start or pause screen only, never mid-flight.
 - **Versions:** `APP_VERSION` in `src/version.js`, the service worker's cache name and a line in `CHANGELOG.md` all change together on every deploy that changes what a player sees.

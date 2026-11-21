@@ -244,11 +244,14 @@ for (const id of ['restart', 'crash-restart']) {
   });
 }
 
-// Leaving the app, turning the phone to portrait, or flipping it to the other
-// landscape pauses the flight. It resumes only from the pause screen.
+// Leaving the app, anything that takes the screen over it (Control Center and
+// its screen-recording button, a call, Siri), turning the phone to portrait,
+// or flipping it to the other landscape pauses the flight. It resumes only
+// from the pause screen.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pause(); else checkForUpdate();   // iOS drops the wake lock when the app is hidden; Resume asks again
 });
+window.addEventListener('blur', pause);   // Control Center leaves the app showing underneath, so it isn't hidden; it only loses focus
 window.addEventListener('resize', () => { if (isPortrait()) pause(); });
 window.addEventListener('orientationchange', pause);
 screen.orientation?.addEventListener('change', pause);
