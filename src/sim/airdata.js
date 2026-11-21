@@ -43,9 +43,9 @@ const DEG = Math.PI / 180;
  * What the HUD reads off the airplane, from a sim and what it observes
  * (sim.observe()): heading, pitch and roll (degrees; heading -180..180), the
  * g the seat feels along the airplane's "up", angle of attack and sideslip (degrees),
- * Mach, and two unit directions in north, east, down: where the airplane is
- * going (`velocity`) and where its nose points (`nose`). The tests read the
- * same numbers.
+ * Mach, and three unit directions in north, east, down: where the airplane is
+ * going (`velocity`), where its nose points (`nose`) and its own up (`up`,
+ * for the bank scale's pointer). The tests read the same numbers.
  */
 export function instruments(sim, seen) {
   const { roll, pitch, yaw } = qtoEuler(sim.state.q);
@@ -60,5 +60,6 @@ export function instruments(sim, seen) {
     mach: seen.air.mach,
     velocity: speed > 1 ? vw.map((x) => x / speed) : qrotate(sim.state.q, [1, 0, 0]),
     nose: qrotate(sim.state.q, [1, 0, 0]),
+    up: qrotate(sim.state.q, [0, 0, -1]),
   };
 }

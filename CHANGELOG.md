@@ -2,6 +2,13 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.55
+
+- The HUD's airspeed has moved in to mirror the altitude: both now sit the same distance from the middle. The g, angle of attack, Mach and power in the lower left moved in with it, and with the HUD off, the airspeed and altitude sit in the same places.
+- The HUD's solid horizon line stops a little short of the airspeed and altitude instead of running past them.
+- The little triangles beside the airspeed and altitude are gone, HUD on and off.
+- A bank scale on the HUD, from War Wagon: an arc of ticks over the waterline at 0, 10, 20, 30 and 45 degrees each side, long at 0, 30 and 45. It's drawn the Boeing way: the arc turns with the horizon and the pointer stays with the jet, so the bank is read on the banked side.
+
 ## 0.0.54
 
 - Fewer words on two screens. Motion access: "Reopen Wings, tap Fly and allow motion. If it doesn't ask, allow motion in your browser's settings." Rotate your device: "If it won't turn, turn off rotation lock."

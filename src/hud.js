@@ -9,8 +9,10 @@
 // camera, so the marker sits on the point the airplane is flying toward and
 // the ladder rolls and scales with the camera. Straight up and straight down
 // get the zenith and nadir symbols when the ladder's window reaches them.
-// Airspeed and altitude are written by src/readouts.js's rules,
-// and with the HUD switched off they are all that is drawn.
+// The bank scale over the waterline is 135crewdog/warwagon's (src/hud/hud.js),
+// drawn the Boeing way. Airspeed and altitude are written by
+// src/readouts.js's rules, mirrored about the middle, and with the HUD
+// switched off they are all that is drawn.
 
 const GREEN = '#7cff4f';
 const OUTLINE = 'rgba(0,0,0,0.75)';
@@ -18,6 +20,9 @@ const D2R = Math.PI / 180;
 const LADDER_RANGE = 12.5;   // deg of pitch each side of the nose that the ladder shows
 const BAR_HALF = 64;         // px, half-length of a pitch bar; the bars are symbols, so they never shrink
 const BAR_GAP = 22;          // px, half the gap in the middle of a bar
+const NUMBER_GAP = 42;       // px, from the HUD's edge to the inner edge of the airspeed or altitude
+const HORIZON_SHORT = 14;    // px, how far short of the airspeed and altitude the horizon line stops
+export const BANK_TICKS = [-45, -30, -20, -10, 0, 10, 20, 30, 45];   // deg, the bank scale's ticks; 0, 30 and 45 long (War Wagon's)
 
 // A unit north, east, down direction at heading ψ and pitch θ (degrees).
 function direction(headingDeg, pitchDeg) {
@@ -111,6 +116,32 @@ export function powerText(power) {
 }
 
 /**
+ * Where the airspeed and altitude sit, mirrored about the middle `cx`: as far
+ * out as the HUD's edges let both go, `left` clear of the throttle and
+ * `right` clear of the buttons (on a landscape iPhone the buttons decide).
+ * Returns { out, airspeed, altitude, horizon }: how far each number's inner
+ * edge is from the middle, the airspeed's right edge, the altitude's left
+ * edge, and the half-length of the horizon line, which stops a little short
+ * of both.
+ */
+export function numberPlaces(cx, left, right) {
+  const out = Math.min(right - NUMBER_GAP - cx, cx - left - NUMBER_GAP);
+  return { out, airspeed: cx - out, altitude: cx + out, horizon: out - HORIZON_SHORT };
+}
+
+/**
+ * The bank scale, as War Wagon's (and Boeing's displays) draw it: the arc of
+ * ticks belongs to the horizon and turns with it, and the pointer belongs to
+ * the jet, so in a right bank the arc turns anticlockwise and the pointer
+ * stands over the right-hand ticks: the bank is read on the banked side.
+ * A tick's angle on the glass, from straight up, positive clockwise, for the
+ * horizon's own angle on the glass (0 level, negative in a right bank).
+ */
+export function bankTickAngle(tickDeg, horizonDeg) {
+  return tickDeg + horizonDeg || 0;
+}
+
+/**
  * Which of the two apex symbols the ladder's window has reached, if either:
  * the zenith when straight up is within LADDER_RANGE of the nose, the nadir
  * when straight down is.
@@ -176,8 +207,9 @@ export function createHud(canvas, safe) {
   }
 
   /**
-   * reading: { airspeed, altitude (text), heading, pitch (deg), g, alpha
-   * (deg), mach, power (0..2), velocity, nose (unit north, east, down), and
+   * reading: { airspeed, altitude (text), heading, pitch, roll (deg), g,
+   * alpha (deg), mach, power (0..2), velocity, nose, up (unit north, east,
+   * down), and
    * steer, the steerpoint: { dir (unit north, east, down to it), bearing
    * (deg true), range (nm), name } };
    * project: a north, east, down direction → { x, y, visible } on the
@@ -194,13 +226,12 @@ export function createHud(canvas, safe) {
     // Clear of the throttle on the left and the buttons on the right.
     const left = area.left + 84, right = area.right - 170, top = area.top + 8, bottom = area.bottom - 14;
 
-    // airspeed on the left, altitude on the right, with carets: all that
-    // shows with the HUD switched off
+    // airspeed on the left, altitude on the right, the same distance from
+    // the middle: all that shows with the HUD switched off
+    const at = numberPlaces(cx, left, right);
     const numbers = () => {
-      stroke(() => { ctx.moveTo(left + 46, cy); ctx.lineTo(left + 54, cy - 5); ctx.lineTo(left + 54, cy + 5); ctx.closePath(); });
-      text(reading.airspeed, left + 42, cy, 'right', 20);
-      stroke(() => { ctx.moveTo(right - 46, cy); ctx.lineTo(right - 54, cy - 5); ctx.lineTo(right - 54, cy + 5); ctx.closePath(); });
-      text(reading.altitude, right - 42, cy, 'left', 20);
+      text(reading.airspeed, at.airspeed, cy, 'right', 20);
+      text(reading.altitude, at.altitude, cy, 'left', 20);
     };
     if (!full) { numbers(); return; }
 
@@ -233,7 +264,7 @@ export function createHud(canvas, safe) {
       const len = Math.hypot(ux, uy) || 1;
       ux /= len; uy /= len;                           // along the bar, to the right
       const nx = uy, ny = -ux;                        // screen "up" in the bar's frame
-      const half = p === 0 ? w * 0.26 : BAR_HALF, gap = p === 0 ? 40 : BAR_GAP;
+      const half = p === 0 ? at.horizon : BAR_HALF, gap = p === 0 ? 40 : BAR_GAP;
       const tick = p > 0 ? -8 : 8;                    // end ticks point toward the horizon
       dashed(p < 0);
       stroke(() => {
@@ -265,6 +296,39 @@ export function createHud(canvas, safe) {
       const nx = n.x, ny = n.y;
       stroke(() => {
         ctx.moveTo(nx - 22, ny); ctx.lineTo(nx - 10, ny); ctx.lineTo(nx - 5, ny + 7); ctx.lineTo(nx, ny); ctx.lineTo(nx + 5, ny + 7); ctx.lineTo(nx + 10, ny); ctx.lineTo(nx + 22, ny);
+      });
+    }
+
+    // bank scale, from War Wagon: conformal, like the ladder. The arc of
+    // ticks is centred on the waterline, so it stays in front of the jet
+    // whatever the view, and turns with the horizon (from the same
+    // projection as the pitch ladder; from the bank alone when the horizon
+    // can't be projected), 0, 30 and 45 long and unnumbered, as on the
+    // attitude indicator; the pointer belongs to the jet, so it points along
+    // the jet's own up as the view sees it. Drawn only while the nose is in
+    // view. The radius is what fits under the heading tape in the plain
+    // chase view.
+    if (n.visible) {
+      const bx = n.x, by = n.y, br = Math.min(120, cy - top - 62);
+      let horizonDeg = -reading.roll, jetDeg = 0;
+      const hc = project(direction(hdg, reading.pitch)), hr = project(rightOf(hdg, reading.pitch));
+      if (hc.visible && hr.visible) horizonDeg = Math.atan2(hr.y - hc.y, hr.x - hc.x) / D2R;
+      const nose = reading.nose, up = reading.up;
+      const u = project([nose[0] + 0.05 * up[0], nose[1] + 0.05 * up[1], nose[2] + 0.05 * up[2]]);   // a little above the nose, the jet's way up
+      if (u.visible) jetDeg = Math.atan2(u.x - n.x, -(u.y - n.y)) / D2R;                           // clockwise from screen-up
+      for (const t of BANK_TICKS) {
+        const a = (bankTickAngle(t, horizonDeg) - 90) * D2R;   // from straight up, positive clockwise
+        const long = t === 0 || Math.abs(t) === 30 || Math.abs(t) === 45;
+        const r0 = br, r1 = br + (long ? 12 : 6);
+        stroke(() => { ctx.moveTo(bx + r0 * Math.cos(a), by + r0 * Math.sin(a)); ctx.lineTo(bx + r1 * Math.cos(a), by + r1 * Math.sin(a)); });
+      }
+      const pa = (jetDeg - 90) * D2R, tx = -Math.sin(pa), ty = Math.cos(pa);   // the pointer's direction, and along the arc
+      const px = bx + br * Math.cos(pa), py = by + br * Math.sin(pa);
+      stroke(() => {
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - 14 * Math.cos(pa) - 6 * tx, py - 14 * Math.sin(pa) - 6 * ty);
+        ctx.lineTo(px - 14 * Math.cos(pa) + 6 * tx, py - 14 * Math.sin(pa) + 6 * ty);
+        ctx.closePath();
       });
     }
 
@@ -310,12 +374,13 @@ export function createHud(canvas, safe) {
 
     numbers();
 
-    // g, angle of attack, Mach and the engine's power, lower left
-    const rows = [bottom - 54, bottom - 36, bottom - 18, bottom];
-    text(`${reading.g.toFixed(1)} G`, left, rows[0], 'left', 14);
-    text(`α ${reading.alpha.toFixed(1)}`, left, rows[1], 'left', 14);
-    text(`M ${reading.mach.toFixed(2)}`, left, rows[2], 'left', 14);
-    text(powerText(reading.power), left, rows[3], 'left', 14);
+    // g, angle of attack, Mach and the engine's power, lower left, lined up
+    // under the airspeed
+    const rows = [bottom - 54, bottom - 36, bottom - 18, bottom], sx = at.airspeed - NUMBER_GAP;
+    text(`${reading.g.toFixed(1)} G`, sx, rows[0], 'left', 14);
+    text(`α ${reading.alpha.toFixed(1)}`, sx, rows[1], 'left', 14);
+    text(`M ${reading.mach.toFixed(2)}`, sx, rows[2], 'left', 14);
+    text(powerText(reading.power), sx, rows[3], 'left', 14);
   }
 
   function clear() {
