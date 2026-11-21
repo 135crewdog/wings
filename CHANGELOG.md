@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.54
+
+- Fewer words on two screens. Motion access: "Reopen Wings, tap Fly and allow motion. If it doesn't ask, allow motion in your browser's settings." Rotate your device: "If it won't turn, turn off rotation lock."
+
 ## 0.0.53
 
 - The throttle's groove ends right where the knob's middle stops, so at idle and at full burner the knob covers the end of the groove and none of it shows past the knob. The knob's places and the feel under your finger are unchanged.
