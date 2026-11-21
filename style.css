@@ -31,9 +31,11 @@ button:active { opacity: 0.6; }
   top: calc(env(safe-area-inset-top, 0px) + 28px); bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
   pointer-events: auto; touch-action: none;
 }
-/* the groove: 14 px, rounded ends, in the buttons' see-through dark */
+/* the groove: 14 px, rounded ends, in the buttons' see-through dark. It runs
+   exactly the knob's travel, so the knob's middle reaches each end and the
+   knob covers the end at idle and at full burner. */
 .throttle .track {
-  position: absolute; left: 50%; top: 0; bottom: 0; width: 14px; margin-left: -7px; border-radius: 7px;
+  position: absolute; left: 50%; top: 16px; bottom: 16px; width: 14px; margin-left: -7px; border-radius: 7px;
   background: rgba(0, 0, 0, 0.3); overflow: hidden;
 }
 /* above MIL: see-through yellow and black caution stripes, from the knob's MIL spot to the top (the script places its foot) */
@@ -41,7 +43,7 @@ button:active { opacity: 0.6; }
   position: absolute; left: 0; right: 0; top: 0;
   background: repeating-linear-gradient(-45deg, rgba(255, 204, 0, 0.6) 0 4px, rgba(0, 0, 0, 0.5) 4px 8px);
 }
-/* the knob's travel: a knob's radius short of each end, so it never leaves the groove */
+/* the knob's travel: a knob's radius in from each end of the throttle, so the knob stays inside its touch area */
 .throttle .rail { position: absolute; left: 0; right: 0; top: 16px; bottom: 16px; }
 .throttle .thumb {
   position: absolute; left: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 15px;
