@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.51
+
+- "Device" instead of "phone" wherever a player reads it: the rotate screen, the motion-access screen, the start screen, the Hawaii download line and the app's description on the home screen.
+
 ## 0.0.50
 
 - A new look for the throttle: a narrow groove, half as wide as before, in the buttons' see-through dark, with yellow and black caution stripes from MIL to the top. The fill and the MIL ticks are gone. The knob, its colours and the stickiness at MIL are unchanged.
