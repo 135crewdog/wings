@@ -29,7 +29,7 @@ export function positionFromThrottle(throttle) {
 export function createThrottle(root, onChange) {
   const rail = root.querySelector('.rail'), thumb = root.querySelector('.thumb');
   // The caution stripes run from the knob's place at MIL to the top of the groove.
-  root.querySelector('.ab').style.bottom = `calc(16px + ${MARK} * (100% - 32px))`;
+  root.querySelector('.ab').style.bottom = `${MARK * 100}%`;
   let finger = null;
   const set = (throttle) => {
     const value = Math.max(0, Math.min(1, throttle));

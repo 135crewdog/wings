@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.53
+
+- The throttle's groove ends right where the knob's middle stops, so at idle and at full burner the knob covers the end of the groove and none of it shows past the knob. The knob's places and the feel under your finger are unchanged.
+
 ## 0.0.52
 
 - The flight pauses when Control Center (or its screen-recording button), a call or Siri covers it, as it already did when you left the app. It resumes only from the pause screen, so after starting a screen recording from Control Center, tap Resume to fly on.
