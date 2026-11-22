@@ -71,6 +71,23 @@ export function tapeX(offset, focal) {
   return Math.abs(d) < 90 ? focal * Math.tan(d * D2R) : null;
 }
 
+/**
+ * How far right of the jet's heading the swung view looks, in degrees of
+ * heading. The view swings about the jet's own axes (src/render/camera.js:
+ * `yaw` about its up, positive left, then `look` pitch about its wings,
+ * positive up), so with the wings level a swing of 15 degrees right is 15
+ * degrees of heading, but in a 60-degree bank it is under 8 and the view
+ * tilts down; in a 90-degree bank it is none. `pitch` and `roll` are the
+ * jet's (degrees).
+ */
+export function viewHeading(pitch, roll, yaw, look = 0) {
+  const t = pitch * D2R, f = roll * D2R, y = yaw * D2R, p = look * D2R;
+  const x = Math.cos(p) * Math.cos(y), r = -Math.cos(p) * Math.sin(y), d = -Math.sin(p);   // the view's direction: forward, right, down
+  const right = r * Math.cos(f) - d * Math.sin(f), down = r * Math.sin(f) + d * Math.cos(f);  // the jet's bank, then its pitch
+  const north = x * Math.cos(t) + down * Math.sin(t);
+  return Math.abs(north) + Math.abs(right) < 1e-9 ? 0 : Math.atan2(right, north) / D2R;
+}
+
 /** A camera's focal length in px, from its vertical field of view (degrees) and the view's height (px). */
 export function focalLength(fovDeg, height) {
   return height / 2 / Math.tan((fovDeg / 2) * D2R);
@@ -237,12 +254,13 @@ export function createHud(canvas, safe) {
    * (deg true), range (nm), name } };
    * project: a north, east, down direction → { x, y, visible } on the
    * screen; view: { looking, true while the view is swung away from the
-   * chase position; yaw, how far it is swung (degrees, positive left);
+   * chase position; yaw and pitch, how far it is swung (degrees, positive
+   * left and up, about the jet's own axes);
    * focal, the camera's focal length (px) }; full: false draws only the
    * airspeed and altitude, for the HUD switched off.
    */
   function draw(reading, project, view = {}, full = true) {
-    const { looking = false, yaw = 0, focal = focalLength(55, canvas.clientHeight) } = view;
+    const { looking = false, yaw = 0, pitch = 0, focal = focalLength(55, canvas.clientHeight) } = view;
     fit();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -270,7 +288,8 @@ export function createHud(canvas, safe) {
     // the tape's end with the nose. Not swung, the pointer is in the middle.
     const hdg = reading.heading, mag = magnetic(hdg);
     const reach = w * 0.22, edge = reach + 12;   // the tape's half-width, and where its window ends
-    const px = tapeX(yaw, focal), pointer = px !== null && Math.abs(px) < edge + 20 ? px : null;
+    const swing = viewHeading(reading.pitch, reading.roll, yaw, pitch);   // where the view looks, degrees right of the nose
+    const px = tapeX(-swing, focal), pointer = px !== null && Math.abs(px) < edge + 20 ? px : null;
     ctx.save();
     ctx.beginPath(); ctx.rect(cx - edge, top, 2 * edge, 34); ctx.clip();
     if (pointer !== null) {
@@ -278,7 +297,7 @@ export function createHud(canvas, safe) {
       stroke(() => { ctx.moveTo(x, top + 13); ctx.lineTo(x - 5, top + 4); ctx.lineTo(x + 5, top + 4); ctx.closePath(); });
       text(headingText(mag), x, top + 24, 'center', 15);
     }
-    for (const m of tapeMarks(mag - yaw, focal, reach, pointer)) {
+    for (const m of tapeMarks(mag + swing, focal, reach, pointer)) {
       stroke(() => { ctx.moveTo(cx + m.x, top + 4); ctx.lineTo(cx + m.x, top + (m.major ? 14 : 9)); });
       if (m.label) text(m.label, cx + m.x, top + 23, 'center', 12);
     }

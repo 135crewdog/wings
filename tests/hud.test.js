@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { apexFor, headingText, powerText, magnetic, tapeMarks, tapeX, focalLength, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
+import { apexFor, headingText, powerText, magnetic, tapeMarks, tapeX, focalLength, viewHeading, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
 import { instruments } from '../src/sim/airdata.js';
 import { airborne, card, fly } from './fly.js';
 
@@ -127,4 +127,22 @@ test('the pause screen has the HUD and developer switches beside crash override,
   const pause = page.slice(page.indexOf('id="screen-pause"'), page.indexOf('id="screen-crashed"'));
   assert.ok(pause.includes('id="override"') && pause.includes('id="hud-switch"') && pause.includes('id="dev-switch"'), 'all three switches are on the pause screen');
   assert.ok(main.includes("'wings.hud'") && main.includes("'wings.dev'"), 'the choices are kept under wings. keys');
+});
+
+test('in a bank, the tape follows where the swung view really looks', async () => {
+  const near = (a, b, what) => assert.ok(Math.abs(a - b) < 0.05, `${what}: ${a.toFixed(2)}, expected ${b.toFixed(2)}`);
+  near(viewHeading(0, 0, 0), 0, 'not swung');
+  near(viewHeading(0, 0, -15), 15, 'wings level, swung 15 degrees right: 15 degrees of heading');
+  near(viewHeading(0, 0, 40, -20), -40, 'wings level, swung left and down: 40 left');
+  near(viewHeading(0, 90, -30), 0, 'in a 90-degree right bank, swinging right looks down, not round');
+  // Against three.js's own rotations, as the chase camera turns the view:
+  // the jet's attitude, then the swing about its own axes (src/render/camera.js).
+  const THREE = await import('../vendor/three/build/three.module.js');
+  const D = Math.PI / 180;
+  for (const [pitch, roll, yaw, look] of [[0, 60, -15, 0], [10, -45, 30, 10], [-20, 120, -60, -25], [35, 30, 90, 0]]) {
+    const jet = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch * D, 0, -roll * D, 'YXZ'));   // heading north: three's axes, x east, y up, -z north
+    const swing = new THREE.Quaternion().setFromEuler(new THREE.Euler(look * D, yaw * D, 0, 'YXZ'));
+    const ahead = new THREE.Vector3(0, 0, -1).applyQuaternion(jet.multiply(swing));
+    near(viewHeading(pitch, roll, yaw, look), Math.atan2(ahead.x, -ahead.z) / D, `pitch ${pitch}, bank ${roll}, swung ${yaw}/${look}`);
+  }
 });

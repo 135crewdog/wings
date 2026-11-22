@@ -151,7 +151,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
       power: sim.power,
       ...instruments(sim, seen),
       steer: steerpoint(),
-    }, project, { looking: look.active, yaw: look.yaw, focal: focalLength(chase.camera.fov, canvas.clientHeight) });
+    }, project, { looking: look.active, yaw: look.yaw, pitch: look.pitch, focal: focalLength(chase.camera.fov, canvas.clientHeight) });
     settle = flying || !world.settled ? SETTLE : settle - 1;   // at rest, draw on until all the ground round the camera is in
     waiting = settle > 0 ? requestAnimationFrame(draw) : null;
     if (waiting === null) last = null;   // resting: the next frame starts the clock afresh
