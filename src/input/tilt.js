@@ -78,13 +78,13 @@ export function smooth(previous, value, dtSeconds, tau = MAPPING.filterTau) {
  */
 export function createTilt({ onNeutral = () => {} } = {}) {
   const stick = { pitch: 0, roll: 0 };
-  const raw = { beta: 0, gamma: 0, screen: 0, pitch: 0, roll: 0, confidence: 0, neutral: null, at: 0 };   // at: when the sensor last spoke (ms, the page's clock)
+  const raw = { beta: 0, gamma: 0, screen: 0, pitch: 0, roll: 0, confidence: 0, neutral: null };
   let neutral = null, wanted = true, last = null;
   const screenAngle = () => (((screen.orientation?.angle ?? window.orientation ?? 0) % 360) + 360) % 360;
   window.addEventListener('deviceorientation', (event) => {
     if (event.beta === null || event.gamma === null) return;
     const tilt = tiltOf(upInScreen(event.beta, event.gamma, screenAngle()));
-    Object.assign(raw, { beta: event.beta, gamma: event.gamma, screen: screenAngle(), pitch: tilt.pitch, roll: tilt.roll, confidence: tilt.confidence, at: event.timeStamp });
+    Object.assign(raw, { beta: event.beta, gamma: event.gamma, screen: screenAngle(), pitch: tilt.pitch, roll: tilt.roll, confidence: tilt.confidence });
     if (wanted && tilt.confidence > MAPPING.confidenceFade) {
       neutral = { pitch: tilt.pitch, roll: tilt.roll };
       wanted = false;

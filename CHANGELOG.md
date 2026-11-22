@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.59
+
+- The debug overlay's signal list is gone, and the overlay shows in flight only, as before 0.0.57. It found its answer: the device tells Wings nothing when Control Center or the screen-recording menu comes down, so the flight can't pause itself there. Tap Pause before you open Control Center; for a recording, start it, close Control Center and tap Resume.
+
 ## 0.0.58
 
 - The HUD's heading tape follows the view. Swing the view with a finger and the tape shows the headings you're looking across, each one over its own direction on the horizon. The pointer and the heading under it stay with the jet's nose: they move across the tape as the view swings, like the waterline, and slide off its end with the nose. With the view not swung, the tape looks as before, its marks a few points closer together so they line up with the world.
