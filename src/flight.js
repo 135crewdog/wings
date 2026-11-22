@@ -18,13 +18,14 @@ import { createChaseCamera } from './render/camera.js';
 import { attachLook, createLook } from './input/look.js';
 import { createWorld } from './render/world.js';
 import { attitudeToThree, toThree } from './render/frames.js';
+import { focalLength } from './hud.js';
 
 /**
  * Puts the flight on a canvas, parked on the runway and holding still.
  * `hawaii` is the islands (src/hawaii.js), with every flight starting on
  * their `start` runway.
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
- * when a flight ends in a crash; `onReadout(reading, project, looking)` is
+ * when a flight ends in a crash; `onReadout(reading, project, view)` is
  * called every frame it draws with what the instruments read: { knots, feet,
  * aboveGround } (feet at the wheels) and the HUD's numbers (see
  * instruments() in src/sim/airdata.js, and `power`, the engine's); `project`
@@ -150,7 +151,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
       power: sim.power,
       ...instruments(sim, seen),
       steer: steerpoint(),
-    }, project, look.active);
+    }, project, { looking: look.active, yaw: look.yaw, pitch: look.pitch, focal: focalLength(chase.camera.fov, canvas.clientHeight) });
     settle = flying || !world.settled ? SETTLE : settle - 1;   // at rest, draw on until all the ground round the camera is in
     waiting = settle > 0 ? requestAnimationFrame(draw) : null;
     if (waiting === null) last = null;   // resting: the next frame starts the clock afresh

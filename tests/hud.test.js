@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { apexFor, headingText, powerText, magnetic, tapeMarks, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
+import { apexFor, headingText, powerText, magnetic, tapeMarks, tapeX, focalLength, viewHeading, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
 import { instruments } from '../src/sim/airdata.js';
 import { airborne, card, fly } from './fly.js';
 
@@ -25,10 +25,50 @@ test('the heading tape reads magnetic, War Wagon style', () => {
   // 8R at Honolulu points 090 true; with Hawaii's 9.6 degrees east it reads 080.
   assert.equal(headingText(magnetic(90)), '080');
   assert.equal(headingText(magnetic(5)), '355');
-  const marks = tapeMarks(80.4, 14, 190);
+  const marks = tapeMarks(80.4, 802, 190);
   assert.ok(marks.every((m) => Math.abs(m.x) >= 8 && Math.abs(m.x) <= 190), 'nothing under the pointer, nothing past the tape');
   assert.ok(marks.every((m) => !m.label || Math.abs(m.x) > 30), 'no number under the readout');
   assert.deepEqual(marks.filter((m) => m.label).map((m) => m.label), ['07', '09'], 'the tens either side, the 08 under the readout left out');
+});
+
+// iPhone 16 in landscape, 852 by 393 points, the chase camera's 55-degree
+// view: the tape reaches 22% of the width either side of the middle.
+const IPHONE = { w: 852, h: 393 }, FOCAL = focalLength(55, IPHONE.h), REACH = IPHONE.w * 0.22;
+
+test('each heading on the tape sits over its own direction on the horizon', async () => {
+  // Three.js's own camera, as the view is drawn: a direction on the horizon
+  // some degrees right of where the camera looks lands where tapeX puts it.
+  const THREE = await import('../vendor/three/build/three.module.js');
+  const camera = new THREE.PerspectiveCamera(55, IPHONE.w / IPHONE.h, 1, 1000);
+  camera.updateMatrixWorld();
+  for (const right of [-40, -25, -10, 5, 20, 35]) {
+    const r = right * Math.PI / 180, p = new THREE.Vector3(Math.sin(r), 0, -Math.cos(r)).project(camera);
+    const x = (p.x * IPHONE.w) / 2;
+    assert.ok(Math.abs(x - tapeX(right, FOCAL)) < 0.01, `${right} deg right: ${x.toFixed(2)} px on the view, ${tapeX(right, FOCAL).toFixed(2)} on the tape`);
+  }
+  assert.equal(tapeX(100, FOCAL), null, 'nothing for a heading behind the view');
+});
+
+test('the tape follows the view, and the pointer stays with the nose', () => {
+  const labels = (marks) => marks.filter((m) => m.label).map((m) => `${m.label}${m.x > 0 ? ' right' : ' left'}`);
+  // Not swung, flying 080: the pointer in the middle, the tens either side, as before.
+  assert.equal(tapeX(0, FOCAL), 0);
+  assert.deepEqual(labels(tapeMarks(80, FOCAL, REACH, 0)), ['06 left', '07 left', '09 right', '10 right']);
+  // Flying north, the view swung 70 degrees right: the tape is centred on 070
+  // and 090 is over the right side of the view. The nose is 70 degrees left,
+  // off the tape, so the pointer has gone with it.
+  const yaw = -70, pointer = tapeX(yaw, FOCAL);
+  assert.ok(Math.abs(pointer) > REACH + 30, 'the pointer is off the end of the tape');
+  const swung = tapeMarks(0 - yaw, FOCAL, REACH, null);
+  assert.deepEqual(labels(swung), ['05 left', '06 left', '07 left', '08 right', '09 right']);
+  const nine = swung.find((m) => m.label === '09');
+  assert.ok(Math.abs(nine.x - tapeX(20, FOCAL)) < 1e-9, '090 sits 20 degrees right of the middle, where the horizon has it');
+  // Swung 15 degrees right: the pointer and readout have moved left with the
+  // nose, still on the tape, and the numbers under the readout are left out there.
+  const near = tapeX(-15, FOCAL), marks = tapeMarks(15, FOCAL, REACH, near);
+  assert.ok(near < -90 && near > -REACH, `the pointer ${near.toFixed(0)} px left of the middle`);
+  assert.ok(marks.every((m) => Math.abs(m.x - near) >= 8 && (!m.label || Math.abs(m.x - near) > 30)), 'clear of the pointer and readout wherever they are');
+  assert.ok(labels(marks).includes('02 right'), 'the middle and right of the tape read on as usual');
 });
 
 test('the airspeed and altitude mirror each other, and the horizon line stops short of both', () => {
@@ -87,4 +127,22 @@ test('the pause screen has the HUD and developer switches beside crash override,
   const pause = page.slice(page.indexOf('id="screen-pause"'), page.indexOf('id="screen-crashed"'));
   assert.ok(pause.includes('id="override"') && pause.includes('id="hud-switch"') && pause.includes('id="dev-switch"'), 'all three switches are on the pause screen');
   assert.ok(main.includes("'wings.hud'") && main.includes("'wings.dev'"), 'the choices are kept under wings. keys');
+});
+
+test('in a bank, the tape follows where the swung view really looks', async () => {
+  const near = (a, b, what) => assert.ok(Math.abs(a - b) < 0.05, `${what}: ${a.toFixed(2)}, expected ${b.toFixed(2)}`);
+  near(viewHeading(0, 0, 0), 0, 'not swung');
+  near(viewHeading(0, 0, -15), 15, 'wings level, swung 15 degrees right: 15 degrees of heading');
+  near(viewHeading(0, 0, 40, -20), -40, 'wings level, swung left and down: 40 left');
+  near(viewHeading(0, 90, -30), 0, 'in a 90-degree right bank, swinging right looks down, not round');
+  // Against three.js's own rotations, as the chase camera turns the view:
+  // the jet's attitude, then the swing about its own axes (src/render/camera.js).
+  const THREE = await import('../vendor/three/build/three.module.js');
+  const D = Math.PI / 180;
+  for (const [pitch, roll, yaw, look] of [[0, 60, -15, 0], [10, -45, 30, 10], [-20, 120, -60, -25], [35, 30, 90, 0]]) {
+    const jet = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch * D, 0, -roll * D, 'YXZ'));   // heading north: three's axes, x east, y up, -z north
+    const swing = new THREE.Quaternion().setFromEuler(new THREE.Euler(look * D, yaw * D, 0, 'YXZ'));
+    const ahead = new THREE.Vector3(0, 0, -1).applyQuaternion(jet.multiply(swing));
+    near(viewHeading(pitch, roll, yaw, look), Math.atan2(ahead.x, -ahead.z) / D, `pitch ${pitch}, bank ${roll}, swung ${yaw}/${look}`);
+  }
 });

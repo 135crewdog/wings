@@ -60,22 +60,60 @@ export function magnetic(trueDeg) {
 }
 
 /**
+ * Where a heading falls across the screen, px from the middle: `offset`
+ * degrees right of the heading the view looks along, for a view whose
+ * focal length is `focal` px (see focalLength). That is where the heading
+ * lies on the horizon, so the tape lines up with the world. Null for a
+ * heading beside or behind the view.
+ */
+export function tapeX(offset, focal) {
+  const d = ((((offset + 180) % 360) + 360) % 360) - 180;
+  return Math.abs(d) < 90 ? focal * Math.tan(d * D2R) : null;
+}
+
+/**
+ * How far right of the jet's heading the swung view looks, in degrees of
+ * heading. The view swings about the jet's own axes (src/render/camera.js:
+ * `yaw` about its up, positive left, then `look` pitch about its wings,
+ * positive up), so with the wings level a swing of 15 degrees right is 15
+ * degrees of heading, but in a 60-degree bank it is under 8 and the view
+ * tilts down; in a 90-degree bank it is none. `pitch` and `roll` are the
+ * jet's (degrees).
+ */
+export function viewHeading(pitch, roll, yaw, look = 0) {
+  const t = pitch * D2R, f = roll * D2R, y = yaw * D2R, p = look * D2R;
+  const x = Math.cos(p) * Math.cos(y), r = -Math.cos(p) * Math.sin(y), d = -Math.sin(p);   // the view's direction: forward, right, down
+  const right = r * Math.cos(f) - d * Math.sin(f), down = r * Math.sin(f) + d * Math.cos(f);  // the jet's bank, then its pitch
+  const north = x * Math.cos(t) + down * Math.sin(t);
+  return Math.abs(north) + Math.abs(right) < 1e-9 ? 0 : Math.atan2(right, north) / D2R;
+}
+
+/** A camera's focal length in px, from its vertical field of view (degrees) and the view's height (px). */
+export function focalLength(fovDeg, height) {
+  return height / 2 / Math.tan((fovDeg / 2) * D2R);
+}
+
+/**
  * The heading tape's marks, after 135crewdog/warwagon's: a tick every 5
  * degrees and a two-digit number every 10, sliding past under the readout,
- * which sits in the tape's own row under the pointer. `heading` is the
- * magnetic heading, `pxDeg` the tape's scale and `reach` how far out it
- * runs (px). A tick right under the pointer, or a number that would sit
+ * which sits in the tape's own row under the pointer. The tape follows the
+ * view: `centre` is the magnetic heading the view looks along, `focal` its
+ * focal length (px) and `reach` how far out from the middle the tape runs
+ * (px). `pointer` is where the pointer is, px from the middle, or null when
+ * it is off the tape: a tick right under it, or a number that would sit
  * under the readout, is left out. Returns [{ x, major, label }], x from the
  * middle.
  */
-export function tapeMarks(heading, pxDeg, reach) {
+export function tapeMarks(centre, focal, reach, pointer = 0) {
   const marks = [];
-  for (let d = -Math.ceil(reach / pxDeg / 5) * 5; d <= reach / pxDeg + 5; d += 5) {
-    const deg = Math.round((heading + d) / 5) * 5;
-    const x = (deg - heading) * pxDeg;
-    if (Math.abs(x) > reach || Math.abs(x) < 8) continue;   // clear of the pointer
+  const span = Math.atan(reach / focal) / D2R;   // degrees each side of the middle that the tape shows
+  for (let deg = Math.ceil((centre - span) / 5) * 5; deg <= centre + span; deg += 5) {
+    const x = tapeX(deg - centre, focal);
+    if (x === null || Math.abs(x) > reach) continue;
+    const near = pointer === null ? Infinity : Math.abs(x - pointer);
+    if (near < 8) continue;   // clear of the pointer
     const major = deg % 10 === 0;
-    const label = major && Math.abs(x) > 30 ? String((((deg % 360) + 360) % 360) / 10).padStart(2, '0') : null;   // under the readout otherwise
+    const label = major && near > 30 ? String((((deg % 360) + 360) % 360) / 10).padStart(2, '0') : null;   // under the readout otherwise
     marks.push({ x, major, label });
   }
   return marks;
@@ -155,7 +193,7 @@ export function apexFor(pitchDeg) {
 }
 
 /**
- * Returns { draw(reading, project, looking, full), clear() } for a canvas over the
+ * Returns { draw(reading, project, view, full), clear() } for a canvas over the
  * whole view. `safe()` returns the safe area's rectangle in CSS pixels; the
  * numbers stay inside it.
  */
@@ -215,11 +253,14 @@ export function createHud(canvas, safe) {
    * steer, the steerpoint: { dir (unit north, east, down to it), bearing
    * (deg true), range (nm), name } };
    * project: a north, east, down direction → { x, y, visible } on the
-   * screen; looking: true while the view is swung away from the chase
-   * position; full: false draws only the airspeed and altitude, for the HUD
-   * switched off.
+   * screen; view: { looking, true while the view is swung away from the
+   * chase position; yaw and pitch, how far it is swung (degrees, positive
+   * left and up, about the jet's own axes);
+   * focal, the camera's focal length (px) }; full: false draws only the
+   * airspeed and altitude, for the HUD switched off.
    */
-  function draw(reading, project, looking = false, full = true) {
+  function draw(reading, project, view = {}, full = true) {
+    const { looking = false, yaw = 0, pitch = 0, focal = focalLength(55, canvas.clientHeight) } = view;
     fit();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -239,14 +280,28 @@ export function createHud(canvas, safe) {
 
     // heading tape across the top, magnetic, as War Wagon's: the pointer at
     // the top, the readout in the tape's own row under it, and the tape's
-    // numbers passing beneath as the jet turns, which keeps the top short
+    // numbers passing beneath as the jet turns, which keeps the top short.
+    // The tape follows the view: it shows the headings the view looks
+    // across, each over its own direction on the horizon. The pointer and
+    // readout stay with the nose, over the jet's heading, so with the view
+    // swung they move across the screen like the waterline and slide off
+    // the tape's end with the nose. Not swung, the pointer is in the middle.
     const hdg = reading.heading, mag = magnetic(hdg);
-    stroke(() => { ctx.moveTo(cx, top + 13); ctx.lineTo(cx - 5, top + 4); ctx.lineTo(cx + 5, top + 4); ctx.closePath(); });
-    text(headingText(mag), cx, top + 24, 'center', 15);
-    for (const m of tapeMarks(mag, (w * 0.5) / 60, w * 0.22)) {
+    const reach = w * 0.22, edge = reach + 12;   // the tape's half-width, and where its window ends
+    const swing = viewHeading(reading.pitch, reading.roll, yaw, pitch);   // where the view looks, degrees right of the nose
+    const px = tapeX(-swing, focal), pointer = px !== null && Math.abs(px) < edge + 20 ? px : null;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(cx - edge, top, 2 * edge, 34); ctx.clip();
+    if (pointer !== null) {
+      const x = cx + pointer;
+      stroke(() => { ctx.moveTo(x, top + 13); ctx.lineTo(x - 5, top + 4); ctx.lineTo(x + 5, top + 4); ctx.closePath(); });
+      text(headingText(mag), x, top + 24, 'center', 15);
+    }
+    for (const m of tapeMarks(mag + swing, focal, reach, pointer)) {
       stroke(() => { ctx.moveTo(cx + m.x, top + 4); ctx.lineTo(cx + m.x, top + (m.major ? 14 : 9)); });
       if (m.label) text(m.label, cx + m.x, top + 23, 'center', 12);
     }
+    ctx.restore();
 
     // pitch ladder: each bar is a fixed-size symbol drawn where its pitch
     // angle falls on the screen, lying along the horizon's direction there.
