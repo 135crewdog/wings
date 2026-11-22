@@ -134,9 +134,9 @@ const hawaii = await prepareHawaii();
 const flight = startFlight($('view'), hawaii, {
   controls: () => ({ ...pilot, elevator: tilt.stick.pitch, aileron: tilt.stick.roll }),
   onCrash() { mode = 'crashed'; letSleep(); show('crashed'); checkForUpdate(); },
-  onReadout(reading, project, looking) {
+  onReadout(reading, project, view) {
     const text = readouts(reading.knots, reading.feet, reading.aboveGround);
-    hud.draw({ ...reading, airspeed: text.airspeed, altitude: text.radar || text.altitude }, project, looking, hudOn);
+    hud.draw({ ...reading, airspeed: text.airspeed, altitude: text.radar || text.altitude }, project, view, hudOn);
     lastReading = reading;
     watchSignals();
     if (devOn) showDev();

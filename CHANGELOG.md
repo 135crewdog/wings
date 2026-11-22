@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.58
+
+- The HUD's heading tape follows the view. Swing the view with a finger and the tape shows the headings you're looking across, each one over its own direction on the horizon. The pointer and the heading under it stay with the jet's nose: they move across the tape as the view swings, like the waterline, and slide off its end with the nose. With the view not swung, the tape looks as before, its marks a few points closer together so they line up with the world.
+
 ## 0.0.57
 
 - The debug overlay lists the last six signals the device sends the app (focus, visibility, page show and hide, the tilt sensor and frames stopping, and a few more), each with the time it came, to find which one comes with Control Center and a screen recording. With the overlay on, it stays up on the pause and crashed screens too.
