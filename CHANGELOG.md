@@ -2,6 +2,11 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.56
+
+- The bank scale is bigger, so its top sits closer under the heading and the middle of the HUD is clearer. Its pointer is now the heading pointer's smaller triangle.
+- The bank scale has long ticks at 60 and 90 degrees each side as well.
+
 ## 0.0.55
 
 - The HUD's airspeed has moved in to mirror the altitude: both now sit the same distance from the middle. The g, angle of attack, Mach and power in the lower left moved in with it, and with the HUD off, the airspeed and altitude sit in the same places.
