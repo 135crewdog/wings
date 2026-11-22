@@ -67,7 +67,8 @@ button:active { opacity: 0.6; }
   bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px);
 }
 
-/* the debug overlay (after Rage's ?debug=1): small, top left, clear of the throttle and the heading tape */
+/* the debug overlay (after Rage's ?debug=1): small, top left, clear of the throttle and the heading tape.
+   Over the screens too, so its last signals can be read on the pause screen. */
 #dev {
   position: absolute; left: calc(env(safe-area-inset-left, 0px) + 64px); top: calc(env(safe-area-inset-top, 0px) + 46px);
   margin: 0; padding: 6px 8px; font: 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: #fff;

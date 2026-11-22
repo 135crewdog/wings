@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.57
+
+- The debug overlay lists the last six signals the device sends the app (focus, visibility, page show and hide, the tilt sensor and frames stopping, and a few more), each with the time it came, to find which one comes with Control Center and a screen recording. With the overlay on, it stays up on the pause and crashed screens too.
+
 ## 0.0.56
 
 - The bank scale is bigger, so its top sits closer under the heading and the middle of the HUD is clearer. Its pointer is now the heading pointer's smaller triangle.
