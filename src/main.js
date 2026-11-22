@@ -18,7 +18,6 @@ const screens = [...document.querySelectorAll('.screen')];
 const show = (name) => {
   for (const el of screens) el.hidden = el.id !== `screen-${name}`;
   $('controls').hidden = name !== null;
-  showDevBox();
 };
 
 // ---- the pilot's controls ----
@@ -78,16 +77,13 @@ async function prepareHawaii() {
 // ---- the debug overlay ----
 // A small box of raw numbers, for troubleshooting and for screen recordings
 // sent to Claude Code (the Ideas doc, picked 17 Nov 2026). Switched on and
-// off on the pause screen, off until the pilot turns it on. It shows in
-// flight and stays up on the pause and crashed screens, so its last signals
-// can be read there.
-let devOn = false, devAt = 0, lastReading = null;
+// off on the pause screen, off until the pilot turns it on.
+let devOn = false, devAt = 0;
 const fixed = (x, n = 1) => (Number.isFinite(x) ? x.toFixed(n) : '-');
-const showDevBox = () => { $('dev').hidden = !devOn || mode === 'start'; };
-const showDev = (now = false) => {
-  const r = lastReading;
-  if (!r || (!now && performance.now() - devAt < 250)) return;   // four times a second is plenty to read
-  devAt = performance.now();
+const showDev = (r) => {
+  const now = performance.now();
+  if (now - devAt < 250) return;   // four times a second is plenty to read
+  devAt = now;
   const s = flight.status(), t = tilt.raw;
   $('dev').textContent = [
     `${fixed(s.fps, 0)} fps  ${s.draws} draws  ${mode}  ${APP_VERSION}`,
@@ -96,35 +92,7 @@ const showDev = (now = false) => {
     `${fixed(r.knots, 0)} kt  M ${fixed(r.mach, 2)}  g ${fixed(r.g)}  α ${fixed(r.alpha)}  β ${fixed(r.beta)}`,
     `${Math.round(r.feet)} ft  ${Math.round(r.aboveGround)} above ground  hdg ${fixed(r.heading, 0)}T`,
     `N ${Math.round(s.north)} E ${Math.round(s.east)} m  levels ${s.levels.join(',') || 'none'}  tiles waiting ${s.queued}`,
-    ...signals.map((line) => `signal ${line}`),
   ].join('\n');
-};
-
-// ---- what iOS tells the app ----
-// Which signals arrive while Control Center comes down or a screen recording
-// starts (the Ideas doc, 22 Nov 2026): every one the app could pause on,
-// with the clock time it came, the newest six kept for the debug overlay.
-// Events are logged as they come; focus, the frames and the tilt sensor
-// are checked every frame and logged when they change.
-const signals = [];
-const signal = (what) => {
-  const d = new Date();
-  signals.push(`${d.toTimeString().slice(0, 8)}.${Math.floor(d.getMilliseconds() / 100)} ${what}`);
-  if (signals.length > 6) signals.shift();
-  if (devOn) showDev(true);
-};
-let frameAt = null, focused = document.hasFocus(), tiltQuiet = false;
-const watchSignals = () => {
-  const now = performance.now();
-  if (mode !== 'flying') frameAt = null;
-  else {
-    if (frameAt !== null && now - frameAt > 200) signal(`no frames for ${((now - frameAt) / 1000).toFixed(1)} s`);
-    frameAt = now;
-  }
-  if (document.hasFocus() !== focused) { focused = !focused; signal(`hasFocus ${focused}`); }
-  if (mode !== 'flying') { tiltQuiet = false; return; }
-  const quiet = now - tilt.raw.at > 300;   // the sensor speaks about 60 times a second
-  if (quiet !== tiltQuiet) { tiltQuiet = quiet; signal(quiet ? 'tilt stopped' : 'tilt back'); }
 };
 
 // ---- the flight ----
@@ -137,9 +105,7 @@ const flight = startFlight($('view'), hawaii, {
   onReadout(reading, project, view) {
     const text = readouts(reading.knots, reading.feet, reading.aboveGround);
     hud.draw({ ...reading, airspeed: text.airspeed, altitude: text.radar || text.altitude }, project, view, hudOn);
-    lastReading = reading;
-    watchSignals();
-    if (devOn) showDev();
+    if (devOn) showDev(reading);
     heading = reading.heading;
   },
 });
@@ -188,8 +154,7 @@ const devSwitch = $('dev-switch');
 const setDev = (on) => {
   devOn = on;
   devSwitch.setAttribute('aria-checked', String(on));
-  showDevBox();
-  showDev(true);
+  $('dev').hidden = !on;
   flight.redraw();
   try { localStorage.setItem(DEV_KEY, on ? 'on' : 'off'); } catch { /* storage may be blocked */ }
 };
@@ -217,7 +182,6 @@ const keepAwake = () => {
   navigator.wakeLock?.request('screen').then((held) => {
     // The pilot may have paused before iOS answered: then let it straight go.
     if (awake) { lock?.release().catch(() => {}); lock = held; } else held.release().catch(() => {});
-    held.addEventListener?.('release', () => { if (awake && lock === held) signal('wake lock dropped'); });   // let go by iOS, not by the app
   }).catch(() => {});
 };
 const letSleep = () => {
@@ -280,26 +244,19 @@ for (const id of ['restart', 'crash-restart']) {
   });
 }
 
-// Leaving the app, anything that takes the screen over it (Control Center and
-// its screen-recording button, a call, Siri), turning the phone to portrait,
-// or flipping it to the other landscape pauses the flight. It resumes only
-// from the pause screen.
+// Leaving the app, anything that takes focus from it, turning the phone to
+// portrait, or flipping it to the other landscape pauses the flight. It
+// resumes only from the pause screen. Control Center and its screen-recording
+// menu can't pause it: iOS tells a home-screen app nothing when they cover it
+// (no blur, no visibility change; tested on the phone, 22 Nov 2026), so there
+// the pilot pauses by hand.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pause(); else checkForUpdate();   // iOS drops the wake lock when the app is hidden; Resume asks again
 });
-window.addEventListener('blur', pause);   // Control Center leaves the app showing underneath, so it isn't hidden; it only loses focus
+window.addEventListener('blur', pause);   // anything that takes focus from the app
 window.addEventListener('resize', () => { if (isPortrait()) pause(); });
 window.addEventListener('orientationchange', pause);
 screen.orientation?.addEventListener('change', pause);
-
-// Every signal that might come with Control Center or a recording, logged
-// for the debug overlay; only the ones above pause the flight, for now.
-const log = (target, types, say = (e) => e.type) => { for (const type of types) target?.addEventListener(type, (e) => signal(say(e))); };
-log(window, ['focus', 'blur', 'pagehide', 'pageshow', 'orientationchange']);
-log(window, ['resize'], () => `resize ${window.innerWidth}×${window.innerHeight}`);
-log(document, ['visibilitychange'], () => `visibility ${document.visibilityState}`);
-log(document, ['freeze', 'resume', 'touchcancel', 'pointercancel']);
-log(screen.orientation, ['change'], () => `screen turned ${screen.orientation.angle}`);
 
 // iOS ignores user-scalable=no for pinch and double-tap in some versions.
 for (const type of ['gesturestart', 'dblclick']) {
