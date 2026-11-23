@@ -10,7 +10,7 @@
 // the ladder rolls and scales with the camera. Straight up and straight down
 // get the zenith and nadir symbols when the ladder's window reaches them.
 // The bank scale over the waterline is 135crewdog/warwagon's (src/hud/hud.js),
-// drawn the Boeing way. Airspeed and altitude are written by
+// drawn the Boeing way, and so is the VSI over the altitude. Airspeed and altitude are written by
 // src/readouts.js's rules, mirrored about the middle, and with the HUD
 // switched off they are all that is drawn.
 
@@ -143,6 +143,18 @@ export function steerText(rangeNm, name) {
 }
 
 /**
+ * The VSI, as War Wagon writes it (135crewdog/warwagon, src/hud/hud.js,
+ * vsiText): the climb rate in feet per minute to the nearest 50, unlabelled,
+ * "+750" climbing, "−1200" with a true minus sign descending, and "0" within
+ * 25 of level. Rounded on its size, so climbing and descending read alike.
+ */
+export function vsiText(fpm) {
+  const v = Math.round(Math.abs(fpm) / 50) * 50;
+  if (v === 0) return '0';
+  return (fpm > 0 ? '+' : '−') + v;
+}
+
+/**
  * The engine's power, as the HUD writes it: IDLE, a percentage of MIL in dry
  * power, MIL, or AB with how much of the afterburner is lit. `power` is the
  * engine's own state (0 idle, 1 MIL, 2 full afterburner), not the throttle's
@@ -248,7 +260,7 @@ export function createHud(canvas, safe) {
 
   /**
    * reading: { airspeed, altitude (text), heading, pitch, roll (deg), g,
-   * alpha (deg), mach, power (0..2), velocity, nose, up (unit north, east,
+   * alpha (deg), mach, vsi (ft/min), power (0..2), velocity, nose, up (unit north, east,
    * down), and
    * steer, the steerpoint: { dir (unit north, east, down to it), bearing
    * (deg true), range (nm), name } };
@@ -430,6 +442,8 @@ export function createHud(canvas, safe) {
     }
 
     numbers();
+    // the VSI just above the altitude, lined up with it, the size of G and Mach
+    text(vsiText(reading.vsi), at.altitude, cy - 24, 'left', 14);
 
     // g, angle of attack, Mach and the engine's power, lower left, lined up
     // under the airspeed

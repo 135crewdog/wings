@@ -17,6 +17,8 @@ const G_W = [0, 0, G0];
 const RHO0 = atmosphere(0).rho;
 const AT_REST = { sep: [0, 0], power: 0, gear: 0, flaps: 0, speedbrake: 0 };
 const GEAR_SECONDS = 4, FLAP_SECONDS = 3, SPEEDBRAKE_SECONDS = 1.5;   // full travel
+export const VSI_SECONDS = 0.5;   // the VSI's light smoothing, the modern-HUD way: no built-in lag, just enough to keep it from flickering
+const FPM = 60 / 0.3048;          // m/s to feet per minute
 const MAX_STEER = (30 * Math.PI) / 180;      // the nose wheel's steering angle at full tilt, standing still
 const STEER_FADE = 15;                       // m/s: by this speed the steering is down to half
 
@@ -132,6 +134,12 @@ export class Sim {
     this.crashes = crashes;   // false is the crash override: no arrival, however hard, ends the flight
     this.crashed = null;   // set once: by the touchdown check, or by the safety net
     this.touching = touching(card, state, ground, this.gear >= 1);
+    this.climb = this.climbNow();   // the VSI (ft/min, up positive), smoothed over VSI_SECONDS
+  }
+
+  /** The climb rate this instant (ft/min, up positive). */
+  climbNow() {
+    return -this.velocityWorld()[2] * FPM;
   }
 
   /** Advance one fixed step with the given controls. After a crash the sim no longer steps. */
@@ -175,6 +183,7 @@ export class Sim {
     this.power = powerStep(this.power, powerWanted(ctl.throttle), DT);
     if (this.ground && this.crashes) this.crashed = crashCheck(this.card, before, after, this.ground, this.touching, wheels);
     this.touching = touching(this.card, after, this.ground, wheels);
+    this.climb += (this.climbNow() - this.climb) * DT / VSI_SECONDS;
     return this.state;
   }
 
