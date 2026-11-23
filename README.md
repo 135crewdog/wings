@@ -34,7 +34,7 @@ Then open <http://localhost:8000/>.
 
 ## How the tools are connected
 
-- **GitHub Actions** runs the tests on every push and pull request (`.github/workflows/test.yml`). On `main`, it publishes the site to GitHub Pages only if they pass (`.github/workflows/pages.yml`).
+- **GitHub Actions** runs the tests on every push and pull request (`.github/workflows/test.yml`). On `main`, it publishes the site to GitHub Pages only if they pass (`.github/workflows/pages.yml`). Dependabot keeps those workflows' GitHub tools current, with at most one pull request a month (`.github/dependabot.yml`).
 - **Codex** reviews every pull request when it opens. Claude Code fixes what it finds; the owner authorizes each merge.
 - **Google Drive** holds the working files, in the `Wings` folder: `Reference` (photos and drawings), `Blender` (Blender files and exported models) and the `Ideas` doc. Google Drive for desktop syncs the folder to the owner's laptop.
   - Claude Code reaches it through the **Google Drive connector** and the **Google Docs connector** (read and edit the text of the Ideas doc).
