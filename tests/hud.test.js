@@ -2,9 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { apexFor, headingText, powerText, magnetic, tapeMarks, tapeX, focalLength, viewHeading, cueDirection, relativeBearing, steerText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
+import { apexFor, headingText, powerText, magnetic, tapeMarks, tapeX, focalLength, viewHeading, cueDirection, relativeBearing, steerText, vsiText, numberPlaces, bankTickAngle, BANK_TICKS, longBankTick } from '../src/hud.js';
 import { instruments } from '../src/sim/airdata.js';
 import { airborne, card, fly } from './fly.js';
+import { VSI_SECONDS } from '../src/sim/sim.js';
 
 test('the HUD writes heading, power and the apex symbols as a fighter HUD does', () => {
   assert.equal(headingText(0), '000');
@@ -106,6 +107,40 @@ test('the steerpoint: which way to turn, and how far', () => {
   const up = cueDirection({ visible: true, x: 100, y: 0 }, { x: 100, y: 100 }, 0);
   assert.ok(Math.abs(up.y + 1) < 1e-9, 'in view: the tail points at it');
   assert.equal(steerText(12.44, 'HNL'), '12.4 > HNL');
+});
+
+test('the VSI reads feet per minute to the nearest 50, signed, with a true minus sign and "0" near level', () => {
+  assert.equal(vsiText(750), '+750');
+  assert.equal(vsiText(-1200), '−1200');
+  assert.equal(vsiText(-1200)[0], '\u2212', 'a true minus sign, not a hyphen');
+  assert.equal(vsiText(0), '0');
+  assert.equal(vsiText(24), '0');
+  assert.equal(vsiText(-24), '0');
+  assert.equal(vsiText(-0.001), '0', 'never "-0"');
+  assert.equal(vsiText(26), '+50');
+  assert.equal(vsiText(-26), '−50');
+  assert.equal(vsiText(774), '+750');
+  assert.equal(vsiText(776), '+800');
+  assert.equal(vsiText(-12345), '−12350');
+});
+
+test('the VSI has no lag to speak of: level reads 0, a climb or dive reads true at once, a change settles in about half a second', () => {
+  const level = airborne(card(), { ft: 10000, kt: 350, level: true, throttle: 'trim' });
+  const hold = () => ({ elevator: level.trim.elevator, throttle: level.trim.throttle });
+  assert.equal(vsiText(instruments(level, level.observe(hold())).vsi), '0', 'trimmed level, it reads 0 from the start');
+  for (const pitch of [10, -10]) {
+    const sim = airborne(card(), { ft: 10000, kt: 400, pitch });
+    const now = sim.climbNow();
+    assert.ok(pitch > 0 ? now > 6000 : now < -6000, `${pitch} deg at 400 kt is ${Math.round(now)} ft/min`);
+    assert.ok(Math.abs(instruments(sim, sim.observe({})).vsi - now) < 1e-6, `an air start at ${pitch} deg reads it at once`);
+  }
+  // A 1,000 ft/min jump: about 37% of it is left after VSI_SECONDS, and next to nothing two seconds on.
+  level.climb -= 1000;
+  fly(level, VSI_SECONDS, hold);
+  const left = level.climbNow() - level.climb;
+  assert.ok(left > 330 && left < 410, `half a second after a 1,000 ft/min jump, ${Math.round(left)} ft/min is still to come (about 370)`);
+  fly(level, 1.5, hold);
+  assert.ok(Math.abs(level.climbNow() - level.climb) < 25, 'two seconds on, it reads true');
 });
 
 test('its readings: level flight is 1 g, the nose and the flight path agree, a climb points up', () => {

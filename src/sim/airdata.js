@@ -58,6 +58,7 @@ export function instruments(sim, seen) {
     alpha: seen.air.alpha / DEG,
     beta: seen.air.beta / DEG,
     mach: seen.air.mach,
+    vsi: sim.climb,
     velocity: speed > 1 ? vw.map((x) => x / speed) : qrotate(sim.state.q, [1, 0, 0]),
     nose: qrotate(sim.state.q, [1, 0, 0]),
     up: qrotate(sim.state.q, [0, 0, -1]),

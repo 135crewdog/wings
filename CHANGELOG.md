@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.60
+
+- The HUD has a VSI: the climb or descent rate in feet per minute, just above the altitude, a plain number such as +750, −1200 or 0. It reads the way a modern HUD does, with no lag, only smoothed a touch and rounded to the nearest 50 so it doesn't flicker. It shows only with the HUD on.
+
 ## 0.0.59
 
 - The debug overlay's signal list is gone, and the overlay shows in flight only, as before 0.0.57. It found its answer: the device tells Wings nothing when Control Center or the screen-recording menu comes down, so the flight can't pause itself there. Tap Pause before you open Control Center; for a recording, start it, close Control Center and tap Resume.
