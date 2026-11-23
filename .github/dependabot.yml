@@ -1,0 +1,15 @@
+# Dependabot keeps GitHub's own workflow tools (checkout, setup-node and the
+# Pages steps) on their current versions: at most one pull request a month,
+# all of them together. The app itself has no dependencies for it to watch;
+# Three.js is vendored and pinned on purpose.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      workflow-tools:
+        patterns: ["*"]
+    commit-message:
+      prefix: "Workflow tools"
