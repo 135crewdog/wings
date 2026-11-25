@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.61
+
+- A fourth switch on the pause screen: Random runway. Off, as it starts, every flight begins on 8R at Honolulu, as before. On, Fly and every Restart put you on a new runway end picked at random from all 54 in Hawaii: both ends of every runway, from Barking Sands to Hilo. An F-4C gets out of every one in full afterburner with the flaps down, but six runways are tight: Kapalua, Molokai 17/35, Princeville, Bradshaw, Upolu and Hana. The map on the pause screen shows where you are.
+
 ## 0.0.60
 
 - The HUD has a VSI: the climb or descent rate in feet per minute, just above the altitude, a plain number such as +750, −1200 or 0. It reads the way a modern HUD does, with no lag, only smoothed a touch and rounded to the nearest 50 so it doesn't flicker. It shows only with the HUD on.

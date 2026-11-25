@@ -86,7 +86,9 @@ The HUD's heading tape reads magnetic, as the charts and the runway numbers do. 
 
 ## The start
 
-**Every flight starts on the numbers of runway 8R at Honolulu, on the Hickam side:** the 12,000 ft reef runway, the one the trade winds put in use, pointed east toward Diamond Head. Gear and flaps down, brakes on. The Hawaii Air National Guard flew F-4C Phantoms from Hickam from 1976 to 1987.
+**Flights start on the numbers of runway 8R at Honolulu, on the Hickam side:** the 12,000 ft reef runway, the one the trade winds put in use, pointed east toward Diamond Head. Gear and flaps down, brakes on. The Hawaii Air National Guard flew F-4C Phantoms from Hickam from 1976 to 1987.
+
+With the pause screen's **Random runway** switch on (it is off until the pilot turns it on, and kept between visits), Fly and every Restart start instead on a new runway end picked at random: both ends of all 27 runways, 54 in all, on the numbers 200 ft in, pointing down the runway. The ground under the new start is made ready before the flight begins. `tests/runways.test.js` flies the checkride's takeoff (flaps down, full afterburner) from every one: the F-4C gets out of all 54, with less than 1,000 ft of runway left at 50 ft up at Kapalua (190 ft), Molokai 17/35, Princeville, Bradshaw, Upolu and Hana.
 
 ## The download
 

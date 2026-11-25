@@ -22,7 +22,7 @@ import { focalLength } from './hud.js';
 
 /**
  * Puts the flight on a canvas, parked on the runway and holding still.
- * `hawaii` is the islands (src/hawaii.js), with every flight starting on
+ * `hawaii` is the islands (src/hawaii.js); the first flight is parked on
  * their `start` runway.
  * `controls()` returns the pilot's controls each step; `onCrash()` is called
  * when a flight ends in a crash; `onReadout(reading, project, view)` is
@@ -30,14 +30,17 @@ import { focalLength } from './hud.js';
  * aboveGround } (feet at the wheels) and the HUD's numbers (see
  * instruments() in src/sim/airdata.js, and `power`, the engine's); `project`
  * turns a north, east, down direction into where it falls on the screen. Returns { ready, fly(), hold(), restart(), redraw(), setCrashes(on), silhouette() }:
- * fly() lets time run, hold() stops it (the picture stays), restart() puts
- * the airplane back on the runway.
+ * fly() lets time run, hold() stops it (the picture stays), restart(start)
+ * puts the airplane on a runway end ({ way, from }, an entry of runwayEnds in
+ * src/field.js; the islands' `start` runway if left out) and resolves when
+ * the ground there is ready to fly from.
  */
 export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   const scene = new THREE.Scene();
   const { index, ground } = hawaii;
-  const field = runwayField(index.runways.find((w) => w.airport === index.start.airport && w.ends[0].ident === index.start.runway));
+  const home = { way: index.runways.find((w) => w.airport === index.start.airport && w.ends[0].ident === index.start.runway), from: 0 };
+  let field = runwayField(home.way, home.from);
   const world = createWorld(scene, renderer, hawaii);
   const card = deriveCard(F4C);
   const airplane = createAircraft(F4C);
@@ -53,7 +56,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   // Where the airplane is, in the picture's axes.
   const pose = () => ({ position: new THREE.Vector3(...toThree(sim.state.x)), quaternion: new THREE.Quaternion(...attitudeToThree(sim.state.q)) });
   const shown = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
-  const restart = () => {
+  const park = () => {
     sim = new Sim(card, startState(card, field), { ground, gear: true, flaps: true, crashes });
     for (let t = 0; t < 3; t += DT) sim.step(PARKED);   // let it settle onto its wheels
     now = before = pose();
@@ -61,7 +64,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
     chase.reset();
     look.reset();
   };
-  restart();
+  park();
   attachLook(canvas, look, () => flying);
 
   // The HUD's steerpoint, the HNL VORTAC: the way to it from the airplane,
@@ -100,6 +103,8 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
   // coming back never starts a second loop beside it.
   const SETTLE = 30;   // frames drawn after a change: the camera eases in, and iOS can report a new size late
   let last = null, waiting = null, settle = SETTLE;
+  const drawn = [];   // waiting for a frame drawn with all the ground round the camera in
+  const PICTURE_WAIT = 4000;   // ms: a new start waits no longer than this for its picture
   let frames = 0, fpsAt = performance.now(), fps = 0;   // frames a second, for the debug overlay
   const draw = (time) => {
     const elapsed = last === null ? 0 : Math.min((time - last) / 1000, 0.25);
@@ -143,6 +148,7 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
     world.follow(chase.camera);
     renderer.render(scene, chase.camera);
     frames++;
+    if (world.settled && drawn.length) for (const done of drawn.splice(0)) done();
     if (time - fpsAt > 500) { fps = (frames * 1000) / (time - fpsAt); frames = 0; fpsAt = time; }
     onReadout({
       knots: calibratedAirspeed(air.V, atmosphere(-sim.state.x[2])) / KT,
@@ -178,7 +184,21 @@ export function startFlight(canvas, hawaii, { controls, onCrash, onReadout }) {
     ready: airplane.ready,
     fly() { flying = true; carry = 0; look.reset(); wake(); },
     hold() { flying = false; look.release(); wake(); },
-    restart() { restart(); wake(); },
+    /**
+     * The airplane to a runway end. It moves there at once, so the ground is
+     * made ready round the new place and not the old; when the ground under
+     * it is decoded for the flight model, it is parked afresh on that ground;
+     * and when the picture has its ground too (or has had long enough: it
+     * sharpens on its own), the promise resolves.
+     */
+    async restart(start = home) {
+      field = runwayField(start.way, start.from);
+      park();
+      await hawaii.near(sim.state.x[0], sim.state.x[1]);
+      park();
+      wake();
+      await new Promise((resolve) => { drawn.push(resolve); setTimeout(resolve, PICTURE_WAIT); });
+    },
     /** The airplane seen from above, nose up, for the map (null until the model has loaded). */
     silhouette: () => silhouette,
     /** Draw again, though nothing in the flight changed: the HUD was switched. */
