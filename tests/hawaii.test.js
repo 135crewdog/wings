@@ -6,26 +6,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { decodePng } from '../terrain/png.mjs';
-import { createHawaii, decodeTile, toWorld, HNL_VORTAC } from '../src/sim/hawaii.js';
+import { createHawaii, toWorld, HNL_VORTAC } from '../src/sim/hawaii.js';
+import { dir, index, sheet, tiles, tileAt, hawaii } from './tiles.js';
 
-const dir = fileURLToPath(new URL('../terrain/hawaii/', import.meta.url));
-const index = JSON.parse(readFileSync(dir + 'index.json', 'utf8'));
 const FT = 0.3048;
-
-// Every tile, decoded as the app decodes it.
-const sheets = new Map();
-const sheet = (name) => sheets.get(name) ?? sheets.set(name, readFileSync(dir + name)).get(name);
-const tiles = new Map();
-for (const [level, i, j, name, ho, hl] of index.tiles) tiles.set(`${level}/${i}/${j}`, { name, ho, hl });
-const decoded = new Map();
-const tileAt = (level, i, j) => {
-  const k = `${level}/${i}/${j}`, t = tiles.get(k);
-  if (!t) return null;
-  if (!decoded.has(k)) decoded.set(k, decodeTile(decodePng(sheet(t.name).subarray(t.ho, t.ho + t.hl)).rgb, index, 3));
-  return decoded.get(k);
-};
-const hawaii = createHawaii(index, tileAt);
 
 // The script's flat map for each group of islands, to find real places in the game's world.
 const where = (group, lat, lon) => toWorld(index, group, lat, lon);

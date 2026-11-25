@@ -102,6 +102,9 @@ export function holdAltitude(ft, elevator = 0) {
   };
 }
 
+/** The takeoff's stick: full back from 80 kt, then, once airborne, the nose held 10 degrees up. */
+export const takeoffStick = (r) => (r.onGround ? (r.kias > 80 ? 1 : 0) : clamp(0.08 * (10 - r.pitch) - 0.03 * r.pitchRate, -1, 1));
+
 /** What a pilot would read off the airplane right now. */
 export function readout(sim, controls = {}) {
   const obs = sim.observe(controls);
