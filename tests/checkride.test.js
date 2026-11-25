@@ -9,7 +9,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { card, airborne, onRunway, fly, holdAltitude, gPilot, levelTurn, degreesTurned, readout, table, KT, FT, DEG, DT } from './fly.js';
+import { card, airborne, onRunway, fly, holdAltitude, gPilot, levelTurn, degreesTurned, readout, table, takeoffStick, KT, FT, DEG, DT } from './fly.js';
 import { liftCurve, separationWanted, aeroForces, airData } from '../src/sim/aero.js';
 import { deriveCard } from '../src/sim/card.js';
 import { Sim, finite, MAX_RATE, coordinate, normalizeControls } from '../src/sim/sim.js';
@@ -573,7 +573,7 @@ test('on the ground: it sits, rolls, steers, stops and takes off', () => {
       if (wheelOff === null && r.kias > 80 && !s.touching.some((touching, i) => touching && noseTyres[i])) wheelOff = r.kias;
       return {
         ...down, flaps, throttle: 1,
-        elevator: r.onGround ? (r.kias > 80 ? 1 : 0) : Math.max(-1, Math.min(1, 0.08 * (10 - r.pitch) - 0.03 * r.pitchRate)),
+        elevator: takeoffStick(r),
       };
     }, 0.1);
     const nose = log.find((r) => r.pitch > 3);

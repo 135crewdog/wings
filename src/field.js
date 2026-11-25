@@ -18,11 +18,12 @@ export const FIELD = {
 
 /**
  * A runway of Hawaii's (an entry of terrain/hawaii/index.json's runways),
- * taking off from its first end: the start of every flight is runway 8R at
- * Honolulu (docs/hawaii.md). Its height is the middle of its two ends'.
+ * taking off from its first end, or with `from` 1 from its second: the start
+ * of every flight is runway 8R at Honolulu (docs/hawaii.md). Its height is
+ * the middle of its two ends'.
  */
-export function runwayField(way) {
-  const [a, b] = way.ends;
+export function runwayField(way, from = 0) {
+  const a = way.ends[from], b = way.ends[1 - from];
   const length = Math.hypot(b.north - a.north, b.east - a.east);
   const heading = ((Math.atan2(b.east - a.east, b.north - a.north) / DEG) + 360) % 360;
   return {
