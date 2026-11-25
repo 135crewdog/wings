@@ -2,6 +2,10 @@
 
 What changed in each version a player can see, newest first.
 
+## 0.0.62
+
+- The map on the pause screen has a zoom button: a small round magnifier in its top-right corner, with a plus in it. Tap it to zoom in round the jet; the plus turns to a minus, and a tap zooms back out. A tap anywhere else on the map still does the same.
+
 ## 0.0.61
 
 - A fourth switch on the pause screen: Random runway. Off, as it starts, every flight begins on 8R at Honolulu, as before. On, Fly and every Restart put you on a new runway end picked at random from all 54 in Hawaii: both ends of every runway, from Barking Sands to Hilo. An F-4C gets out of every one in full afterburner with the flaps down, but six runways are tight: Kapalua, Molokai 17/35, Princeville, Bradshaw, Upolu and Hana. The map on the pause screen shows where you are.

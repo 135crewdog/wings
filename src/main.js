@@ -111,7 +111,7 @@ const flight = startFlight($('view'), hawaii, {
 });
 
 // ---- the map on the pause screen ----
-const map = createMap($('map'), hawaii, flight.silhouette);
+const map = createMap($('map'), $('zoom'), hawaii, flight.silhouette);
 flight.ready.then(() => map.prepare());   // the photographs, made while the pilot is still on the start screen
 const showMap = () => {
   const [north, east] = flight.sim.state.x;

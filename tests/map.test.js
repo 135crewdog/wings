@@ -82,3 +82,12 @@ test('zoomed in, the finer tiles cover all the map shows', () => {
   console.log(`  zoomed on Honolulu: ${count} tiles at 80 m a pixel`);
   assert.ok(count <= 30, 'a handful of tiles, quick to put together');
 });
+
+// The zoom button's label is its state: the page starts it at "Zoom in", the
+// map switches it, and the stylesheet draws the minus from "Zoom out".
+test('the zoom button says the same thing in the page, the map and the stylesheet', () => {
+  const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  assert.match(read('index.html'), /<button id="zoom" aria-label="Zoom in">/, 'the page starts it zoomed out');
+  assert.match(read('src/map.js'), /'aria-label', on \? 'Zoom out' : 'Zoom in'/, 'the map switches the label');
+  assert.match(read('style.css'), /#zoom\[aria-label="Zoom out"\] \.plus \{ display: none; \}/, 'the stylesheet makes the plus a minus');
+});
