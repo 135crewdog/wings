@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { card, readout, takeoffStick, FT, DEG, DT } from './fly.js';
 import { index, hawaii } from './tiles.js';
 import { Sim } from '../src/sim/sim.js';
-import { PARKED, runwayField, startState } from '../src/field.js';
+import { PARKED, randomEnd, runwayEnds, runwayField, startState } from '../src/field.js';
 
 const NM = 1852;
 const AHEAD = 3 * NM;          // how far past the runway's end the ground is looked at, and the takeoff flown
@@ -32,7 +32,7 @@ const feet = (m, to = 10) => (Math.round(m / FT / to) * to).toLocaleString('en-U
 /** Every runway end: 27 runways, both ends of each. */
 const SHORT = { PHNL: 'Honolulu', PHKO: 'Kona', PHNG: 'Kaneohe Bay', PHDH: 'Kawaihapai (Dillingham)' };   // the names a pilot uses, where the index's are long
 const fieldName = (way) => SHORT[way.airport] ?? way.name.replace(/ (International )?Airport$| Army Airfield$/, '');
-const ends = index.runways.flatMap((way) => [0, 1].map((from) => ({ way, from, name: `${fieldName(way)} ${way.ends[from].ident}` })));
+const ends = runwayEnds(index.runways).map((end) => ({ ...end, name: `${fieldName(end.way)} ${end.way.ends[end.from].ident}` }));
 
 /**
  * Tilt that holds the centreline. On the wheels it steers the nose wheel
@@ -167,4 +167,24 @@ test('a takeoff from every runway end (reported, not graded)', () => {
   assert.equal(all.length, 54, 'both ends of all 27 runways');
   // Flown fairly, every one: the jet kept to the runway while its wheels were on it.
   for (const o of all) assert.ok(o.widest < o.field.runway.width / 2 - 2.7, `${o.name}: the main wheels stay on the runway (${o.widest.toFixed(1)} m off the centreline at most, ${o.field.runway.width.toFixed(0)} m wide)`);
+});
+
+test('the random runway: any of the 54 ends, and never the one the last flight started from', () => {
+  const all = runwayEnds(index.runways);
+  assert.equal(all.length, 54);
+  assert.equal(new Set(all.map((e) => `${e.way.airport} ${e.way.ends[e.from].ident}`)).size, 54, 'each end once');
+  // The dice at every value they can show: each end comes up, evenly.
+  const first = Array.from({ length: 5400 }, (_, k) => randomEnd(all, null, () => (k + 0.5) / 5400));
+  for (const end of all) assert.equal(first.filter((e) => e === end).length, 100, 'every end is as likely as any other');
+  // After a flight from one end, the next is from any of the other 53.
+  for (const last of all) {
+    const next = new Set(Array.from({ length: 530 }, (_, k) => randomEnd(all, last, () => (k + 0.5) / 530)));
+    assert.ok(!next.has(last) && next.size === 53, 'a new runway end every time');
+  }
+  assert.ok(all.includes(randomEnd(all, null, () => 0.999999999)), 'the dice never run off the end of the list');
+  // The two ends of a runway start 200 ft in from opposite ends, facing each other.
+  const [a, b] = all.filter((e) => e.way.airport === 'PHNL' && e.way.ends.some((x) => x.ident === '08R')).map((e) => runwayField(e.way, e.from));
+  assert.ok(Math.abs(Math.abs(a.heading - b.heading) - 180) < 1e-6, '08R and 26L point opposite ways');
+  const sa = startState(c, a).x, sb = startState(c, b).x;
+  assert.ok(Math.abs(Math.hypot(sa[0] - sb[0], sa[1] - sb[1]) - (a.runway.length - 400 * FT)) < 0.01, 'and start a runway apart, less 200 ft at each end');
 });

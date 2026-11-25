@@ -1,7 +1,7 @@
 // The app: the screens, the pilot's controls, and what happens when. The
 // platform rules and the update logic are Rage's (135crewdog/rage, src/main.js).
 import { APP_VERSION } from './version.js';
-import { PARKED } from './field.js';
+import { PARKED, randomEnd, runwayEnds } from './field.js';
 import { startFlight } from './flight.js';
 import { openHawaii } from './hawaii.js';
 import { createTilt } from './input/tilt.js';
@@ -163,6 +163,23 @@ try { savedDev = localStorage.getItem(DEV_KEY); } catch { /* storage may be bloc
 setDev(savedDev === 'on');
 devSwitch.addEventListener('click', () => setDev(devSwitch.getAttribute('aria-checked') !== 'true'));
 
+// Random runway: off, every flight starts on 8R at Honolulu; on, Fly and
+// every Restart start on a runway end picked at random from both ends of
+// every runway in Hawaii. Off until the pilot turns it on, kept between visits.
+const RANDOM_KEY = 'wings.randomRunway';
+const randomSwitch = $('random-switch');
+const ends = runwayEnds(hawaii.index.runways);
+let randomOn = false, startedFrom = null;
+const setRandom = (on) => {
+  randomOn = on;
+  randomSwitch.setAttribute('aria-checked', String(on));
+  try { localStorage.setItem(RANDOM_KEY, on ? 'on' : 'off'); } catch { /* storage may be blocked */ }
+};
+let savedRandom = null;
+try { savedRandom = localStorage.getItem(RANDOM_KEY); } catch { /* storage may be blocked */ }
+setRandom(savedRandom === 'on');
+randomSwitch.addEventListener('click', () => setRandom(randomSwitch.getAttribute('aria-checked') !== 'true'));
+
 // A read-only hook for browser tests and troubleshooting (after Rage's window.rage).
 window.wings = Object.freeze({
   version: APP_VERSION,
@@ -190,6 +207,30 @@ const letSleep = () => {
   lock = null;
 };
 const takeOff = () => { mode = 'flying'; show(null); flight.fly(); };
+// A new flight: the jet goes to its start (a new random runway end, or 8R at
+// Honolulu) and the flight begins when the ground there is ready. The screen
+// it was asked from stays up for that moment. If the app is hidden or loses
+// focus meanwhile, it waits on the pause screen instead of flying off unseen.
+let starting = false, interrupted = false;
+const newFlight = async () => {
+  if (starting) return;
+  starting = true;
+  interrupted = false;
+  const buttons = ['fly', 'resume', 'restart', 'crash-restart'].map($);
+  for (const button of buttons) button.disabled = true;   // dimmed while the ground at the new start is made ready
+  startedFrom = randomOn ? randomEnd(ends, startedFrom) : null;
+  await flight.restart(startedFrom ?? undefined);
+  starting = false;
+  for (const button of buttons) button.disabled = false;
+  parkControls();
+  tilt.recenter();
+  if (!interrupted && !document.hidden && !isPortrait()) { takeOff(); return; }
+  mode = 'paused';
+  menu(false);
+  letSleep();
+  show('pause');
+  showMap();
+};
 // The pause screen before the first flight (opened with Settings on the start
 // screen): its top button is Fly, and Restart and Recenter wait for a flight.
 const menu = (beforeFlight) => {
@@ -198,6 +239,7 @@ const menu = (beforeFlight) => {
   recenterButton.hidden = beforeFlight;
 };
 const pause = () => {
+  if (starting) interrupted = true;
   if (mode !== 'flying') return;
   mode = 'paused';
   menu(false);
@@ -215,6 +257,7 @@ const fly = () => {
   keepAwake();
   allowed.then((yes) => {
     if (!yes) { letSleep(); show('denied'); return; }
+    if (randomOn) { newFlight(); return; }   // off, the jet is already parked on 8R
     tilt.recenter();
     takeOff();
   });
@@ -237,10 +280,7 @@ for (const id of ['restart', 'crash-restart']) {
   $(id).addEventListener('click', () => {
     if (isPortrait()) return;
     keepAwake();
-    flight.restart();
-    parkControls();
-    tilt.recenter();
-    takeOff();
+    newFlight();
   });
 }
 

@@ -104,9 +104,10 @@ button:active { opacity: 0.6; }
 .btn:disabled { opacity: 0.4; }
 /* the pause screen: the map on the left, the menu on the right */
 #screen-pause { gap: 12px; }
-#screen-pause .card { width: 280px; flex: none; margin: 0 0 auto; gap: 6px; }
-#screen-pause .btn { padding: 9px 16px; }
-#screen-pause .row { padding: 2px 4px 2px 16px; }
+/* four buttons (with an update offered) and four switches fit an iPhone's landscape safe area: 348 points tall */
+#screen-pause .card { width: 280px; flex: none; margin: 0 0 auto; padding: 10px 16px; gap: 5px; }
+#screen-pause .btn { padding: 9px 8px; white-space: nowrap; }
+#screen-pause .row { padding: 0 4px 0 16px; }
 .map { flex: 1; min-width: 0; position: relative; border-radius: 14px; overflow: hidden; background: #18466f; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* the photographs' credit, in small print along the map's foot, as a map's attribution */

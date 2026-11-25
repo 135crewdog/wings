@@ -18,9 +18,9 @@ export const FIELD = {
 
 /**
  * A runway of Hawaii's (an entry of terrain/hawaii/index.json's runways),
- * taking off from its first end, or with `from` 1 from its second: the start
- * of every flight is runway 8R at Honolulu (docs/hawaii.md). Its height is
- * the middle of its two ends'.
+ * taking off from its first end, or with `from` 1 from its second. Flights
+ * start on runway 8R at Honolulu or, with the pause screen's switch on, on a
+ * random runway end (docs/hawaii.md). Its height is the middle of its two ends'.
  */
 export function runwayField(way, from = 0) {
   const a = way.ends[from], b = way.ends[1 - from];
@@ -30,6 +30,15 @@ export function runwayField(way, from = 0) {
     height: (a.height + b.height) / 2, north: (a.north + b.north) / 2, east: (a.east + b.east) / 2, heading,
     runway: { length, width: way.width, numbers: [a.ident, b.ident] }, startBack: 200 * FT,
   };
+}
+
+/** Every runway end a flight can start from: both ends of every runway, each as { way, from }. */
+export const runwayEnds = (runways) => runways.flatMap((way) => [0, 1].map((from) => ({ way, from })));
+
+/** A runway end picked at random from `ends`, never `not`: the one the flight before started from. */
+export function randomEnd(ends, not = null, random = Math.random) {
+  const others = ends.filter((end) => end !== not);
+  return others[Math.floor(random() * others.length)];
 }
 
 /** The field's ground, for the simulation. */
