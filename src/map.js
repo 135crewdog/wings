@@ -93,14 +93,16 @@ export function noseOnMap(heading) {
 }
 
 /**
- * The map for a canvas. `hawaii` is src/hawaii.js's; `silhouette()` a canvas
- * with the airplane seen from above, nose up, opaque where the airplane is
- * (or null until it's made). Returns { show(jet), prepare() }, jet { north,
+ * The map for a canvas, with its zoom button. `hawaii` is src/hawaii.js's;
+ * `silhouette()` a canvas with the airplane seen from above, nose up, opaque
+ * where the airplane is (or null until it's made). Returns { show(jet), prepare() }, jet { north,
  * east, heading }: show() draws the whole chain at once, and again when the
  * photographs are ready; prepare() starts on the chain's photographs ahead of
- * the first pause. A tap on the map zooms in round the jet; another, back out.
+ * the first pause. A tap on the map or on its button zooms in round the jet;
+ * another, back out. The button's label says which the next tap does, and the
+ * stylesheet draws its plus or minus from the label.
  */
-export function createMap(canvas, hawaii, silhouette) {
+export function createMap(canvas, button, hawaii, silhouette) {
   const { index } = hawaii;
   const chain = extent(index);
   const fields = airports(index);
@@ -208,10 +210,11 @@ export function createMap(canvas, hawaii, silhouette) {
     }
   };
 
-  canvas.addEventListener('click', () => { zoomed = !zoomed; draw(); });
+  const zoom = (on) => { zoomed = on; button.setAttribute('aria-label', on ? 'Zoom out' : 'Zoom in'); draw(); };
+  for (const el of [canvas, button]) el.addEventListener('click', () => zoom(!zoomed));
   // Drawn again whenever the map's box changes size: after a turn of the phone
   // iOS reports the new size late, and a map drawn for the old one is squashed.
   new ResizeObserver(() => draw()).observe(canvas);
-  const show = (where) => { jet = where; zoomed = false; draw(); };
+  const show = (where) => { jet = where; zoom(false); };
   return { show, prepare };
 }
